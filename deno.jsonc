@@ -13,6 +13,10 @@
     "./generate": "./scripts/ttl-to-ts.ts"
   },
   "license": "MIT",
+
+  "publish": {
+    "exclude": ["infra", "examples", ".github"]
+  },
   
   "tasks": {
     "dev": "deno run --watch examples/basic.ts",
