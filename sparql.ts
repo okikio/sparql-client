@@ -167,6 +167,7 @@ function formatArray(arr: SparqlInterpolatable[]): string {
   // Check if all elements are primitives (for VALUES clause)
   const allPrimitives = arr.every(
     (item) =>
+      item instanceof Date ||
       typeof item === 'string' ||
       typeof item === 'number' ||
       typeof item === 'boolean' ||
@@ -214,7 +215,7 @@ function formatObject(obj: { [key: string]: SparqlInterpolatable }): string {
 /**
  * Convert any value to SPARQL representation
  */
-function convertValue(value: SparqlInterpolatable): string {
+function convertValue(value: SparqlInterpolatable, strict = true): string {
   // Already wrapped SparqlValue
   if (isSparqlValue(value)) {
     return value.value
@@ -222,32 +223,31 @@ function convertValue(value: SparqlInterpolatable): string {
 
   // Null/undefined - throw error (use OPTIONAL instead)
   if (value === null || value === undefined) {
-    throw new Error(
+    if (strict) throw new Error(
       'Cannot convert null/undefined to SPARQL. Use OPTIONAL { } pattern instead.'
     )
+
+    return strlit('').value;
   }
 
   // String - triple-quoted literal with xsd:string
   if (typeof value === 'string') {
-    return `"""${escapeString(value)}"""^^<http://www.w3.org/2001/XMLSchema#string>`
-  }
-
-  // Number - raw number (SPARQL infers integer/decimal/double)
-  if (typeof value === 'number') {
-    if (Number.isInteger(value)) {
-      return String(value)
-    }
-    return `"${value}"^^<http://www.w3.org/2001/XMLSchema#decimal>`
+    return strlit(value).value
   }
 
   // Boolean - raw true/false
   if (typeof value === 'boolean') {
-    return String(value)
+    return boolean(value).value
+  }
+
+  // Number - raw number (SPARQL infers integer/decimal/double)
+  if (typeof value === 'number') {
+    return num(value).value
   }
 
   // Date - xsd:dateTime
   if (value instanceof Date) {
-    return formatDateTime(value)
+    return date(value).value
   }
 
   // Array - VALUES clause or RDF list
@@ -418,6 +418,10 @@ export function integer(value: number): SparqlValue {
  * @example decimal(3.14) → "3.14"^^xsd:decimal
  */
 export function decimal(value: number): SparqlValue {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Expected finite number, got: ${value}`)
+  }
+
   return wrapSparqlValue(
     `"${value}"^^<http://www.w3.org/2001/XMLSchema#decimal>`
   )
@@ -440,7 +444,7 @@ export function num(value: number): SparqlValue {
  * @example boolean(true) → true
  */
 export function boolean(value: boolean): SparqlValue {
-  return wrapSparqlValue(String(value))
+  return wrapSparqlValue(String(!!value))
 }
 
 /**
@@ -474,7 +478,7 @@ export function typed(value: string, datatype: DatatypeIRI): SparqlValue {
 /**
  * String literal (explicit)
  */
-export function str(value: string): SparqlValue {
+export function strlit(value: string): SparqlValue {
   return typed(value, "http://www.w3.org/2001/XMLSchema#string")
 }
 
@@ -535,8 +539,9 @@ export function optional(pattern: SparqlValue): SparqlValue {
  * → BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
  */
 export function bind(expression: SparqlValue, varName: VariableName): SparqlValue {
-  validateVariableName(varName)
-  return wrapSparqlValue(`BIND(${expression.value} AS ?${varName})`)
+  const _varName = normalizeVariableName(varName)
+  validateVariableName(_varName)
+  return wrapSparqlValue(`BIND(${expression.value} AS ?${_varName})`)
 }
 
 // ============================================================================
@@ -566,7 +571,7 @@ export function exprTerm(
     return value
   }
   // primitives go through convertValue via the template tag
-  return sparql`${value}`
+  return wrapSparqlValue(convertValue(value))
 }
 
 /**
@@ -593,12 +598,263 @@ export function concat(
 ): SparqlValue {
   if (args.length === 0) {
     // CONCAT() is invalid; return an empty string literal
-    return sparql`` // """"
+    return strlit('') // """"
   }
 
   const inner = args.map(exprTermString).join(', ')
   return raw(`CONCAT(${inner})`)
 }
+
+export function str(value: SparqlValue | ExpressionPrimitive): SparqlValue {
+  return raw(`STR(${exprTermString(value)})`)
+}
+
+export function strlen(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`STRLEN(${exprTermString(value)})`)
+}
+
+export function ucase(value: SparqlValue | ExpressionPrimitive): SparqlValue {
+  return raw(`UCASE(${exprTermString(value)})`)
+}
+
+export function lcase(value: SparqlValue | ExpressionPrimitive): SparqlValue {
+  return raw(`LCASE(${exprTermString(value)})`)
+}
+
+
+export function contains(
+  text: SparqlValue | ExpressionPrimitive,
+  pattern: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(
+    `CONTAINS(${exprTermString(text)}, ${exprTermString(pattern)})`,
+  )
+}
+
+export function startsWith(
+  text: SparqlValue | ExpressionPrimitive,
+  pattern: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(
+    `STRSTARTS(${exprTermString(text)}, ${exprTermString(pattern)})`,
+  )
+}
+
+export function endsWith(
+  text: SparqlValue | ExpressionPrimitive,
+  pattern: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(
+    `STRENDS(${exprTermString(text)}, ${exprTermString(pattern)})`,
+  )
+}
+
+export function substr(
+  text: SparqlValue | ExpressionPrimitive,
+  start: SparqlValue | ExpressionPrimitive,
+  length?: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  const t = exprTermString(text)
+  const s = exprTermString(start)
+  if (length === undefined) {
+    return raw(`SUBSTR(${t}, ${s})`)
+  }
+  const l = exprTermString(length)
+  return raw(`SUBSTR(${t}, ${s}, ${l})`)
+}
+
+export function replaceStr(
+  text: SparqlValue | ExpressionPrimitive,
+  pattern: SparqlValue | ExpressionPrimitive,
+  replacement: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  const textTerm = exprTermString(text)
+  const patternTerm = exprTermString(pattern)
+  const replacementTerm = exprTermString(replacement)
+  return raw(`REPLACE(${textTerm}, ${patternTerm}, ${replacementTerm})`)
+}
+
+
+/**
+ * REGEX helper
+ *
+ * @example
+ * ```ts
+ * const condition = regex(variable('name'), '^Spidey', 'i')
+ * builder.filter(condition)
+ * ```
+ */
+export function regex(
+  text: SparqlValue | ExpressionPrimitive,
+  pattern: string,
+  flags?: string,
+): SparqlValue {
+  const textTerm = exprTermString(text)
+  const patternTerm = exprTermString(pattern)
+  const flagsTerm = flags ? `, ${exprTermString(flags)}` : ''
+  return raw(`REGEX(${textTerm}, ${patternTerm}${flagsTerm})`)
+}
+
+
+// Nullish / list helpers (Drizzle-like)
+
+export function isNull(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`!BOUND(${exprTermString(value)})`)
+}
+
+export function isNotNull(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`BOUND(${exprTermString(value)})`)
+}
+
+export function inList(
+  expr: SparqlValue | ExpressionPrimitive,
+  values: Array<SparqlValue | ExpressionPrimitive>,
+): SparqlValue {
+  if (values.length === 0) {
+    // Nothing is in an empty set.
+    return raw('false')
+  }
+  const list = values.map(exprTermString).join(', ')
+  return raw(`${exprTermString(expr)} IN (${list})`)
+}
+
+export function notInList(
+  expr: SparqlValue | ExpressionPrimitive,
+  values: Array<SparqlValue | ExpressionPrimitive>,
+): SparqlValue {
+  if (values.length === 0) {
+    // Everything is not in an empty set.
+    return raw('true')
+  }
+  const list = values.map(exprTermString).join(', ')
+  return raw(`${exprTermString(expr)} NOT IN (${list})`)
+}
+
+export function between(
+  expr: SparqlValue | ExpressionPrimitive,
+  low: SparqlValue | ExpressionPrimitive,
+  high: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  const e = exprTermString(expr)
+  const l = exprTermString(low)
+  const h = exprTermString(high)
+  return raw(`(${e} >= ${l} && ${e} <= ${h})`)
+}
+
+export function coalesce(
+  ...values: Array<SparqlValue | ExpressionPrimitive>
+): SparqlValue {
+  if (values.length === 0) {
+    return strlit('')
+  }
+  const inner = values.map(exprTermString).join(', ')
+  return raw(`COALESCE(${inner})`)
+}
+
+export function ifElse(
+  condition: SparqlValue,
+  whenTrue: SparqlValue | ExpressionPrimitive,
+  whenFalse: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  const trueTerm = exprTermString(whenTrue);
+  const falseTerm = exprTermString(whenFalse)
+  return raw(
+    `IF(${condition.value}, ${trueTerm}, ${falseTerm})`,
+  )
+}
+
+
+// ---- Numeric helpers ----
+
+export function add(
+  left: SparqlValue | ExpressionPrimitive,
+  right: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`${exprTermString(left)} + ${exprTermString(right)}`)
+}
+
+export function sub(
+  left: SparqlValue | ExpressionPrimitive,
+  right: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`${exprTermString(left)} - ${exprTermString(right)}`)
+}
+
+export function mul(
+  left: SparqlValue | ExpressionPrimitive,
+  right: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`${exprTermString(left)} * ${exprTermString(right)}`)
+}
+
+export function div(
+  left: SparqlValue | ExpressionPrimitive,
+  right: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`${exprTermString(left)} / ${exprTermString(right)}`)
+}
+
+export function mod(
+  left: SparqlValue | ExpressionPrimitive,
+  right: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`(${exprTermString(left)} % ${exprTermString(right)})`)
+}
+
+export function abs(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`ABS(${exprTermString(value)})`)
+}
+
+export function ceil(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`CEIL(${exprTermString(value)})`)
+}
+
+export function floor(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`FLOOR(${exprTermString(value)})`)
+}
+
+export function round(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`ROUND(${exprTermString(value)})`)
+}
+
+// ---- Date/Time helpers (SPARQL 1.1) ----
+
+export function nowFn(): SparqlValue {
+  return raw('NOW()')
+}
+
+export function yearFn(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`YEAR(${exprTermString(value)})`)
+}
+
+export function monthFn(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`MONTH(${exprTermString(value)})`)
+}
+
+export function dayFn(
+  value: SparqlValue | ExpressionPrimitive,
+): SparqlValue {
+  return raw(`DAY(${exprTermString(value)})`)
+}
+
 
 /**
  * Comparison helpers
@@ -655,24 +911,16 @@ export function lte(
 export function and(
   ...conditions: SparqlValue[]
 ): SparqlValue {
-  if (conditions.length === 0) {
-    return raw('true')
-  }
-  if (conditions.length === 1) {
-    return conditions[0]
-  }
+  if (conditions.length === 0) return raw('true')
+  if (conditions.length === 1) return conditions[0]
   return raw(conditions.map((c) => c.value).join(' && '))
 }
 
 export function or(
   ...conditions: SparqlValue[]
 ): SparqlValue {
-  if (conditions.length === 0) {
-    return raw('false')
-  }
-  if (conditions.length === 1) {
-    return conditions[0]
-  }
+  if (conditions.length === 0) return raw('false')
+  if (conditions.length === 1) return conditions[0]
   return raw(conditions.map((c) => c.value).join(' || '))
 }
 
@@ -694,25 +942,7 @@ export function notExists(pattern: SparqlValue): SparqlValue {
   return raw(`NOT EXISTS { ${pattern.value} }`)
 }
 
-/**
- * REGEX helper
- *
- * @example
- * ```ts
- * const condition = regex(variable('name'), '^Spidey', 'i')
- * builder.filter(condition)
- * ```
- */
-export function regex(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: string,
-  flags?: string,
-): SparqlValue {
-  const textTerm = exprTermString(text)
-  const patternTerm = exprTermString(pattern)
-  const flagsTerm = flags ? `, ${exprTermString(flags)}` : ''
-  return raw(`REGEX(${textTerm}, ${patternTerm}${flagsTerm})`)
-}
+
 
 
 // ============================================================================

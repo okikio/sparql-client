@@ -1,18 +1,5 @@
-/**
- * Unified SPARQL API - Supporting 4 DX Patterns
- * 
- * This module provides 4 different ways to write SPARQL queries,
- * each optimized for different use cases and developer preferences.
- * 
- * IMPORTANT: RDF vs Cypher
- * - RDF is a graph of statements (triples), not a property graph
- * - Relationships in RDF are triples, not edges with properties
- * - "Nesting" in RDF requires blank nodes or multiple triples
- * - Type in RDF (rdf:type / 'a') is just another predicate
- */
-
-import { sparql, uri, variable, date, dateTime, type SparqlValue } from '../sparql.ts'
-import { Node } from './nested.ts'
+import { raw, type SparqlValue } from '../sparql.ts'
+import { Node } from './objects.ts'
 
 // ============================================================================
 // Approach 3: ASCII Art Pattern (Cypher-like visual)
@@ -36,9 +23,7 @@ import { Node } from './nested.ts'
  * 
  * const pattern = path`${product}-[narrative:publishedBy]->${publisher}`;
  * ```
- */
-
-/**
+ * 
  * Create path pattern with ASCII art
  * 
  * Supported patterns:
@@ -73,7 +58,7 @@ export function cypher(
 
   // Add all node triples first
   for (const node of nodes) {
-    triples.push(...node.buildTriples())
+    triples.push(...node.value)
   }
 
   // Parse edges
@@ -89,6 +74,6 @@ export function cypher(
     triples.push(`?${fromVar} ${predicate} ?${toVar} .`)
   }
 
-  return sparql`${triples.join('\n')}`
+  return raw(`${triples.join('\n')}`)
 }
 

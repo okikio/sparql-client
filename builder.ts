@@ -237,9 +237,11 @@ export class QueryBuilder {
    * ```
    */
   optional(pattern: SparqlValue): QueryBuilder {
+    const optionalPattern = optionalExpr(pattern)
+
     return new QueryBuilder({
       ...this.state,
-      optional: [...this.state.optional, pattern],
+      optional: [...this.state.optional, optionalPattern],
     })
   }
 
@@ -401,7 +403,7 @@ export class QueryBuilder {
 
       // OPTIONAL blocks
       for (const optional of this.state.optional) {
-        parts.push(`  OPTIONAL { ${optional.value} }`)
+        parts.push(`  ${optional.value}`)
       }
 
       // BIND expressions (already BIND(...))
@@ -470,7 +472,7 @@ export const { select, ask, construct, describe } = QueryBuilder
  * );
  * ```
  */
-export async function execute(
+export function execute(
   builder: QueryBuilder,
   config: ExecutorConfig
 ): Promise<SparqlResult> {
