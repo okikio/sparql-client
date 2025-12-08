@@ -1,0 +1,71 @@
+# Exclude unnecessary files from Docker build context
+# This speeds up builds and reduces image size
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv
+pip-log.txt
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data and backups (we use volumes)
+data/
+backups/
+*.jnl
+*.tar.gz
+
+# But allow seed data
+!data/narrative.ttl
+!data/narrative-rec.ttl
+!data/comic_output.json
+!data/comic_output.zip
+!data/comic_output.json.zip
+!data/comic_output.gz
+!data/comic_output.json.gz
+
+# Notebooks
+notebooks/
+
+# Documentation
+*.md
+!DOCKER_SETUP.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

@@ -1,0 +1,1250 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dc: <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix : <http://knowledge.graph/ontology/narrative#> .
+
+# Core Narrative Concepts (Schema/Ontology Prefixes)
+@prefix narrative: <http://knowledge.graph/ontology/narrative#> .    # Stories, plots, arcs, relationships
+@prefix character: <http://knowledge.graph/ontology/character#> .    # Characters, roles
+@prefix creator: <http://knowledge.graph/ontology/creator#> .        # Writers, artists, studios, publishers
+@prefix work: <http://knowledge.graph/ontology/work#> .              # Comics, manga, anime, films, TV, novels
+@prefix universe: <http://knowledge.graph/ontology/universe#> .      # Fictional worlds, settings
+@prefix product: <http://knowledge.graph/ontology/product#> .        # Physical/digital items, manifestations
+
+# Instance Data (Resource Prefixes)
+@prefix data: <http://knowledge.graph/data/> .
+
+#################################################################
+# Ontology header
+#################################################################
+
+:Ontology a owl:Ontology ;
+  rdfs:label "Narrative Graph Ontology" ;
+  rdfs:comment "OWL ontology for people, organizations, narrative structure, universes, groups, and relationships with metadata." .
+
+#################################################################
+# Core Classes
+#################################################################
+
+:Person a owl:Class .
+:Org a owl:Class .
+:Role a owl:Class .
+:StoryWork a owl:Class .
+:StoryExpression a owl:Class .
+:NarrativeUnit a owl:Class .
+:Product a owl:Class .
+:Manifestation a owl:Class .
+:Item a owl:Class .
+:Character a owl:Class .
+:Franchise a owl:Class .
+:Universe a owl:Class .
+:Group a owl:Class .
+:Relationship a owl:Class .
+
+#################################################################
+# Role Hierarchy
+#################################################################
+
+:Performer a owl:Class ; rdfs:subClassOf :Role .
+:Actor a owl:Class ; rdfs:subClassOf :Performer .
+:VoiceActor a owl:Class ; rdfs:subClassOf :Performer .
+:Singer a owl:Class ; rdfs:subClassOf :Performer .
+:Dancer a owl:Class ; rdfs:subClassOf :Performer .
+
+:Writer a owl:Class ; rdfs:subClassOf :Role .
+:Screenwriter a owl:Class ; rdfs:subClassOf :Writer .
+:Artist a owl:Class ; rdfs:subClassOf :Role .
+:Penciller a owl:Class ; rdfs:subClassOf :Artist .
+:Inker a owl:Class ; rdfs:subClassOf :Artist .
+:Colorist a owl:Class ; rdfs:subClassOf :Artist .
+:Letterer a owl:Class ; rdfs:subClassOf :Artist .
+
+:Director a owl:Class ; rdfs:subClassOf :Role .
+:Producer a owl:Class ; rdfs:subClassOf :Role .
+
+#################################################################
+# Role Subclass Properties
+#################################################################
+
+### Writer-specific Properties
+:writingStyle a owl:DatatypeProperty ;
+    rdfs:domain :Writer ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Writing style or specialty" .
+
+:notableStories a owl:DatatypeProperty ;
+    rdfs:domain :Writer ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Famous stories written" .
+
+### Artist-specific Properties
+:artStyle a owl:DatatypeProperty ;
+    rdfs:domain :Artist ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Art style or technique" .
+
+:primaryMedium a owl:DatatypeProperty ;
+    rdfs:domain :Artist ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Traditional, Digital, Mixed Media, etc." .
+
+:influences a owl:DatatypeProperty ;
+    rdfs:domain :Artist ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Artistic influences" .
+
+#################################################################
+# Object Properties (structural with inverses)
+#################################################################
+
+:worksFor a owl:ObjectProperty ; rdfs:domain :Person ; rdfs:range :Org ; owl:inverseOf :employs .
+:employs a owl:ObjectProperty ; rdfs:domain :Org ; rdfs:range :Person .
+
+:memberOf a owl:ObjectProperty ; rdfs:domain :Person ; rdfs:range :Org ; owl:inverseOf :hasMember .
+:hasMember a owl:ObjectProperty ; rdfs:domain :Org ; rdfs:range :Person .
+
+:hasExpression a owl:ObjectProperty ; rdfs:domain :StoryWork ; rdfs:range :StoryExpression .
+:expressionOf a owl:ObjectProperty ; rdfs:domain :StoryExpression ; rdfs:range :StoryWork ; owl:inverseOf :hasExpression .
+
+:hasNarrativeUnit a owl:ObjectProperty ; rdfs:domain :StoryExpression ; rdfs:range :NarrativeUnit .
+:narrativeUnitOf a owl:ObjectProperty ; rdfs:domain :NarrativeUnit ; rdfs:range :StoryExpression ; owl:inverseOf :hasNarrativeUnit .
+
+:hasProduct a owl:ObjectProperty ; rdfs:domain :NarrativeUnit ; rdfs:range :Product .
+:productOf a owl:ObjectProperty ; rdfs:domain :Product ; rdfs:range :NarrativeUnit ; owl:inverseOf :hasProduct .
+
+:hasManifestation a owl:ObjectProperty ; rdfs:domain :Product ; rdfs:range :Manifestation .
+:manifestationOf a owl:ObjectProperty ; rdfs:domain :Manifestation ; rdfs:range :Product ; owl:inverseOf :hasManifestation .
+
+:hasItem a owl:ObjectProperty ; rdfs:domain :Manifestation ; rdfs:range :Item .
+:itemOf a owl:ObjectProperty ; rdfs:domain :Item ; rdfs:range :Manifestation ; owl:inverseOf :hasItem .
+
+:belongsToFranchise a owl:ObjectProperty ; rdfs:domain :Character ; rdfs:range :Franchise .
+:existsInUniverse a owl:ObjectProperty ; rdfs:domain :Character ; rdfs:range :Universe .
+
+#################################################################
+# Person Properties
+#################################################################
+
+### Person Identity & Biography
+:birthName a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Full legal birth name" .
+
+:knownAs a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Common name or professional name" .
+
+:alias a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Pen names, pseudonyms, stage names (repeatable)" .
+
+:birthDate a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of birth" .
+
+:deathDate a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of death (if deceased)" .
+
+:birthPlace a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "City, state/province, country of birth" .
+
+:nationality a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Country of citizenship" .
+
+:gender a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Gender identity" .
+
+### Person Contact & Social
+:website a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Official website URL" .
+
+:socialMedia a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Social media profiles (Twitter, Instagram, etc.)" .
+
+:email a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Contact email" .
+
+### Person Professional
+:activeYears a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Years active in industry (e.g., '1985-present')" .
+
+:activeFrom a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year started in industry" .
+
+:activeTo a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year ended/retired (if applicable)" .
+
+:primaryRole a owl:ObjectProperty ;
+    rdfs:domain :Person ;
+    rdfs:range :Role ;
+    rdfs:comment "Primary creative role (writer, artist, etc.)" .
+
+:biography a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Biographical summary" .
+
+:awards a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Awards and honors received" .
+
+#################################################################
+# Org Properties
+#################################################################
+
+### Org Identity
+:legalName a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Legal registered name of organization" .
+
+:shortName a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Abbreviated name (e.g., 'DC' for 'DC Comics')" .
+
+:orgType a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Publisher, Imprint, Studio, Convention, etc." .
+
+:parentCompany a owl:ObjectProperty ;
+    rdfs:domain :Org ;
+    rdfs:range :Org ;
+    rdfs:comment "Parent organization" .
+
+:subsidiary a owl:ObjectProperty ;
+    rdfs:domain :Org ;
+    rdfs:range :Org ;
+    owl:inverseOf :parentCompany ;
+    rdfs:comment "Subsidiary organizations" .
+
+### Org Timeline
+:founded a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date organization was founded" .
+
+:dissolved a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date organization ceased operations" .
+
+:status a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Defunct, Acquired, Merged, etc." .
+
+### Org Location & Contact
+:headquarters a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Location of headquarters" .
+
+:country a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Country of operation" .
+
+### Org Business
+:industry a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Comics, Animation, Film, Gaming, etc." .
+
+:revenue a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Annual revenue" .
+
+:employeeCount a owl:DatatypeProperty ;
+    rdfs:domain :Org ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of employees" .
+
+#################################################################
+# StoryWork Properties
+#################################################################
+
+### StoryWork Identity
+:seriesName a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the series" .
+
+:sortName a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name for alphabetical sorting (without 'The', etc.)" .
+
+:volume a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Volume number (for series with multiple volumes)" .
+
+### StoryWork Timeline
+:yearBegan a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year series started" .
+
+:yearEnded a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year series ended (if concluded)" .
+
+:publicationStatus a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ongoing, Completed, Cancelled, Hiatus" .
+
+:issueCount a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total number of issues published" .
+
+### StoryWork Classification
+:seriesType a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ongoing Series, Limited Series, Mini-Series, One-Shot, etc." .
+
+:genre a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Superhero, Horror, Crime, Sci-Fi, Fantasy, etc. (repeatable)" .
+
+:ageRating a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "All Ages, Teen, Mature Readers, etc." .
+
+:publishedBy a owl:ObjectProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range :Org ;
+    rdfs:comment "Publisher of the series" .
+
+:imprint a owl:ObjectProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range :Org ;
+    rdfs:comment "Imprint line (Vertigo, MAX, Black Label, etc.)" .
+
+### StoryWork Description
+:synopsis a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Series description/premise" .
+
+:continuity a owl:DatatypeProperty ;
+    rdfs:domain :StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Continuity designation (Earth-616, New 52, etc.)" .
+
+#################################################################
+# StoryExpression Properties
+#################################################################
+
+### StoryExpression Identity
+:issueNumber a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Issue number (can be string for special issues like '0', 'Annual')" .
+
+:issueTitle a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Title of this specific issue" .
+
+:coverImage a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "URL to cover image" .
+
+:subtitle a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Issue subtitle or chapter title" .
+
+:altNumber a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Alternate numbering (legacy numbering, etc.)" .
+
+### StoryExpression Dates
+:coverDate a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Cover date (month/year on cover)" .
+
+:storeDate a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Actual release date to stores" .
+
+:digitalReleaseDate a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Digital release date (often different from print)" .
+
+### StoryExpression Content
+:pageCount a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of pages" .
+
+:storyPageCount a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Story pages (excluding ads)" .
+
+:description a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Issue description/solicitation text" .
+
+:hasBackupStory a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether issue contains backup/second story" .
+
+### StoryExpression Identifiers
+:sku a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Diamond SKU or order code" .
+
+:isbn a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ISBN (for collected editions)" .
+
+:upc a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "UPC barcode" .
+
+:comicVineId a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ComicVine ID" .
+
+:gcdId a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Grand Comics Database ID" .
+
+### StoryExpression Features
+:isKeyIssue a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether considered a key/significant issue" .
+
+:firstAppearance a owl:ObjectProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range :Character ;
+    rdfs:comment "Characters making first appearance" .
+
+:significantEvent a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Major story events (death of X, origin story, etc.)" .
+
+:crossover a owl:DatatypeProperty ;
+    rdfs:domain :StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of crossover event (if applicable)" .
+
+#################################################################
+# Character Properties
+#################################################################
+
+### Character Identity
+:characterName a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Primary character name" .
+
+:realName a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Secret identity/civilian name" .
+
+:aliases a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Alternate identities, codenames, nicknames" .
+
+:characterType a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Hero, Villain, Anti-Hero, Supporting, Civilian, etc." .
+
+:status a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Deceased, Retired, Unknown, etc." .
+
+### Character Attributes
+:species a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Human, Mutant, Alien, God, Robot, etc." .
+
+:gender a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Gender identity" .
+
+:height a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character height" .
+
+:weight a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character weight" .
+
+:eyeColor a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Eye color" .
+
+:hairColor a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Hair color" .
+
+### Character Powers & Abilities
+:powers a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Superpowers and special abilities" .
+
+:abilities a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Skills, training, expertise" .
+
+:powerLevel a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Street Level, City Level, Global, Cosmic, etc." .
+
+:weapons a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Signature weapons and equipment" .
+
+### Character Background
+:origin a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Origin story summary" .
+
+:occupation a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Job/profession" .
+
+:baseOfOperations a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Home city or base location" .
+
+:placeOfBirth a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Where character was born" .
+
+### Character Relationships
+:affiliation a owl:ObjectProperty ;
+    rdfs:domain :Character ;
+    rdfs:range :Group ;
+    rdfs:comment "Team memberships" .
+
+:enemies a owl:ObjectProperty ;
+    rdfs:domain :Character ;
+    rdfs:range :Character ;
+    rdfs:comment "Arch-enemies and rivals" .
+
+:allies a owl:ObjectProperty ;
+    rdfs:domain :Character ;
+    rdfs:range :Character ;
+    rdfs:comment "Friends and allies" .
+
+### Character Meta
+:firstAppearanceIn a owl:ObjectProperty ;
+    rdfs:domain :Character ;
+    rdfs:range :StoryExpression ;
+    rdfs:comment "Issue of first appearance" .
+
+:bio a owl:DatatypeProperty ;
+    rdfs:domain :Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character biography" .
+
+#################################################################
+# Manifestation Properties
+#################################################################
+
+### Manifestation Identity
+:format a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Single Issue, Trade Paperback, Hardcover, Omnibus, Digital, etc." .
+
+:edition a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "First Edition, Second Printing, Deluxe Edition, etc." .
+
+:printRun a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of copies printed" .
+
+:binding a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Saddle-Stitched, Perfect Bound, Hardcover, etc." .
+
+### Manifestation Physical
+:trim a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical dimensions (6.625 x 10.25 inches, etc.)" .
+
+:paperStock a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Paper type and quality" .
+
+:coverStock a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Cover material and finish" .
+
+:printingProcess a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Offset, Digital, Letterpress, etc." .
+
+### Manifestation Dates
+:printDate a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date this printing was produced" .
+
+:reprinted a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether this is a reprint" .
+
+:reprintOf a owl:ObjectProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range :Manifestation ;
+    rdfs:comment "Original manifestation being reprinted" .
+
+### Manifestation Features
+:variant a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Variant type (Cover A/B, Retailer Incentive, Ratio 1:25, etc.)" .
+
+:coverArtist a owl:ObjectProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range :Person ;
+    rdfs:comment "Artist who created the cover" .
+
+:specialFeatures a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Sketch pages, interviews, extras included" .
+
+### Manifestation Distribution
+:distributor a owl:ObjectProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range :Org ;
+    rdfs:comment "Distribution company (Diamond, Lunar, etc.)" .
+
+:restricted a owl:DatatypeProperty ;
+    rdfs:domain :Manifestation ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Convention exclusive, limited distribution, etc." .
+
+#################################################################
+# Product Properties
+#################################################################
+
+### Product Identity
+:productLine a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Single Issues, Collected Editions, Archives, Essentials, etc." .
+
+:collectionTitle a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Title of collected edition" .
+
+:collectionType a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Trade Paperback, Hardcover, Omnibus, Absolute, Epic Collection, etc." .
+
+:volumeNumber a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Volume number in series of collections" .
+
+### Product Contents
+:collects a owl:ObjectProperty ;
+    rdfs:domain :Product ;
+    rdfs:range :StoryExpression ;
+    rdfs:comment "Issues collected in this product" .
+
+:collectsRange a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Human-readable range (e.g., 'Issues #1-6')" .
+
+:includesExtras a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Contains bonus material beyond collected issues" .
+
+:bonusMaterial a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of extras (sketch pages, scripts, etc.)" .
+
+### Product Commercial
+:originalPrice a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Original retail price at launch" .
+
+:currentPrice a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Current market price" .
+
+:inPrint a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether currently available for purchase" .
+
+### Product Meta
+:productISBN a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ISBN for this product" .
+
+:releaseDate a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Product release date" .
+
+:productDescription a owl:DatatypeProperty ;
+    rdfs:domain :Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Marketing description" .
+
+#################################################################
+# NarrativeUnit Properties
+#################################################################
+
+### NarrativeUnit Identity
+:arcName a owl:DatatypeProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of story arc" .
+
+:arcType a owl:DatatypeProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Arc, Saga, Event, Crossover, etc." .
+
+:partNumber a owl:DatatypeProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Part number within larger story" .
+
+:totalParts a owl:DatatypeProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total parts in complete arc" .
+
+### NarrativeUnit Content
+:arcSummary a owl:DatatypeProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Summary of story arc" .
+
+:spans a owl:ObjectProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range :StoryExpression ;
+    rdfs:comment "Issues that comprise this arc" .
+
+:featuredCharacters a owl:ObjectProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range :Character ;
+    rdfs:comment "Main characters in this arc" .
+
+### NarrativeUnit Context
+:partOfEvent a owl:ObjectProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range :NarrativeUnit ;
+    rdfs:comment "Larger event this arc is part of" .
+
+:followedBy a owl:ObjectProperty ;
+    rdfs:domain :NarrativeUnit ;
+    rdfs:range :NarrativeUnit ;
+    rdfs:comment "Next arc in sequence" .
+
+#################################################################
+# Universe Properties
+#################################################################
+
+### Universe Identity
+:universeName a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of fictional universe" .
+
+:designation a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Official designation (Earth-616, Prime Earth, etc.)" .
+
+:universeType a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Main Continuity, Alternate, Elseworlds, What If, etc." .
+
+:canon a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether considered main canon" .
+
+### Universe Description
+:universeDescription a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of universe characteristics" .
+
+:keyDifferences a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "How this universe differs from main continuity" .
+
+### Universe Meta
+:introducedIn a owl:ObjectProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range :StoryExpression ;
+    rdfs:comment "Issue where universe first appeared" .
+
+:status a owl:DatatypeProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Destroyed, Merged, Rebooted, etc." .
+
+:relatedUniverse a owl:ObjectProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range :Universe ;
+    rdfs:comment "Parallel or related universes" .
+
+:partOfMultiverse a owl:ObjectProperty ;
+    rdfs:domain :Universe ;
+    rdfs:range :Universe ;
+    rdfs:comment "Larger multiverse this is part of" .
+
+#################################################################
+# Group Properties
+#################################################################
+
+### Group Identity
+:groupName a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Official name of team/organization" .
+
+:formerNames a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Previous names" .
+
+:groupType a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Hero Team, Villain Organization, Government Agency, etc." .
+
+:alignment a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Good, Evil, Neutral, etc." .
+
+### Group Timeline
+:formed a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "When group was founded (in-universe)" .
+
+:disbanded a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "When group disbanded (if applicable)" .
+
+:groupStatus a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Disbanded, Reformed, etc." .
+
+### Group Details
+:purpose a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Mission or purpose of group" .
+
+:headquarters a owl:DatatypeProperty ;
+    rdfs:domain :Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Base of operations" .
+
+:leader a owl:ObjectProperty ;
+    rdfs:domain :Group ;
+    rdfs:range :Character ;
+    rdfs:comment "Current or historical leader" .
+
+:members a owl:ObjectProperty ;
+    rdfs:domain :Group ;
+    rdfs:range :Character ;
+    rdfs:comment "Members of the group" .
+
+:allies a owl:ObjectProperty ;
+    rdfs:domain :Group ;
+    rdfs:range :Group ;
+    rdfs:comment "Allied groups" .
+
+:enemies a owl:ObjectProperty ;
+    rdfs:domain :Group ;
+    rdfs:range :Group ;
+    rdfs:comment "Enemy groups" .
+
+#################################################################
+# Franchise Properties
+#################################################################
+
+### Franchise Identity
+:franchiseName a owl:DatatypeProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of franchise" .
+
+:franchiseType a owl:DatatypeProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Comics, Film, TV, Gaming, Multimedia, etc." .
+
+:parentFranchise a owl:ObjectProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range :Franchise ;
+    rdfs:comment "Larger franchise this is part of (e.g., Batman → DC Comics)" .
+
+### Franchise Timeline
+:launched a owl:DatatypeProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year franchise began" .
+
+:franchiseStatus a owl:DatatypeProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Dormant, Concluded, Rebooted, etc." .
+
+### Franchise Business
+:owner a owl:ObjectProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range :Org ;
+    rdfs:comment "Company that owns franchise rights" .
+
+:licensedTo a owl:ObjectProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range :Org ;
+    rdfs:comment "Companies with licensing rights" .
+
+### Franchise Meta
+:franchiseDescription a owl:DatatypeProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of franchise" .
+
+:relatedFranchise a owl:ObjectProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range :Franchise ;
+    rdfs:comment "Related or spin-off franchises" .
+
+:primaryUniverse a owl:ObjectProperty ;
+    rdfs:domain :Franchise ;
+    rdfs:range :Universe ;
+    rdfs:comment "Main universe for franchise" .
+
+#################################################################
+# Reified Relationships
+#################################################################
+
+### WorkedWith
+:WorkedWithRelationship a owl:Class ; rdfs:subClassOf :Relationship .
+:hasWorkedWithRelationship a owl:ObjectProperty ; rdfs:domain :Person ; rdfs:range :WorkedWithRelationship .
+:involvesPerson a owl:ObjectProperty ; rdfs:domain :WorkedWithRelationship ; rdfs:range :Person .
+:projectCount a owl:DatatypeProperty ; rdfs:domain :WorkedWithRelationship ; rdfs:range xsd:int .
+:collabStart a owl:DatatypeProperty ; rdfs:domain :WorkedWithRelationship ; rdfs:range xsd:date .
+:collabEnd a owl:DatatypeProperty ; rdfs:domain :WorkedWithRelationship ; rdfs:range xsd:date .
+:relationshipNotes a owl:DatatypeProperty ; rdfs:domain :WorkedWithRelationship ; rdfs:range xsd:string .
+
+### Credit
+:CreditRelationship a owl:Class ; rdfs:subClassOf :Relationship .
+:hasCreditRelationship a owl:ObjectProperty ; rdfs:domain :Person ; rdfs:range :CreditRelationship .
+:creditsExpression a owl:ObjectProperty ; rdfs:domain :CreditRelationship ; rdfs:range :StoryExpression .
+:creditRole a owl:ObjectProperty ; rdfs:domain :CreditRelationship ; rdfs:range :Role .
+:creditedName a owl:DatatypeProperty ; rdfs:domain :CreditRelationship ; rdfs:range xsd:string .
+:creditType a owl:DatatypeProperty ; rdfs:domain :CreditRelationship ; rdfs:range xsd:string .
+:billingOrder a owl:DatatypeProperty ; rdfs:domain :CreditRelationship ; rdfs:range xsd:int .
+
+### Portrayal
+:PortrayalRelationship a owl:Class ; rdfs:subClassOf :Relationship .
+:hasPortrayalRelationship a owl:ObjectProperty ; rdfs:domain :Person ; rdfs:range :PortrayalRelationship .
+:portraysCharacter a owl:ObjectProperty ; rdfs:domain :PortrayalRelationship ; rdfs:range :Character .
+:portrayalMedium a owl:DatatypeProperty ; rdfs:domain :PortrayalRelationship ; rdfs:range xsd:string .
+:portrayalStart a owl:DatatypeProperty ; rdfs:domain :PortrayalRelationship ; rdfs:range xsd:date .
+:portrayalEnd a owl:DatatypeProperty ; rdfs:domain :PortrayalRelationship ; rdfs:range xsd:date .
+:billing a owl:DatatypeProperty ; rdfs:domain :PortrayalRelationship ; rdfs:range xsd:string .
+
+### Character ↔ Character
+:CharacterRelationship a owl:Class ; rdfs:subClassOf :Relationship .
+:hasCharacterRelationship a owl:ObjectProperty ; rdfs:domain :Character ; rdfs:range :CharacterRelationship .
+:involvesCharacter a owl:ObjectProperty ; rdfs:domain :CharacterRelationship ; rdfs:range :Character .
+:relationshipType a owl:DatatypeProperty ; rdfs:domain :CharacterRelationship ; rdfs:range xsd:string .
+:relationshipStatus a owl:DatatypeProperty ; rdfs:domain :CharacterRelationship ; rdfs:range xsd:string .
+:relationshipStart a owl:DatatypeProperty ; rdfs:domain :CharacterRelationship ; rdfs:range xsd:date .
+:relationshipEnd a owl:DatatypeProperty ; rdfs:domain :CharacterRelationship ; rdfs:range xsd:date .
+:relationshipNotes a owl:DatatypeProperty ; rdfs:domain :CharacterRelationship ; rdfs:range xsd:string .
+
+#################################################################
+# Character Relationship Subclasses (Retained Only)
+#################################################################
+
+:FamilyRelationship a owl:Class ; rdfs:subClassOf :CharacterRelationship .
+:FriendshipRelationship a owl:Class ; rdfs:subClassOf :CharacterRelationship .
+:AllianceRelationship a owl:Class ; rdfs:subClassOf :CharacterRelationship .
+:RivalryRelationship a owl:Class ; rdfs:subClassOf :CharacterRelationship .
+:SupernaturalRelationship a owl:Class ; rdfs:subClassOf :CharacterRelationship .
+
+# Examples
+:ParentChild a owl:Class ; rdfs:subClassOf :FamilyRelationship .
+:Rivals a owl:Class ; rdfs:subClassOf :RivalryRelationship .
+:AlternateSelf a owl:Class ; rdfs:subClassOf :SupernaturalRelationship .
+:PoliticalAllies a owl:Class ; rdfs:subClassOf :AllianceRelationship .
+
+#################################################################
+# Relationship Subclass Properties
+#################################################################
+
+### CreditRelationship-specific Properties
+:contractType a owl:DatatypeProperty ;
+    rdfs:domain :CreditRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Work-for-hire, Creator-owned, etc." .
+
+:uncredited a owl:DatatypeProperty ;
+    rdfs:domain :CreditRelationship ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether contribution was uncredited" .
+
+### PortrayalRelationship-specific Properties
+:castingType a owl:DatatypeProperty ;
+    rdfs:domain :PortrayalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Lead, Supporting, Cameo, Voice-only, etc." .
+
+:awardNominations a owl:DatatypeProperty ;
+    rdfs:domain :PortrayalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Awards won or nominated for this role" .
+
+### FamilyRelationship-specific Properties
+:biologicalRelation a owl:DatatypeProperty ;
+    rdfs:domain :FamilyRelationship ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether biological or adoptive/found family" .
+
+:familyRole a owl:DatatypeProperty ;
+    rdfs:domain :FamilyRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Parent, Child, Sibling, Spouse, etc." .
+
+### RivalryRelationship-specific Properties
+:rivalryIntensity a owl:DatatypeProperty ;
+    rdfs:domain :RivalryRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Friendly Competition, Arch-enemies, Mortal Enemies, etc." .
+
+:causedBy a owl:DatatypeProperty ;
+    rdfs:domain :RivalryRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "What caused the rivalry" .
+
+#################################################################
+# Item Properties (Collection Management)
+#################################################################
+
+### Ownership & Identity
+:owner a owl:ObjectProperty ;
+    rdfs:domain :Item ;
+    rdfs:range [ owl:unionOf (:Person :Org) ] ;
+    rdfs:comment "Owner of this specific copy (person or organization)" .
+
+:barcode a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Library barcode or collection tracking number" .
+
+### Condition & Grading
+:condition a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Condition description (CGC scale: Poor, Good, Fine, VF, NM, Mint)" .
+
+:cgcGraded a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether item is professionally graded by CGC/CBCS" .
+
+:cgcGrade a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Numeric grade (0.5 to 10.0) if CGC graded" .
+
+:certificationNumber a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "CGC/CBCS certification number" .
+
+### Signatures & Provenance
+:signed a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether the item is signed" .
+
+:signedBy a owl:ObjectProperty ;
+    rdfs:domain :Item ;
+    rdfs:range :Person ;
+    rdfs:comment "Person(s) who signed this copy" .
+
+:signatureLocation a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Where signature appears (cover, interior, etc.)" .
+
+:authenticated a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether signature is authenticated" .
+
+### Acquisition & Valuation
+:acquisitionDate a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date item was acquired" .
+
+:acquisitionPrice a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Purchase price when acquired" .
+
+:currentValue a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Current estimated market value of this specific copy" .
+
+:currentMarketPrice a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Current market price for this condition/grade" .
+
+:msrp a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Manufacturer's Suggested Retail Price (original cover price)" .
+
+:valuationDate a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of most recent valuation" .
+
+### Location & Storage
+:location a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical location (shelf, box, row, etc.)" .
+
+:storageType a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "How stored (long box, short box, bag+board, slab, etc.)" .
+
+### Library/Circulation Properties
+:circulationStatus a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Available, Checked Out, Reference Only, Lost, Damaged, etc." .
+
+:checkedOutTo a owl:ObjectProperty ;
+    rdfs:domain :Item ;
+    rdfs:range :Person ;
+    rdfs:comment "Person who currently has item checked out" .
+
+:dueDate a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Due date for return if checked out" .
+
+### Notes & Defects
+:itemNotes a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Free-form notes about this specific copy" .
+
+:defects a owl:DatatypeProperty ;
+    rdfs:domain :Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Specific defects (spine stress, corner crease, water damage, etc.)" .

@@ -1,0 +1,145 @@
+# infra/blazegraph/docker-compose.yaml
+#
+# Local Neptune emulator using Blazegraph as drop-in replacement.
+# - Pre-seeded with comic/narrative data during Docker build
+# - Single node, no clustering (Neptune-compatible SPARQL endpoint)
+# - Named volume for data persistence
+# - Memory-tuned for local dev (~2GB container, ~1.4GB JVM heap)
+#
+# Why Blazegraph?
+# Amazon Neptune is AWS-only and expensive for local dev. Blazegraph provides
+# a compatible RDF triplestore with SPARQL 1.1 support, allowing us to develop
+# and test graph queries locally before deploying to Neptune in production.
+#
+# Run from the *repo root*:
+#   docker compose -f infra/blazegraph/docker-compose.yaml up -d
+#
+# Query the SPARQL endpoint:
+#   http://localhost:9999/blazegraph/sparql
+#
+# Access the Blazegraph UI (query editor, namespace management):
+#   http://localhost:9999/blazegraph/
+#
+name: knowledge-grapht-neptune-service
+
+services:
+  # ────────────────────────────────────────────────────────────────
+  # Neptune emulator (Blazegraph)
+  # ────────────────────────────────────────────────────────────────
+  #
+  # Blazegraph is the underlying implementation, but we call this service
+  # "neptune" since that's our production target. Think of this as
+  # "Neptune running locally via Blazegraph."
+  #
+  neptune:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: knowledge-grapht-neptune
+
+    # For dev, this is convenient: when Docker Desktop / daemon restarts,
+    # the graph database comes back automatically, but you can still
+    # `docker stop` it manually when you're done.
+    restart: unless-stopped
+
+    # Load environment variables from multiple dotenv files, matching
+    # the hierarchy used by Vite, Next.js, and Supabase Edge Functions.
+    # Files are loaded in order (last-defined wins):
+    #   1. .env.local                (local overrides, gitignored)
+    #
+    # Missing files are silently ignored, so team members can use any combo.
+    env_file:
+      - .env.example
+
+    # Memory limits:
+    # The container gets 2GB total; JVM configured to use 70% (~1.4GB) for heap.
+    # The remaining 30% covers non-heap memory (metaspace, code cache, threads,
+    # native memory, GC overhead).
+    #
+    # Adjust based on your needs:
+    # - Light usage (< 50k triples):    mem_limit: 1g, mem_reservation: 512m
+    # - Dev usage (50k-500k triples):   mem_limit: 2g, mem_reservation: 1g (default)
+    # - Heavy usage (500k+ triples):    mem_limit: 4g, mem_reservation: 2g
+    #
+    # The mem_reservation is a soft limit that Docker uses for scheduling;
+    # it doesn't hard-cap the container. The mem_limit is the hard cap.
+    mem_limit: ${NEPTUNE_MEMORY_LIMIT:-2g}
+    mem_reservation: ${NEPTUNE_MEMORY_RESERVATION:-1g}
+
+    ports:
+      # Map host port -> container port.
+      # Default is 9999 (Blazegraph standard), but you can override via .env
+      # if you need to run multiple instances or avoid conflicts.
+      - "${NEPTUNE_PORT:-9999}:9999"
+
+    volumes:
+      # Persistent storage for the RDF journal file.
+      # This volume survives container restarts and updates. If you want to
+      # reset the database to the seed state, delete the volume:
+      #   docker volume rm knowledge-grapht-neptune-data
+      - neptune-data:/var/lib/blazegraph/data
+
+      # Optional: Override Blazegraph configuration.
+      # Uncomment after creating your custom RWStore.properties in ./config/
+      # - ./config/RWStore.properties:/etc/blazegraph/RWStore.properties:ro
+
+      # Optional: Mount additional seed data at runtime.
+      # Useful for loading extra datasets after the initial build-time seed.
+      # - ./data/additional:/data:ro
+
+    environment:
+      # Timezone for container and log timestamps.
+      # Defaults to UTC for consistency across environments.
+      TZ: ${TZ:-UTC}
+
+      # JVM memory tuning (optional override).
+      # The Dockerfile sets sensible defaults (70% of container memory for heap),
+      # but you can override here if you need finer control.
+      #
+      # Example: Use 60% for heap instead of 70%:
+      #   JAVA_OPTS: "-XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=60.0"
+      #
+      # Leave commented to use Dockerfile defaults.
+      # JAVA_OPTS: ${JAVA_OPTS:-}
+
+    # Health check: verifies Blazegraph's /status endpoint responds.
+    # The Dockerfile defines a default health check, but we repeat it here
+    # so it's easy to tweak per-environment (e.g., longer intervals in prod).
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9999/blazegraph/status"]
+      interval: ${NEPTUNE_HEALTH_INTERVAL:-30s}
+      timeout: ${NEPTUNE_HEALTH_TIMEOUT:-10s}
+      retries: ${NEPTUNE_HEALTH_RETRIES:-3}
+      start_period: ${NEPTUNE_HEALTH_START_PERIOD:-40s}
+
+    # Logging configuration to prevent disk fill-up.
+    # Blazegraph can be chatty (especially with query logging enabled).
+    # This caps logs at 10MB per file, keeping only 3 rotations (~30MB max).
+    logging:
+      driver: "json-file"
+      options:
+        max-size: ${NEPTUNE_LOG_MAX_SIZE:-10m}
+        max-file: ${NEPTUNE_LOG_MAX_FILE:-3}
+
+    networks:
+      - neptune-net
+
+# ────────────────────────────────────────────────────────────────
+# Volumes
+# ────────────────────────────────────────────────────────────────
+volumes:
+  # Persistent RDF journal storage.
+  # On first run, the entrypoint script copies the pre-seeded journal from
+  # /var/lib/blazegraph/seed/ (baked into the Docker image) to this volume.
+  # Subsequent runs reuse the data, preserving any changes you make via SPARQL.
+  neptune-data:
+    name: knowledge-grapht-neptune-data
+    driver: local
+
+# ────────────────────────────────────────────────────────────────
+# Networks
+# ────────────────────────────────────────────────────────────────
+networks:
+  neptune-net:
+    driver: bridge

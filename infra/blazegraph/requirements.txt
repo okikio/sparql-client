@@ -1,0 +1,44 @@
+# HTTP requests
+requests>=2.32.5
+
+# JupyterLab 4.x core
+# jupyterlab>=4.3.5,<5.0.0
+# jupyter-server>=2.0.0,<3.0.0
+# jupyter_server_proxy>=4.0.0,<5.0.0
+# jupyter_client>=8.0.0,<9.0.0
+# nbclient>=0.7.3
+# nbconvert>=6.3.0,<=7.2.8
+# notebook>=7.0.0,<8.0.0
+# nbclassic>=1.3.0
+
+# Graph Notebook
+# graph-notebook
+
+# Kernel + IPython
+# ipykernel>=6.5.0
+# ipython>=7.16.1,<=8.10.0
+
+# Widgets and interactive tables (Lab 4 widget architecture)
+# ipywidgets>=8.0.0,<9.0.0
+# jupyterlab-widgets>=3.0.0,<4.0.0
+# itables>=2.0.0,<=2.1.0
+
+# Graph + data libraries
+# networkx>3.0,<4.0
+# numpy>1.24.0
+# pandas>2.2.2
+
+# RDF/SPARQL + property graph clients
+# SPARQLWrapper==2.0.0
+# rdflib==7.0.0
+# gremlinpython>=3.5,<=3.7.2
+# neo4j>=5.0.0,<=5.23.1
+
+# Utilities and helpers
+# requests>=2.32.0,<=2.32.2
+# Jinja2>=3.0.3,<=3.1.4
+# jedi>=0.18.1,<=0.18.2
+# nest_asyncio>=1.5.5,<=1.6.0
+# async-timeout>=4.0,<5.0
+# json-repair==0.29.2
+# ipyfilechooser==0.6.0
