@@ -399,22 +399,33 @@ export class UpdateBuilder {
    * @param dest Destination graph IRI (or 'DEFAULT')
    * @param silent Don't fail if source doesn't exist (default: false)
    * 
+   * @sparql `COPY [SILENT] <source> TO <dest>`
+   * 
    * @example Copy to backup
    * ```ts
+   * // Library
    * copy('http://example.org/graph1', 'http://example.org/backup1')
-   * // Copies graph1 to backup1, replacing backup1's content
+   * 
+   * // SPARQL ↓
+   * // COPY <http://example.org/graph1> TO <http://example.org/backup1>
    * ```
    * 
    * @example Copy from default graph
    * ```ts
+   * // Library
    * copy('DEFAULT', 'http://example.org/snapshot')
-   * // Copies default graph to named graph
+   * 
+   * // SPARQL ↓
+   * // COPY DEFAULT TO <http://example.org/snapshot>
    * ```
    * 
    * @example Silent copy
    * ```ts
+   * // Library
    * copy('http://example.org/source', 'http://example.org/dest', true)
-   * // Succeeds even if source doesn't exist (dest becomes empty)
+   * 
+   * // SPARQL ↓
+   * // COPY SILENT <http://example.org/source> TO <http://example.org/dest>
    * ```
    */
   copy(source: string, dest: string, silent = false): UpdateBuilder {
@@ -439,22 +450,33 @@ export class UpdateBuilder {
    * @param dest Destination graph IRI (or 'DEFAULT')
    * @param silent Don't fail if source doesn't exist (default: false)
    * 
+   * @sparql `MOVE [SILENT] <source> TO <dest>`
+   * 
    * @example Rename graph
    * ```ts
+   * // Library
    * move('http://example.org/temp', 'http://example.org/final')
-   * // Moves temp to final, temp is left empty
+   * 
+   * // SPARQL ↓
+   * // MOVE <http://example.org/temp> TO <http://example.org/final>
    * ```
    * 
    * @example Archive to default
    * ```ts
+   * // Library
    * move('http://example.org/staging', 'DEFAULT')
-   * // Moves staging content to default graph, clears staging
+   * 
+   * // SPARQL ↓
+   * // MOVE <http://example.org/staging> TO DEFAULT
    * ```
    * 
    * @example Silent move
    * ```ts
+   * // Library
    * move('http://example.org/source', 'http://example.org/dest', true)
-   * // Succeeds even if source doesn't exist
+   * 
+   * // SPARQL ↓
+   * // MOVE SILENT <http://example.org/source> TO <http://example.org/dest>
    * ```
    */
   move(source: string, dest: string, silent = false): UpdateBuilder {
@@ -479,23 +501,35 @@ export class UpdateBuilder {
    * @param dest Destination graph IRI (or 'DEFAULT')
    * @param silent Don't fail if source doesn't exist (default: false)
    * 
+   * @sparql `ADD [SILENT] <source> TO <dest>`
+   * 
    * @example Merge graphs
    * ```ts
+   * // Library
    * add('http://example.org/updates', 'http://example.org/main')
-   * // Adds updates to main without removing existing main content
+   * 
+   * // SPARQL ↓
+   * // ADD <http://example.org/updates> TO <http://example.org/main>
    * ```
    * 
    * @example Combine into default
    * ```ts
+   * // Library
    * add('http://example.org/graph1', 'DEFAULT')
    * add('http://example.org/graph2', 'DEFAULT')
-   * // Merges multiple graphs into default graph
+   * 
+   * // SPARQL ↓
+   * // ADD <http://example.org/graph1> TO DEFAULT
+   * // ADD <http://example.org/graph2> TO DEFAULT
    * ```
    * 
    * @example Silent add
    * ```ts
+   * // Library
    * add('http://example.org/optional', 'http://example.org/main', true)
-   * // Succeeds even if optional graph doesn't exist
+   * 
+   * // SPARQL ↓
+   * // ADD SILENT <http://example.org/optional> TO <http://example.org/main>
    * ```
    */
   add(source: string, dest: string, silent = false): UpdateBuilder {

@@ -30,6 +30,25 @@ const results = await adults.execute({
 
 That `v('age').gte(18)` is the fluent API - variables become values with chainable methods. Compare values, do math, transform strings, all with natural dot notation.
 
+## SPARQL Mapping
+
+Every library feature maps directly to standard SPARQL 1.1. The library provides 100% spec coverage with enhanced developer experience through type safety, fluent chaining, and multiple pattern styles.
+
+**Key mappings:**
+- `v('age').gte(18)` → `?age >= 18`
+- `select([v('price').mul(1.2).as('total')])` → `SELECT (?price * 1.2 AS ?total)`
+- `triple('?s', 'rdf:type', 'ex:Person')` → `?s rdf:type ex:Person .`
+- `md5(v('email'))` → `MD5(?email)`
+- `now()` → `NOW()`
+
+**See [sparql-mapping.md](./docs/sparql-mapping.md) for:**
+- Complete function reference (85+ functions)
+- Library → SPARQL examples for all features
+- SPARQL → Library migration guide
+- DX enhancements beyond the spec
+
+Call `.build().value` on any query to see the generated SPARQL string.
+
 ## Pattern Styles
 
 The library supports multiple ways to describe graph patterns. Use triples for simple cases, nested objects for complex structures, or ASCII art when you want visual clarity. Every pattern compiles to standard SPARQL, so choose based on readability.

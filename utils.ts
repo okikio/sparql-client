@@ -1602,17 +1602,26 @@ export function definePrefix(name: string, iri: string): SparqlValue {
  * 
  * @param value Value to hash
  * 
+ * @sparql `MD5(value)`
+ * 
  * @example Hash a string
  * ```ts
+ * // Library
  * select([md5(v('email')).as('emailHash')])
  *   .where(triple('?person', 'foaf:mbox', '?email'))
- * // Anonymize email addresses
+ * 
+ * // SPARQL ↓
+ * // SELECT (MD5(?email) AS ?emailHash)
+ * // WHERE { ?person foaf:mbox ?email }
  * ```
  * 
  * @example Deduplication key
  * ```ts
+ * // Library
  * bind(md5(concat(v('firstName'), v('lastName'), v('birthDate'))), 'personKey')
- * // Create stable identifier from multiple fields
+ * 
+ * // SPARQL ↓
+ * // BIND(MD5(CONCAT(?firstName, ?lastName, ?birthDate)) AS ?personKey)
  * ```
  */
 export function md5(value: SparqlValue | ExpressionPrimitive): FluentValue {
@@ -1627,10 +1636,15 @@ export function md5(value: SparqlValue | ExpressionPrimitive): FluentValue {
  * 
  * @param value Value to hash
  * 
+ * @sparql `SHA1(value)`
+ * 
  * @example Content-based identifier
  * ```ts
+ * // Library
  * bind(sha1(v('documentText')), 'contentHash')
- * // Generate content fingerprint
+ * 
+ * // SPARQL ↓
+ * // BIND(SHA1(?documentText) AS ?contentHash)
  * ```
  */
 export function sha1(value: SparqlValue | ExpressionPrimitive): FluentValue {
@@ -1646,10 +1660,17 @@ export function sha1(value: SparqlValue | ExpressionPrimitive): FluentValue {
  * 
  * @param value Value to hash
  * 
+ * @sparql `SHA256(value)`
+ * 
  * @example Secure hash
  * ```ts
+ * // Library
  * select([sha256(v('password')).as('passwordHash')])
  *   .where(triple('?user', 'ex:password', '?password'))
+ * 
+ * // SPARQL ↓
+ * // SELECT (SHA256(?password) AS ?passwordHash)
+ * // WHERE { ?user ex:password ?password }
  * ```
  */
 export function sha256(value: SparqlValue | ExpressionPrimitive): FluentValue {
@@ -1662,6 +1683,17 @@ export function sha256(value: SparqlValue | ExpressionPrimitive): FluentValue {
  * Returns the SHA-384 hash as a hex string. SHA-384 produces a 384-bit hash value.
  * 
  * @param value Value to hash
+ * 
+ * @sparql `SHA384(value)`
+ * 
+ * @example
+ * ```ts
+ * // Library
+ * sha384(v('data'))
+ * 
+ * // SPARQL ↓
+ * // SHA384(?data)
+ * ```
  */
 export function sha384(value: SparqlValue | ExpressionPrimitive): FluentValue {
   return fluent(raw(`SHA384(${exprTermString(value)})`))
@@ -1676,9 +1708,15 @@ export function sha384(value: SparqlValue | ExpressionPrimitive): FluentValue {
  * 
  * @param value Value to hash
  * 
+ * @sparql `SHA512(value)`
+ * 
  * @example High-security hash
  * ```ts
+ * // Library
  * bind(sha512(v('sensitiveData')), 'secureHash')
+ * 
+ * // SPARQL ↓
+ * // BIND(SHA512(?sensitiveData) AS ?secureHash)
  * ```
  */
 export function sha512(value: SparqlValue | ExpressionPrimitive): FluentValue {
@@ -1696,20 +1734,34 @@ export function sha512(value: SparqlValue | ExpressionPrimitive): FluentValue {
  * for the entire query execution - all calls to NOW() in the same query return
  * the same value.
  * 
+ * @sparql `NOW()`
+ * 
  * @example Timestamp queries
  * ```ts
+ * // Library
  * select(['?event', '?time'])
  *   .where(triple('?event', 'ex:timestamp', '?time'))
  *   .filter(v('time').lt(now()))
- * // Find events that happened before now
+ * 
+ * // SPARQL ↓
+ * // SELECT ?event ?time
+ * // WHERE {
+ * //   ?event ex:timestamp ?time .
+ * //   FILTER(?time < NOW())
+ * // }
  * ```
  * 
  * @example Add timestamp to data
  * ```ts
+ * // Library
  * modify()
  *   .insert(triple('?person', 'ex:lastModified', now()))
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .done()
+ * 
+ * // SPARQL ↓
+ * // INSERT { ?person ex:lastModified NOW() }
+ * // WHERE { ?person foaf:name ?name }
  * ```
  */
 export function now(): SparqlValue {
@@ -1722,20 +1774,30 @@ export function now(): SparqlValue {
  * Creates a new UUID (Universally Unique Identifier) and returns it as an IRI
  * in the urn:uuid: namespace. Each call generates a different UUID.
  * 
+ * @sparql `UUID()`
+ * 
  * @example Generate unique IRIs
  * ```ts
+ * // Library
  * construct(triple(uuid(), 'rdf:type', 'ex:Event'))
  *   .where(triple('?input', 'ex:data', '?data'))
- * // Create a new IRI for each input
+ * 
+ * // SPARQL ↓
+ * // CONSTRUCT { UUID() rdf:type ex:Event }
+ * // WHERE { ?input ex:data ?data }
  * ```
  * 
  * @example Stable blank node replacement
  * ```ts
+ * // Library
  * modify()
  *   .insert(triple(uuid(), 'ex:property', '?value'))
  *   .where(triple('?subject', 'ex:property', '?value'))
  *   .done()
- * // Create traceable IRI instead of blank node
+ * 
+ * // SPARQL ↓
+ * // INSERT { UUID() ex:property ?value }
+ * // WHERE { ?subject ex:property ?value }
  * ```
  */
 export function uuid(): SparqlValue {
@@ -1748,18 +1810,28 @@ export function uuid(): SparqlValue {
  * Like UUID() but returns a plain string instead of an IRI. Useful when you
  * need a unique identifier as a literal value rather than an IRI.
  * 
+ * @sparql `STRUUID()`
+ * 
  * @example Unique string identifiers
  * ```ts
+ * // Library
  * bind(struuid(), 'transactionId')
- * // Generate unique transaction ID as string
+ * 
+ * // SPARQL ↓
+ * // BIND(STRUUID() AS ?transactionId)
  * ```
  * 
  * @example Session tracking
  * ```ts
+ * // Library
  * modify()
  *   .insert(triple('?user', 'ex:sessionId', struuid()))
  *   .where(triple('?user', 'ex:loginTime', now()))
  *   .done()
+ * 
+ * // SPARQL ↓
+ * // INSERT { ?user ex:sessionId STRUUID() }
+ * // WHERE { ?user ex:loginTime NOW() }
  * ```
  */
 export function struuid(): FluentValue {
@@ -1772,20 +1844,32 @@ export function struuid(): FluentValue {
  * Returns a pseudo-random number in the range [0, 1). Different calls may
  * return different values, even within the same query execution.
  * 
+ * @sparql `RAND()`
+ * 
  * @example Random sampling
  * ```ts
+ * // Library
  * select(['?item'])
  *   .where(triple('?item', 'rdf:type', 'ex:Product'))
  *   .filter(rand().lt(0.1))
- * // Randomly sample ~10% of products
+ * 
+ * // SPARQL ↓
+ * // SELECT ?item
+ * // WHERE { ?item rdf:type ex:Product }
+ * // FILTER(RAND() < 0.1)
  * ```
  * 
  * @example Randomize order
  * ```ts
+ * // Library
  * select(['?person', '?name'])
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .orderBy(rand().as('random'))
- * // Return results in random order
+ * 
+ * // SPARQL ↓
+ * // SELECT ?person ?name
+ * // WHERE { ?person foaf:name ?name }
+ * // ORDER BY (RAND() AS ?random)
  * ```
  */
 export function rand(): FluentValue {
@@ -1804,22 +1888,30 @@ export function rand(): FluentValue {
  * 
  * @param value String to encode
  * 
+ * @sparql `ENCODE_FOR_URI(value)`
+ * 
  * @example Build query parameters
  * ```ts
+ * // Library
  * bind(
  *   concat('http://example.org/search?q=', encodeForUri(v('searchTerm'))),
  *   'searchUrl'
  * )
- * // Safely encode search terms in URLs
+ * 
+ * // SPARQL ↓
+ * // BIND(CONCAT("http://example.org/search?q=", ENCODE_FOR_URI(?searchTerm)) AS ?searchUrl)
  * ```
  * 
  * @example Create URIs from names
  * ```ts
+ * // Library
  * bind(
  *   iri(concat('http://example.org/person/', encodeForUri(v('name')))),
  *   'personIri'
  * )
- * // Create valid IRIs from arbitrary strings
+ * 
+ * // SPARQL ↓
+ * // BIND(IRI(CONCAT("http://example.org/person/", ENCODE_FOR_URI(?name))) AS ?personIri)
  * ```
  */
 export function encodeForUri(value: SparqlValue | ExpressionPrimitive): FluentValue {
@@ -1835,29 +1927,29 @@ export function encodeForUri(value: SparqlValue | ExpressionPrimitive): FluentVa
  * @param lang Language tag to test
  * @param range Language range pattern
  * 
+ * @sparql `langMatches(lang, range)`
+ * 
  * @example Match English variants
  * ```ts
+ * // Library
  * select(['?label'])
  *   .where(triple('?resource', 'rdfs:label', '?label'))
  *   .filter(langMatches(getlang(v('label')), 'en'))
+ * 
+ * // SPARQL ↓
+ * // SELECT ?label
+ * // WHERE { ?resource rdfs:label ?label }
+ * // FILTER(langMatches(LANG(?label), "en"))
  * // Matches "en", "en-US", "en-GB", etc.
  * ```
  * 
  * @example Match any language
  * ```ts
+ * // Library
  * filter(langMatches(getlang(v('label')), '*'))
- * // Matches any language-tagged literal
- * ```
  * 
- * @example Exclude plain literals
- * ```ts
- * filter(
- *   and(
- *     langMatches(getlang(v('label')), '*'),
- *     neq(getlang(v('label')), '')
- *   )
- * )
- * // Only language-tagged literals, not plain strings
+ * // SPARQL ↓
+ * // FILTER(langMatches(LANG(?label), "*"))
  * ```
  */
 export function langMatches(
@@ -1879,34 +1971,36 @@ export function langMatches(
  * 
  * @param value String value to convert to IRI
  * 
+ * @sparql `IRI(value)`
+ * 
  * @example Dynamic IRI creation
  * ```ts
+ * // Library
  * bind(
  *   iri(concat('http://example.org/id/', v('personId'))),
  *   'personIri'
  * )
- * // Create IRI from ID field
+ * 
+ * // SPARQL ↓
+ * // BIND(IRI(CONCAT("http://example.org/id/", ?personId)) AS ?personIri)
  * ```
  * 
  * @example Namespace-based IRIs
  * ```ts
+ * // Library
  * select(['?newIri'])
  *   .where(triple('?item', 'ex:identifier', '?id'))
  *   .bind(
  *     iri(concat('http://data.example.org/item/', encodeForUri(v('id')))),
  *     'newIri'
  *   )
- * // Generate IRIs with proper encoding
- * ```
  * 
- * @example Transform relative to absolute
- * ```ts
- * modify()
- *   .delete(triple('?s', '?p', '?relativeIri'))
- *   .insert(triple('?s', '?p', iri(concat('http://example.org/', v('relativeIri')))))
- *   .where(triple('?s', '?p', '?relativeIri'))
- *   .where(filter(isLiteral(v('relativeIri'))))
- *   .done()
+ * // SPARQL ↓
+ * // SELECT ?newIri
+ * // WHERE {
+ * //   ?item ex:identifier ?id .
+ * //   BIND(IRI(CONCAT("http://data.example.org/item/", ENCODE_FOR_URI(?id))) AS ?newIri)
+ * // }
  * ```
  */
 export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
@@ -1929,42 +2023,54 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  * 
  * @param pattern Pattern to subtract from results
  * 
+ * @sparql `MINUS { pattern }`
+ * 
  * @example Exclude patterns
  * ```ts
+ * // Library
  * select(['?person', '?name'])
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .where(minus(
  *     triple('?person', 'ex:blocked', true)
  *   ))
- * // Get all people except those marked as blocked
+ * 
+ * // SPARQL ↓
+ * // SELECT ?person ?name
+ * // WHERE {
+ * //   ?person foaf:name ?name .
+ * //   MINUS { ?person ex:blocked true }
+ * // }
  * ```
  * 
  * @example MINUS vs NOT EXISTS
  * ```ts
- * // MINUS: Removes entire solution
+ * // Library - MINUS: Removes entire solution
  * select(['?person', '?name', '?age'])
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .where(optional(triple('?person', 'foaf:age', '?age')))
  *   .where(minus(triple('?person', 'ex:status', 'inactive')))
- * // If person is inactive, removes them entirely (including name and age)
  * 
- * // NOT EXISTS: Filters but keeps solution structure
+ * // SPARQL ↓
+ * // SELECT ?person ?name ?age
+ * // WHERE {
+ * //   ?person foaf:name ?name .
+ * //   OPTIONAL { ?person foaf:age ?age }
+ * //   MINUS { ?person ex:status "inactive" }
+ * // }
+ * 
+ * // Library - NOT EXISTS: Filters but keeps solution structure
  * select(['?person', '?name', '?age'])
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .where(optional(triple('?person', 'foaf:age', '?age')))
  *   .filter(notExists(triple('?person', 'ex:status', 'inactive')))
- * // Filters out inactive people but keeps the solution structure
- * ```
  * 
- * @example Complex exclusion
- * ```ts
- * select(['?product', '?name'])
- *   .where(triple('?product', 'schema:name', '?name'))
- *   .where(minus(raw(`
- *     ?product schema:category ?category .
- *     ?category rdfs:label "Discontinued" .
- *   `)))
- * // Products not in discontinued categories
+ * // SPARQL ↓
+ * // SELECT ?person ?name ?age
+ * // WHERE {
+ * //   ?person foaf:name ?name .
+ * //   OPTIONAL { ?person foaf:age ?age }
+ * //   FILTER(NOT EXISTS { ?person ex:status "inactive" })
+ * // }
  * ```
  */
 export function minus(pattern: SparqlValue): SparqlValue {
