@@ -50,6 +50,7 @@ export type SparqlInterpolatable =
   | SparqlInterpolatable[]
   | { [key: string]: SparqlInterpolatable }
 
+
 /**
  * Variable name in SPARQL (without ? or $ prefix)
  */
@@ -88,7 +89,7 @@ export function normalizeVariableName(name: string | `?${string}`): VariableName
  * 
  * Escapes: backslash, double-quote, newline, carriage return, tab
  */
-function escapeString(str: string): string {
+export function escapeString(str: string): string {
   return str
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
@@ -102,7 +103,7 @@ function escapeString(str: string): string {
  * 
  * Must be http/https and not contain forbidden characters
  */
-function validateIRI(iri: string): void {
+export function validateIRI(iri: string): void {
   if (!iri.startsWith('http://') && !iri.startsWith('https://')) {
     throw new Error(`IRI must start with http:// or https://, got: ${iri}`)
   }
@@ -118,7 +119,7 @@ function validateIRI(iri: string): void {
 /**
  * Validate variable name (must be valid SPARQL variable)
  */
-function validateVariableName(name: string): void {
+export function validateVariableName(name: string): void {
   // SPARQL variable names must match: [A-Za-z_][A-Za-z0-9_]*
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
     throw new Error(`Invalid variable name: ${name}`)
@@ -128,7 +129,7 @@ function validateVariableName(name: string): void {
 /**
  * Validate prefix name (must be valid SPARQL prefix)
  */
-function validatePrefixName(name: string): void {
+export function validatePrefixName(name: string): void {
   // Prefix names match same rules as variables
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
     throw new Error(`Invalid prefix name: ${name}`)
@@ -142,14 +143,14 @@ function validatePrefixName(name: string): void {
 /**
  * Convert Date to xsd:dateTime literal
  */
-function formatDateTime(date: Date): string {
+export function formatDateTime(date: Date): string {
   return `"${date.toISOString()}"^^<http://www.w3.org/2001/XMLSchema#dateTime>`
 }
 
 /**
  * Convert Date to xsd:date literal (date only, no time)
  */
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
   const yyyy = date.getFullYear()
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')
@@ -159,7 +160,7 @@ function formatDate(date: Date): string {
 /**
  * Convert array to SPARQL VALUES clause or list
  */
-function formatArray(arr: SparqlInterpolatable[]): string {
+export function formatArray(arr: SparqlInterpolatable[]): string {
   if (arr.length === 0) {
     throw new Error('Cannot convert empty array to SPARQL')
   }
@@ -189,7 +190,7 @@ function formatArray(arr: SparqlInterpolatable[]): string {
 /**
  * Convert object to SPARQL inline data or blank node
  */
-function formatObject(obj: { [key: string]: SparqlInterpolatable }): string {
+export function formatObject(obj: { [key: string]: SparqlInterpolatable }): string {
   const entries = Object.entries(obj)
   if (entries.length === 0) {
     throw new Error('Cannot convert empty object to SPARQL')
@@ -215,7 +216,7 @@ function formatObject(obj: { [key: string]: SparqlInterpolatable }): string {
 /**
  * Convert any value to SPARQL representation
  */
-function convertValue(value: SparqlInterpolatable, strict = true): string {
+export function convertValue(value: SparqlInterpolatable, strict = true): string {
   // Already wrapped SparqlValue
   if (isSparqlValue(value)) {
     return value.value
@@ -266,7 +267,7 @@ function convertValue(value: SparqlInterpolatable, strict = true): string {
 /**
  * Type guard for SparqlValue
  */
-function isSparqlValue(value: unknown): value is SparqlValue {
+export function isSparqlValue(value: unknown): value is SparqlValue {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -278,44 +279,10 @@ function isSparqlValue(value: unknown): value is SparqlValue {
 /**
  * Wrap string as SparqlValue (for internal use)
  */
-function wrapSparqlValue(value: string): SparqlValue {
+export function wrapSparqlValue(value: string): SparqlValue {
   return { __sparql: true, value: value }
 }
 
-// ============================================================================
-// Main Template Tag Function
-// ============================================================================
-
-/**
- * SPARQL template tag for type-safe query construction
- * 
- * @example
- * ```ts
- * const query = sparql`
- *   SELECT ?name ?age WHERE {
- *     ?person foaf:name ${name} ;
- *            foaf:age ${age} .
- *   }
- * `;
- * ```
- */
-export function sparql(
-  strings: TemplateStringsArray,
-  ...values: SparqlInterpolatable[]
-): SparqlValue {
-  let result = strings[0]
-
-  for (let i = 0; i < values.length; i++) {
-    result += convertValue(values[i])
-    result += strings[i + 1]
-  }
-
-  return wrapSparqlValue(outdent.string(result))
-}
-
-// ============================================================================
-// Explicit Constructors
-// ============================================================================
 
 /**
  * Create IRI reference
@@ -493,457 +460,36 @@ export function raw(value: string): SparqlValue {
   return wrapSparqlValue(value)
 }
 
-/**
- * Create VALUES clause for multiple values
- * 
- * @example
- * values('city', ['London', 'Paris', 'Tokyo'])
- * → VALUES ?city { "London" "Paris" "Tokyo" }
- */
-export function values(
-  varName: VariableName,
-  items: SparqlInterpolatable[]
-): SparqlValue {
-  validateVariableName(varName)
-  const converted = items.map((item) => convertValue(item)).join(' ')
-  return wrapSparqlValue(`VALUES ?${varName} { ${converted} }`)
-}
-
-/**
- * Create FILTER expression
- * 
- * @example
- * filter(sparql`?age > ${18}`)
- * → FILTER(?age > 18)
- */
-export function filter(expression: SparqlValue): SparqlValue {
-  return wrapSparqlValue(`FILTER(${expression.value})`)
-}
-
-/**
- * Create OPTIONAL block
- * 
- * @example
- * optional(sparql`?person foaf:email ?email`)
- * → OPTIONAL { ?person foaf:email ?email }
- */
-export function optional(pattern: SparqlValue): SparqlValue {
-  return wrapSparqlValue(`OPTIONAL { ${pattern.value} }`)
-}
-
-/**
- * Create BIND expression
- * 
- * @example
- * bind(sparql`CONCAT(?firstName, " ", ?lastName)`, 'fullName')
- * → BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
- */
-export function bind(expression: SparqlValue, varName: VariableName): SparqlValue {
-  const _varName = normalizeVariableName(varName)
-  validateVariableName(_varName)
-  return wrapSparqlValue(`BIND(${expression.value} AS ?${_varName})`)
-}
-
 // ============================================================================
-// Expression helpers (Drizzle-like SPARQL operations)
+// Main Template Tag Function
 // ============================================================================
 
-export type ExpressionPrimitive =
-  | string
-  | number
-  | boolean
-  | Date
-  | null
-  | undefined
-
 /**
- * Treat a value as an expression term.
- *
- * - SparqlValue → use its `.value` directly
- * - primitives  → encoded using the `sparql` template, so they become
- *                 correctly escaped literals or IRIs/variables (depending
- *                 on how you pass them)
- */
-export function exprTerm(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  if (isSparqlValue(value)) {
-    return value
-  }
-  // primitives go through convertValue via the template tag
-  return wrapSparqlValue(convertValue(value))
-}
-
-/**
- * Internal: convert a value to the raw SPARQL term string.
- */
-export function exprTermString(
-  value: SparqlValue | ExpressionPrimitive,
-): string {
-  return exprTerm(value).value
-}
-
-/**
- * CONCAT(arg1, arg2, ...)
- *
+ * SPARQL template tag for type-safe query construction
+ * 
  * @example
  * ```ts
- * const fullName = concat(variable('firstName'), ' ', variable('lastName'))
- * const q = select(['?fullName'])
- *   .bind(fullName, 'fullName')
+ * const query = sparql`
+ *   SELECT ?name ?age WHERE {
+ *     ?person foaf:name ${name} ;
+ *            foaf:age ${age} .
+ *   }
+ * `;
  * ```
  */
-export function concat(
-  ...args: Array<SparqlValue | ExpressionPrimitive>
+export function sparql(
+  strings: TemplateStringsArray,
+  ...values: SparqlInterpolatable[]
 ): SparqlValue {
-  if (args.length === 0) {
-    // CONCAT() is invalid; return an empty string literal
-    return strlit('') // """"
+  let result = strings[0]
+
+  for (let i = 0; i < values.length; i++) {
+    result += convertValue(values[i])
+    result += strings[i + 1]
   }
 
-  const inner = args.map(exprTermString).join(', ')
-  return raw(`CONCAT(${inner})`)
+  return wrapSparqlValue(outdent.string(result))
 }
-
-export function str(value: SparqlValue | ExpressionPrimitive): SparqlValue {
-  return raw(`STR(${exprTermString(value)})`)
-}
-
-export function strlen(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`STRLEN(${exprTermString(value)})`)
-}
-
-export function ucase(value: SparqlValue | ExpressionPrimitive): SparqlValue {
-  return raw(`UCASE(${exprTermString(value)})`)
-}
-
-export function lcase(value: SparqlValue | ExpressionPrimitive): SparqlValue {
-  return raw(`LCASE(${exprTermString(value)})`)
-}
-
-
-export function contains(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(
-    `CONTAINS(${exprTermString(text)}, ${exprTermString(pattern)})`,
-  )
-}
-
-export function startsWith(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(
-    `STRSTARTS(${exprTermString(text)}, ${exprTermString(pattern)})`,
-  )
-}
-
-export function endsWith(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(
-    `STRENDS(${exprTermString(text)}, ${exprTermString(pattern)})`,
-  )
-}
-
-export function substr(
-  text: SparqlValue | ExpressionPrimitive,
-  start: SparqlValue | ExpressionPrimitive,
-  length?: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  const t = exprTermString(text)
-  const s = exprTermString(start)
-  if (length === undefined) {
-    return raw(`SUBSTR(${t}, ${s})`)
-  }
-  const l = exprTermString(length)
-  return raw(`SUBSTR(${t}, ${s}, ${l})`)
-}
-
-export function replaceStr(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-  replacement: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  const textTerm = exprTermString(text)
-  const patternTerm = exprTermString(pattern)
-  const replacementTerm = exprTermString(replacement)
-  return raw(`REPLACE(${textTerm}, ${patternTerm}, ${replacementTerm})`)
-}
-
-
-/**
- * REGEX helper
- *
- * @example
- * ```ts
- * const condition = regex(variable('name'), '^Spidey', 'i')
- * builder.filter(condition)
- * ```
- */
-export function regex(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: string,
-  flags?: string,
-): SparqlValue {
-  const textTerm = exprTermString(text)
-  const patternTerm = exprTermString(pattern)
-  const flagsTerm = flags ? `, ${exprTermString(flags)}` : ''
-  return raw(`REGEX(${textTerm}, ${patternTerm}${flagsTerm})`)
-}
-
-
-// Nullish / list helpers (Drizzle-like)
-
-export function isNull(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`!BOUND(${exprTermString(value)})`)
-}
-
-export function isNotNull(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`BOUND(${exprTermString(value)})`)
-}
-
-export function inList(
-  expr: SparqlValue | ExpressionPrimitive,
-  values: Array<SparqlValue | ExpressionPrimitive>,
-): SparqlValue {
-  if (values.length === 0) {
-    // Nothing is in an empty set.
-    return raw('false')
-  }
-  const list = values.map(exprTermString).join(', ')
-  return raw(`${exprTermString(expr)} IN (${list})`)
-}
-
-export function notInList(
-  expr: SparqlValue | ExpressionPrimitive,
-  values: Array<SparqlValue | ExpressionPrimitive>,
-): SparqlValue {
-  if (values.length === 0) {
-    // Everything is not in an empty set.
-    return raw('true')
-  }
-  const list = values.map(exprTermString).join(', ')
-  return raw(`${exprTermString(expr)} NOT IN (${list})`)
-}
-
-export function between(
-  expr: SparqlValue | ExpressionPrimitive,
-  low: SparqlValue | ExpressionPrimitive,
-  high: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  const e = exprTermString(expr)
-  const l = exprTermString(low)
-  const h = exprTermString(high)
-  return raw(`(${e} >= ${l} && ${e} <= ${h})`)
-}
-
-export function coalesce(
-  ...values: Array<SparqlValue | ExpressionPrimitive>
-): SparqlValue {
-  if (values.length === 0) {
-    return strlit('')
-  }
-  const inner = values.map(exprTermString).join(', ')
-  return raw(`COALESCE(${inner})`)
-}
-
-export function ifElse(
-  condition: SparqlValue,
-  whenTrue: SparqlValue | ExpressionPrimitive,
-  whenFalse: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  const trueTerm = exprTermString(whenTrue);
-  const falseTerm = exprTermString(whenFalse)
-  return raw(
-    `IF(${condition.value}, ${trueTerm}, ${falseTerm})`,
-  )
-}
-
-
-// ---- Numeric helpers ----
-
-export function add(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} + ${exprTermString(right)}`)
-}
-
-export function sub(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} - ${exprTermString(right)}`)
-}
-
-export function mul(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} * ${exprTermString(right)}`)
-}
-
-export function div(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} / ${exprTermString(right)}`)
-}
-
-export function mod(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`(${exprTermString(left)} % ${exprTermString(right)})`)
-}
-
-export function abs(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`ABS(${exprTermString(value)})`)
-}
-
-export function ceil(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`CEIL(${exprTermString(value)})`)
-}
-
-export function floor(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`FLOOR(${exprTermString(value)})`)
-}
-
-export function round(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`ROUND(${exprTermString(value)})`)
-}
-
-// ---- Date/Time helpers (SPARQL 1.1) ----
-
-export function nowFn(): SparqlValue {
-  return raw('NOW()')
-}
-
-export function yearFn(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`YEAR(${exprTermString(value)})`)
-}
-
-export function monthFn(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`MONTH(${exprTermString(value)})`)
-}
-
-export function dayFn(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`DAY(${exprTermString(value)})`)
-}
-
-
-/**
- * Comparison helpers
- *
- * These all build simple binary expressions and return them as SparqlValue.
- */
-
-export function eq(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} = ${exprTermString(right)}`)
-}
-
-export function neq(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} != ${exprTermString(right)}`)
-}
-
-export function gt(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} > ${exprTermString(right)}`)
-}
-
-export function gte(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} >= ${exprTermString(right)}`)
-}
-
-export function lt(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} < ${exprTermString(right)}`)
-}
-
-export function lte(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`${exprTermString(left)} <= ${exprTermString(right)}`)
-}
-
-/**
- * Logical helpers
- */
-
-export function and(
-  ...conditions: SparqlValue[]
-): SparqlValue {
-  if (conditions.length === 0) return raw('true')
-  if (conditions.length === 1) return conditions[0]
-  return raw(conditions.map((c) => c.value).join(' && '))
-}
-
-export function or(
-  ...conditions: SparqlValue[]
-): SparqlValue {
-  if (conditions.length === 0) return raw('false')
-  if (conditions.length === 1) return conditions[0]
-  return raw(conditions.map((c) => c.value).join(' || '))
-}
-
-export function not(condition: SparqlValue): SparqlValue {
-  return raw(`!(${condition.value})`)
-}
-
-/**
- * EXISTS/NOT EXISTS helpers
- *
- * You pass a SparqlValue that represents a group pattern:
- *   exists(triple('?s', 'rdf:type', 'ex:Thing'))
- */
-export function exists(pattern: SparqlValue): SparqlValue {
-  return raw(`EXISTS { ${pattern.value} }`)
-}
-
-export function notExists(pattern: SparqlValue): SparqlValue {
-  return raw(`NOT EXISTS { ${pattern.value} }`)
-}
-
-
-
 
 // ============================================================================
 // Re-export for convenience

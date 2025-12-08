@@ -463,9 +463,10 @@ export class Relationship implements SparqlValue {
     // Otherwise, reify with a blank node.
     const edgeId = this.getEdgeId()
     const poMap: RelationshipPropertyMap = {
-      'rdf:type': 'narrative:Relationship',
-      'narrative:from': this.fromTerm,
-      'narrative:to': this.toTerm,
+      'rdf:type': 'rdf:Statement',
+      'rdf:subject': this.fromTerm,
+      'rdf:predicate': this.predicate,
+      'rdf:object': this.toTerm,
       ...this.properties,
     }
 
@@ -530,52 +531,6 @@ export function match(
   const built = patterns.map((p) => p.value)
 
   return raw(`${built.join('\n    ')}`)
-}
-
-// ============================================================================
-// Common Domain Patterns
-// ============================================================================
-
-/**
- * PopModern narrative types (convenience)
- */
-export const Types = {
-  Character: raw('narrative:Character'),
-  Series: raw('narrative:Series'),
-  Product: raw('narrative:Product'),
-  Person: raw('narrative:Person'),
-  Organization: raw('narrative:Organization'),
-  Universe: raw('narrative:Universe'),
-  StoryWork: raw('narrative:StoryWork'),
-}
-
-/**
- * PopModern narrative relationships (convenience)
- */
-export const Relationships = {
-  createdBy: raw('narrative:createdBy'),
-  publishedBy: raw('narrative:publishedBy'),
-  featuresCharacter: raw('narrative:featuresCharacter'),
-  partOfSeries: raw('narrative:partOfSeries'),
-  partOfUniverse: raw('narrative:partOfUniverse'),
-  adaptationOf: raw('narrative:adaptationOf'),
-
-  // FOAF relationships
-  knows: raw('foaf:knows'),
-  member: raw('foaf:member'),
-}
-
-/**
- * Common predicates (convenience)
- */
-export const Props = {
-  name: raw('rdfs:label'),
-  characterName: raw('narrative:characterName'),
-  seriesName: raw('narrative:seriesName'),
-  productTitle: raw('narrative:productTitle'),
-  releaseDate: raw('narrative:releaseDate'),
-  storeDate: raw('narrative:storeDate'),
-  issueNumber: raw('narrative:issueNumber'),
 }
 
 export function simpleHash(str: string): string {

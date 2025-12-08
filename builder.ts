@@ -19,17 +19,15 @@
 
 import {
   sparql,
-  uri,
-  variable,
-  prefixed,
-  date,
-  dateTime,
-  bind as bindExpr,
-  filter as filterExpr,
-  optional as optionalExpr,
   normalizeVariableName,
   type SparqlValue,
 } from './sparql.ts'
+import {
+  bind as bindExpr,
+  exprTermString,
+  filter as filterExpr,
+  optional as optionalExpr,
+} from './utils.ts'
 import { createExecutor, type ExecutorConfig, type SparqlResult } from './executor.ts'
 
 // ============================================================================
@@ -49,7 +47,7 @@ export type PatternLike = string | SparqlValue
 /**
  * Query projection (SELECT variables)
  */
-export type Projection = string[] | '*'
+export type Projection = PatternLike[] | '*'
 
 /**
  * Sort direction
@@ -361,7 +359,7 @@ export class QueryBuilder {
 
       const proj = this.state.projection === '*'
         ? '*'
-        : this.state.projection.join(' ')
+        : this.state.projection.map(x => exprTermString(x))?.join(' ')
       parts.push(`SELECT ${modifier}${proj}`)
     } else if (this.state.type === 'ASK') {
       parts.push('ASK')
@@ -369,8 +367,8 @@ export class QueryBuilder {
       parts.push('CONSTRUCT')
     } else if (this.state.type === 'DESCRIBE') {
       const projection = Array.isArray(this.state.projection)
-        ? this.state.projection.join(' ')
-        : this.state.projection;
+        ? this.state.projection.map(x => exprTermString(x)).join(' ')
+        : exprTermString(this.state.projection);
       parts.push(`DESCRIBE ${projection}`)
     }
 
