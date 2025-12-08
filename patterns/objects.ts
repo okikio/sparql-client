@@ -1,16 +1,19 @@
 /**
- * Cypher-inspired pattern matching for SPARQL
+ * Graph pattern matching inspired by Cypher.
  * 
- * Makes queries more intuitive by hiding SPARQL's verbose syntax:
+ * SPARQL's verbose syntax makes queries hard to read, especially when you're describing
+ * complex graph structures. These pattern helpers let you think in terms of nodes and
+ * relationships instead of raw triples.
  * 
- * @example
- * ```ts
- * // Instead of: ?person a foaf:Person ; foaf:name ?name
- * // Write: node('person', Person).prop('name', var('name'))
+ * The core idea comes from Cypher (Neo4j's query language). Instead of repeating
+ * `?person foaf:name ?name ; foaf:age ?age`, you describe the node once with all its
+ * properties. Relationships work similarly - you define how nodes connect without
+ * manually writing every triple.
  * 
- * // Instead of: ?person foaf:knows ?friend
- * // Write: rel('person', knows, 'friend')
- * ```
+ * This is syntactic sugar that generates standard SPARQL triples under the hood.
+ * The benefit is readability - your queries look more like the graph you're querying.
+ * 
+ * @module
  */
 
 import {
@@ -32,84 +35,96 @@ import {
 } from "./triples.ts"
 
 // ============================================================================
-// Best Practice: Always Use Explicit Functions
+// Design Philosophy
 // ============================================================================
 
 /**
- * BEST PRACTICE: Use explicit functions for ALL values
+ * Best practice: Use explicit value constructors.
  * 
- * ✅ GOOD: node('person', Person).prop('name', str('Alice'))
- * ✅ GOOD: node('person', Person).prop('age', num(30))
- * ❌ BAD:  node('person', Person).prop('name', 'Alice')  // Implicit conversion
+ * When building patterns, always use str(), num(), v() etc. for values.
+ * Don't rely on implicit conversion. This makes your intent clear and avoids
+ * ambiguity about whether something is a literal value or a variable name.
  * 
- * Why? Clarity and intent. When reading code, you immediately know:
- * - str() = literal string value
- * - var() = SPARQL variable
- * - iri() = IRI reference
- * - num() = numeric literal
+ * Good: node('person', Person).prop('name', str('Alice'))
+ * Good: node('person', Person).prop('age', num(30))
+ * Bad:  node('person', Person).prop('name', 'Alice')  // Unclear intent
+ * 
+ * The explicit style makes it obvious what's a value vs. a variable vs. an IRI.
  */
 
-// Unified "Node"/"NodePattern" and "Relationship"/"RelationshipPattern" patterns.
+// ============================================================================
+// Node Patterns
+// ============================================================================
 
-// A single "atomic" property value can be either:
-// - a normal triple object (literal/IRI/var)
-// - another Node (nested resource)
+/**
+ * Property value for a node.
+ * 
+ * Can be a simple triple object (literal, IRI, variable) or another Node for
+ * nested structures. Arrays let you specify multiple values for one property.
+ */
 export type PropertyAtomic = TripleObject | Node
-
-// The real stored type can be a single or an array.
 export type PropertyValue = PropertyAtomic | PropertyAtomic[]
 
-// ---------------------------------------------------------------------------
-// ResourcePattern: describes a single resource (node)
-// ---------------------------------------------------------------------------
-
+/**
+ * Map of property names to values.
+ */
 export interface NodePropertyMap { 
   [predicate: string]: PropertyValue
 }
 
 /**
- * A resource (node) pattern: subject + rdf:type(s) + properties.
- *
- * Implements SparqlValue so you can pass it to .where().
- * Its .value is a group of triples describing that subject.
+ * A node in your graph pattern.
  * 
+ * Nodes represent resources - people, places, things. Each node has a variable
+ * that will bind to matching resources in your data. You can specify the node's
+ * type (what kind of resource it is) and properties (facts about it).
  * 
- * APPROACH 1: Nested Object Pattern
+ * The pattern gets compiled to SPARQL triples, but you write it in a more
+ * intuitive nested structure. This handles the bookkeeping of variable names
+ * and relationships between nodes.
  * 
- * Most intuitive for developers familiar with JSON/JavaScript.
+ * @example Basic node
+ * ```ts
+ * const person = node('person', 'foaf:Person')
+ * // Generates: ?person a foaf:Person .
+ * ```
  * 
- * ⚠️ RDF SEMANTICS: This LOOKS nested but generates flat triples.
- * In RDF, all properties are edges. We're just making the DX nicer.
- * 
- * @example
- * ```typescript
- * const pattern = node('?product is narrative:Product', {
- *   'narrative:productTitle': '?title',
- *   'narrative:publishedBy': node('?publisher is narrative:Publisher', {
- *     'rdfs:label': str('Marvel Comics'),
- *   }),
- * });
- * 
+ * @example Node with properties
+ * ```ts
+ * const person = node('person', 'foaf:Person', {
+ *   'foaf:name': v('name'),
+ *   'foaf:age': v('age')
+ * })
  * // Generates:
- * // ?product a narrative:Product .
- * // ?product narrative:productTitle ?title .
- * // ?product narrative:publishedBy ?publisher .
- * // ?publisher a narrative:Publisher .
+ * // ?person a foaf:Person .
+ * // ?person foaf:name ?name .
+ * // ?person foaf:age ?age .
+ * ```
+ * 
+ * @example Nested nodes
+ * ```ts
+ * const product = node('product', 'schema:Product', {
+ *   'schema:name': v('title'),
+ *   'schema:publisher': node('publisher', 'schema:Organization', {
+ *     'rdfs:label': str('Marvel Comics')
+ *   })
+ * })
+ * // Generates:
+ * // ?product a schema:Product .
+ * // ?product schema:name ?title .
+ * // ?product schema:publisher ?publisher .
+ * // ?publisher a schema:Organization .
  * // ?publisher rdfs:label "Marvel Comics" .
  * ```
  */
 export class Node implements SparqlValue {
   readonly __sparql = true
-  // The SPARQL term for this node's subject, e.g. ?product
   readonly subjectTerm: SparqlValue
-  // Just the variable name, mainly for debugging
   private readonly varName: string
-  
-  // rdf:type values and properties
   private readonly typesTerm: TriplePredicate[] = []
   private readonly properties: NodePropertyMap = {}
 
-  // Getters return `this` - zero overhead, pure syntax
+  // Fluent getters for natural chaining
   get is(): this { return this }
   get with(): this { return this }
   get and(): this { return this }
@@ -123,7 +138,6 @@ export class Node implements SparqlValue {
     this.varName = variableName
     this.subjectTerm = variable(variableName)
 
-    // Handle type(s) explicitly
     if (type) {
       if (Array.isArray(type)) {
         this.typesTerm.push(...type)
@@ -139,75 +153,94 @@ export class Node implements SparqlValue {
     }
   }
 
-  /**
-   * Helper: create a node bound to ?<name>
-   */
   static create(name: string, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap): Node {
     return new Node(name, type, options)
   }
 
   /**
-   * Access the subject term (?product) when this node is used as an object.
+   * Get the variable term for this node.
+   * 
+   * Use this when you need to reference the node as an object in another triple.
+   * For example, when connecting two nodes with a relationship.
    */
   term(): SparqlValue {
     return this.subjectTerm
   }
 
   /**
-   * Add an rdf:type triple.
-   *
+   * Add an rdf:type to this node.
+   * 
+   * Types indicate what kind of resource this is. A node can have multiple types
+   * (someone can be both a Person and an Author).
+   * 
    * @example
-   * resource.a('narrative:Product')
+   * ```ts
+   * node('person').a('foaf:Person').a('schema:Author')
+   * ```
    */
   a(typeIri: TriplePredicate): this {
     this.typesTerm.push(typeIri)
     return this
   }
 
-  /** Alias to {@link a} */ 
+  /** Alias for {@link a} with more explicit naming. */
   type(typeIri: TriplePredicate): this {
     this.a(typeIri)
     return this
   }
 
   /**
-   * Set multiple types for a node backed by {@link a}
-   * @param typesIri 
-   * @returns 
+   * Add multiple types at once.
+   * 
+   * @example
+   * ```ts
+   * node('item').types(['schema:Product', 'schema:CreativeWork'])
+   * ```
    */
   types(typesIri: TriplePredicate[]): this { 
     for (const typeIri of typesIri)
       this.a(typeIri);
     return this
-
   }
 
   /**
-   * Add a property.
-   *
-   * Value can be:
-   * - a primitive/literal/IRI/var (TripleObject)
-   * - another Node
-   * - an array of those
-   *
-   * @example
-   * resource.prop('narrative:productTitle', 'Amazing Spider-Man #1')
+   * Add a property to this node.
+   * 
+   * Properties describe facts about the resource. The value can be a literal,
+   * variable, IRI, or even another node for nested structures. Arrays let you
+   * specify multiple values for one property.
+   * 
+   * If you call prop() multiple times with the same predicate, the values
+   * accumulate - you'll get multiple triples with that predicate.
+   * 
+   * @example Single value
+   * ```ts
+   * node('person').prop('foaf:name', v('name'))
+   * ```
+   * 
+   * @example Multiple values
+   * ```ts
+   * node('person').prop('foaf:nick', ['Spidey', 'Web-Head'])
+   * ```
+   * 
+   * @example Nested node
+   * ```ts
+   * node('product').prop('schema:publisher', node('publisher', 'schema:Organization'))
+   * ```
    */
   prop(predicate: string | SparqlValue, value: TripleObject | TripleObject[]): this {
     const key = typeof predicate === 'string' ? predicate : predicate.value
     const existing = this.properties[key]
+    
     if (existing === undefined) {
       this.properties[key] = value
-    }
-    
-    if (Array.isArray(existing)) {
+    } else if (Array.isArray(existing)) {
       if (Array.isArray(value)) {
         existing.push(...value)
       } else {
         existing.push(value)
       }
     } else {
-      // existing is atomic
       if (Array.isArray(value)) {
         this.properties[key] = [existing, ...value]
       } else {
@@ -218,10 +251,19 @@ export class Node implements SparqlValue {
   }
 
   /**
-   * Set multiple {@link prop}'s at the same time
+   * Add multiple properties at once.
    * 
-   * @param map 
-   * @returns 
+   * Convenient when you have several properties to set. Just pass an object
+   * where keys are predicates and values are objects.
+   * 
+   * @example
+   * ```ts
+   * node('person').props({
+   *   'foaf:name': v('name'),
+   *   'foaf:age': v('age'),
+   *   'foaf:email': v('email')
+   * })
+   * ```
    */
   props(map: Record<string, TripleObject | TripleObject[]>): this {
     for (const [key, value] of Object.entries(map)) {
@@ -231,16 +273,14 @@ export class Node implements SparqlValue {
   }
 
   /**
-   * Build the triples for this node and any nested nodes, ensuring that:
-   *
-   * - this node's subject is used as the subject for its properties
-   * - nested Node values are used as triple *objects* via .term()
-   * - nested Node patterns are also emitted (recursively)
-   * - cycles are guarded against via the visited set
+   * Build the SPARQL pattern for this node.
+   * 
+   * Recursively processes this node and any nested nodes, generating all the
+   * necessary triples. The visited set prevents infinite recursion if there
+   * are circular references.
    */
   private buildPatternInternal(visited: Set<Node>): string {
     if (visited.has(this)) {
-      // Avoid infinite recursion if there are cycles.
       return ''
     }
     visited.add(this)
@@ -248,7 +288,7 @@ export class Node implements SparqlValue {
     const poNormalized: PredicateObjectMap = {}
     const nestedChunks: string[] = []
 
-    // ---- rdf:type ----
+    // Add rdf:type triples
     if (this.typesTerm.length > 0) {
       const typeObjs: TripleObject[] = this.typesTerm.map((t) =>
         typeof t === 'string' ? t : t.value,
@@ -263,20 +303,19 @@ export class Node implements SparqlValue {
       }
     }
 
-    // ---- properties (including nested Nodes) ----
+    // Process properties, handling nested nodes
     const pushAtomic = (key: string, atomic: PropertyAtomic): void => {
       let object: TripleObject
 
       if (atomic instanceof Node) {
-        // Use the Node's term as the object (e.g. ?publisher)
+        // Use the nested node's variable as the object
         object = atomic.term()
-        // And also append its own pattern
+        // Also generate the nested node's pattern
         const nested = atomic.buildPatternInternal(visited)
         if (nested.trim().length > 0) {
           nestedChunks.push(nested)
         }
       } else {
-        // Normal TripleObject (literal/IRI/var)
         object = atomic
       }
 
@@ -300,10 +339,10 @@ export class Node implements SparqlValue {
       }
     }
 
-    // ---- build this node's own triples ----
+    // Build this node's triples
     const selfPattern = triples(this.subjectTerm, poNormalized).value
 
-    // Combine this node's triples with any nested node triples.
+    // Combine with nested patterns
     const allChunks = [selfPattern, ...nestedChunks].filter(
       (chunk) => chunk.trim().length > 0,
     )
@@ -312,9 +351,9 @@ export class Node implements SparqlValue {
   }
 
   /**
-   * Expose the pattern as a SparqlValue.
-   *
-   * This is what the query builder will see when you call .where(node(...)).
+   * Get the full SPARQL pattern as a SparqlValue.
+   * 
+   * Call this to get the complete pattern including all nested nodes.
    */
   pattern(): SparqlValue {
     const visited = new Set<Node>()
@@ -323,9 +362,13 @@ export class Node implements SparqlValue {
   }
 
   /**
-   * Implement SparqlValue directly for convenience.
-   * WARNING: This is the *pattern*, NOT the term. For use as an object in
-   * a triple, always use .term() instead.
+   * Get the SPARQL pattern string.
+   * 
+   * This implements SparqlValue.value, which means you can pass Node objects
+   * directly to query builder methods that expect SparqlValue.
+   * 
+   * ⚠️ Warning: This returns the full pattern, not just the variable. If you
+   * want to use this node as an object in a triple, call term() instead.
    */
   get value(): string {
     return this.pattern().value
@@ -336,47 +379,51 @@ export class Node implements SparqlValue {
   }
 }
 
-// ---------------------------------------------------------------------------
-// RelationshipPattern: describes a relationship between two resources
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Relationship Patterns
+// ============================================================================
 
+/**
+ * Properties on a relationship.
+ * 
+ * Like nodes, relationships can have properties too. This is called reification
+ * in RDF - treating the edge itself as a resource with facts about it.
+ */
 export interface RelationshipPropertyMap {
   [predicate: string]: PropertyValue
 }
 
 /**
- * Relationship between two nodes.
- *
- * Minimal form:
+ * A relationship between two nodes.
+ * 
+ * Relationships describe how nodes connect. In the simplest case, a relationship
+ * is just an edge between two nodes with a predicate. But you can also add
+ * properties to the relationship itself (metadata about the connection).
+ * 
+ * When you add properties to a relationship, it uses RDF reification to represent
+ * the edge as a resource. This lets you attach information like timestamps,
+ * confidence scores, or provenance data to connections.
+ * 
+ * @example Simple relationship
  * ```ts
- *   rel('product', 'narrative:publishedBy', 'publisher')
- * ```
- *
- * If you want the relationship to also carry properties, you can reify
- * with `.with.prop(...)` as before.
- *
- * NOTE: Relationship itself does not try to include node patterns; you
- * should add the relevant nodes to the WHERE clause separately:
- * ```ts
- *   builder.where(product).where(publisher).where(publishedBy)
+ * rel('person', 'foaf:knows', 'friend')
+ * // Generates: ?person foaf:knows ?friend .
  * ```
  * 
- *
- * By default it simply emits:
- * ```sparql
- *   from predicate to .
+ * @example Relationship with metadata
+ * ```ts
+ * rel('person', 'foaf:knows', 'friend')
+ *   .prop('rel:since', date(new Date('2020-01-01')))
+ *   .prop('rel:confidence', num(0.95))
+ * // Generates:
+ * // ?person foaf:knows ?friend .
+ * // _:edge_xyz a rdf:Statement ;
+ * //   rdf:subject ?person ;
+ * //   rdf:predicate foaf:knows ;
+ * //   rdf:object ?friend ;
+ * //   rel:since "2020-01-01"^^xsd:date ;
+ * //   rel:confidence 0.95 .
  * ```
- *
- * If properties are added, it emits:
- * ```sparql
- *   from predicate to .
- *   _:edge rdf:type some:RelationshipType ;
- *          some:from from ;
- *          some:to to ;
- *          ...props...
- * ```
- * 
- * You can later refine this reification scheme to your OWL-ish style.
  */
 export class Relationship implements SparqlValue {
   readonly __sparql = true
@@ -387,7 +434,6 @@ export class Relationship implements SparqlValue {
   private readonly predicate: TriplePredicate
   private readonly properties: RelationshipPropertyMap = {}
 
-  // Getters that return this for chaining
   get with(): this { return this }
   get and(): this { return this }
   get that(): this { return this }
@@ -426,11 +472,21 @@ export class Relationship implements SparqlValue {
   }
 
   /**
-   * Add a property on the relationship itself (reification).
+   * Add a property to this relationship.
+   * 
+   * When you add properties, the relationship gets reified (represented as a
+   * blank node with rdf:Statement type). This lets you attach metadata to
+   * the connection itself.
+   * 
+   * @example Timestamp on relationship
+   * ```ts
+   * rel('person', 'knows', 'friend').prop('timestamp', dateTime(new Date()))
+   * ```
    */
   prop(predicate: string | SparqlValue, value: TripleObject | TripleObject[]): this {
     const key = typeof predicate === 'string' ? predicate : predicate.value
     const existing = this.properties[key]
+    
     if (existing === undefined) {
       this.properties[key] = value
     } else if (Array.isArray(existing)) {
@@ -445,22 +501,32 @@ export class Relationship implements SparqlValue {
     return this
   }
 
-  // Deterministic edge ID based on content
+  /**
+   * Generate deterministic ID for reified edge.
+   * 
+   * Uses a simple hash of the subject-predicate-object to create a stable
+   * blank node identifier. Same relationship always gets the same ID.
+   */
   private getEdgeId(): string {
     const hash = simpleHash(`${tripleSubjectString(this.fromTerm)}|${triplePredicateString(this.predicate)}|${tripleSubjectString(this.toTerm)}`)
     return `_:edge_${hash}`
   }
 
+  /**
+   * Build the triples for this relationship.
+   * 
+   * If there are no properties, just generates the basic triple. If there are
+   * properties, generates the triple plus a reification structure.
+   */
   private buildTriples(): SparqlValue {
     const base = triple(this.fromTerm, this.predicate, this.toTerm)
 
-    // If no relationship properties, just return the base triple.
     const keys = Object.keys(this.properties)
     if (keys.length === 0) {
       return base
     }
 
-    // Otherwise, reify with a blank node.
+    // Reify with properties
     const edgeId = this.getEdgeId()
     const poMap: RelationshipPropertyMap = {
       'rdf:type': 'rdf:Statement',
@@ -480,27 +546,45 @@ export class Relationship implements SparqlValue {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Convenience helpers around patterns
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Convenience Functions
+// ============================================================================
 
 /**
- * A small helper to create a resource with type in one go.
- *
+ * Create a node pattern.
+ * 
+ * Convenience function for creating Node instances. Lets you quickly define
+ * graph patterns without the `new` keyword.
+ * 
+ * @param name Variable name for this node (without ? prefix)
+ * @param type Optional RDF type(s) for the node
+ * @param options Optional property map
+ * 
  * @example
- * const product = node('product')
- *   .is.a('narrative:Product')
- *   .with.prop('narrative:productTitle', variable('title'))
+ * ```ts
+ * const person = node('person', 'foaf:Person')
+ *   .prop('foaf:name', v('name'))
+ *   .prop('foaf:age', v('age'))
+ * ```
  */
 export function node(name: string, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap): Node {
   return Node.create(name, type, options)
 }
 
 /**
- * Relationship helper with variable subjects.
- *
+ * Create a relationship pattern.
+ * 
+ * Convenience function for creating Relationship instances. Describes how
+ * two nodes connect.
+ * 
+ * @param fromVar Source node variable name
+ * @param predicate Relationship type/predicate
+ * @param toVar Target node variable name
+ * 
  * @example
- * const rel = rel('product', 'narrative:publishedBy', 'publisher')
+ * ```ts
+ * const knows = rel('person', 'foaf:knows', 'friend')
+ * ```
  */
 export function rel(
   fromVar: string,
@@ -510,18 +594,18 @@ export function rel(
   return Relationship.create(fromVar, predicate, toVar)
 }
 
-
 /**
- * Match pattern (combines multiple patterns)
+ * Combine multiple patterns into one.
  * 
- * Cypher-inspired way to build graph patterns
+ * Takes several patterns (nodes, relationships, or raw SPARQL) and combines
+ * them into a single pattern. Useful for building complex graph structures.
  * 
  * @example
  * ```ts
- * match(
- *   node('person', Person).prop('name', var('name')),
- *   rel('person', knows, 'friend'),
- *   node('friend', Person)
+ * const pattern = match(
+ *   node('person', 'foaf:Person').prop('name', v('name')),
+ *   rel('person', 'foaf:knows', 'friend'),
+ *   node('friend', 'foaf:Person')
  * )
  * ```
  */
@@ -529,16 +613,21 @@ export function match(
   ...patterns: Array<Node | Relationship | SparqlValue>
 ): SparqlValue {
   const built = patterns.map((p) => p.value)
-
   return raw(`${built.join('\n    ')}`)
 }
 
+/**
+ * Simple string hash for generating IDs.
+ * 
+ * Uses a basic hash algorithm to create deterministic IDs from strings.
+ * Not cryptographically secure, but fine for generating blank node identifiers.
+ */
 export function simpleHash(str: string): string {
   let hash = 0
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i)
     hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32bit integer
+    hash = hash & hash
   }
   return Math.abs(hash).toString(36)
 }

@@ -1,35 +1,79 @@
+/**
+ * Neo4J like Cypher syntax for graph patterns.
+ * 
+ * Visual representation of relationships makes queries more intuitive. Instead of
+ * writing separate node and relationship definitions, you can draw the connections
+ * with ASCII art arrows. This is inspired by Cypher's visual syntax.
+ * 
+ * The cypher template tag parses patterns like `node1-[predicate]->node2` and
+ * generates the appropriate SPARQL triples. It's syntactic sugar - the RDF semantics
+ * are unchanged, but the code reads more like a diagram of your graph.
+ * 
+ * ⚠️ Note: This generates standard SPARQL triples. The arrows are just a visual
+ * aid for writing patterns - they get compiled to subject-predicate-object triples.
+ * 
+ * @module
+ */
+
 import { raw, type SparqlValue } from '../sparql.ts'
 import { Node } from './objects.ts'
 
-// ============================================================================
-// Approach 3: ASCII Art Pattern (Cypher-like visual)
-// ============================================================================
-
 /**
- * APPROACH 3: ASCII Art Pattern
+ * Create graph patterns using ASCII art syntax.
  * 
- * Cypher-inspired visual representation.
- * ⚠️ RDF SEMANTICS: This is syntactic sugar. Arrows show triple direction.
+ * Draw your graph with arrows and brackets. The cypher template tag parses this
+ * visual representation and generates SPARQL triples. Node objects get substituted
+ * in and connected according to the arrows.
  * 
- * @example
- * ```typescript
- * const product = node('?product is narrative:Product', {
- *   'narrative:releaseDate': '?releaseDate',
- * });
+ * The syntax supports:
+ * - `node1-[predicate]->node2` - directed edge from node1 to node2
+ * - `node1<-[predicate]-node2` - directed edge from node2 to node1
+ * - `node1-[predicate]-node2` - undirected (generates forward direction)
  * 
- * const publisher = node('?publisher is narrative:Publisher', {
- *   'rdfs:label': str('Marvel'),
- * });
+ * Under the hood, this extracts the node patterns and creates additional triples
+ * for the relationships. It's a more readable way to write what would otherwise
+ * be multiple triple() or rel() calls.
  * 
- * const pattern = path`${product}-[narrative:publishedBy]->${publisher}`;
+ * @example Simple connection
+ * ```ts
+ * const product = node('product', 'schema:Product', {
+ *   'schema:name': v('title')
+ * })
+ * 
+ * const publisher = node('publisher', 'schema:Organization', {
+ *   'rdfs:label': str('Marvel Comics')
+ * })
+ * 
+ * const pattern = cypher`${product}-[schema:publisher]->${publisher}`
  * ```
  * 
- * Create path pattern with ASCII art
+ * Generates:
+ * ```sparql
+ * ?product a schema:Product .
+ * ?product schema:name ?title .
+ * ?publisher a schema:Organization .
+ * ?publisher rdfs:label "Marvel Comics" .
+ * ?product schema:publisher ?publisher .
+ * ```
  * 
- * Supported patterns:
- * - `${node1}-[predicate]->${node2}` - directed edge
- * - `${node1}<-[predicate]-${node2}` - reverse direction
- * - `${node1}-[predicate]-${node2}` - undirected (generates forward)
+ * @example Multiple connections
+ * ```ts
+ * const person = node('person', 'foaf:Person')
+ * const friend = node('friend', 'foaf:Person')
+ * const group = node('group', 'foaf:Group')
+ * 
+ * const pattern = cypher`
+ *   ${person}-[foaf:knows]->${friend}
+ *   ${person}-[foaf:member]->${group}
+ * `
+ * ```
+ * 
+ * @example Reverse direction
+ * ```ts
+ * // These are equivalent:
+ * cypher`${person}-[foaf:knows]->${friend}`
+ * cypher`${friend}<-[foaf:knows]-${person}`
+ * ```
  */
 export function cypher(
   strings: TemplateStringsArray,
@@ -38,6 +82,7 @@ export function cypher(
   let result = strings[0]
   const nodes: Node[] = []
 
+  // Substitute node placeholders
   for (let i = 0; i < values.length; i++) {
     const value = values[i]
     
@@ -51,17 +96,16 @@ export function cypher(
     result += strings[i + 1]
   }
 
-  // Parse ASCII art pattern
-  // Pattern: NODE_0-[predicate]->NODE_1
+  // Parse ASCII art patterns
   const edgePattern = /NODE_(\d+)\s*<?-\[([^\]]+)\]->?\s*NODE_(\d+)/g
   const triples: string[] = []
 
-  // Add all node triples first
+  // First, add all node patterns
   for (const node of nodes) {
-    triples.push(...node.value)
+    triples.push(...node.value.split('\n'))
   }
 
-  // Parse edges
+  // Then parse and add edge patterns
   let match
   while ((match = edgePattern.exec(result)) !== null) {
     const fromIdx = parseInt(match[1])
@@ -76,4 +120,3 @@ export function cypher(
 
   return raw(`${triples.join('\n')}`)
 }
-

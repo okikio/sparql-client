@@ -1,11 +1,53 @@
-import { convertValue, isSparqlValue, normalizeVariableName, raw, strlit, validateVariableName, wrapSparqlValue, type VariableName, type SparqlInterpolatable, type SparqlValue } from './sparql.ts'
+/**
+ * SPARQL expression helpers and query utilities.
+ * 
+ * Building complex SPARQL expressions by hand is tedious. You end up with lots of
+ * string concatenation that's hard to read and easy to mess up. These helpers let
+ * you build expressions programmatically, like you would with Drizzle or other
+ * query builders.
+ * 
+ * The functions here mirror SPARQL's built-in operations but give you type safety
+ * and composability. Need to filter by age and check a regex? Combine `and()` with
+ * `gte()` and `regex()`. Want to create computed fields? Use `bind()` with `concat()`.
+ * 
+ * @module
+ */
+
+import {
+  convertValue,
+  isSparqlValue,
+  normalizeVariableName,
+  raw,
+  strlit,
+  validateVariableName,
+  wrapSparqlValue,
+  type VariableName,
+  type SparqlInterpolatable,
+  type SparqlValue
+} from './sparql.ts'
+
+// ============================================================================
+// Query Clauses
+// ============================================================================
 
 /**
- * Create VALUES clause for multiple values
+ * Create a VALUES clause for filtering by a list of values.
  * 
- * @example
+ * VALUES clauses let you provide a set of possible values for a variable.
+ * Think of it like an IN clause in SQL. The query engine will try each value
+ * and return results that match any of them.
+ * 
+ * @example Simple list
+ * ```ts
  * values('city', ['London', 'Paris', 'Tokyo'])
- * → VALUES ?city { "London" "Paris" "Tokyo" }
+ * // VALUES ?city { "London" "Paris" "Tokyo" }
+ * ```
+ * 
+ * @example With numbers
+ * ```ts
+ * values('age', [18, 21, 25])
+ * // VALUES ?age { 18 21 25 }
+ * ```
  */
 export function values(
   varName: VariableName,
@@ -17,33 +59,74 @@ export function values(
 }
 
 /**
- * Create FILTER expression
+ * Wrap an expression in a FILTER clause.
  * 
- * @example
- * filter(sparql`?age > ${18}`)
- * → FILTER(?age > 18)
+ * Filters restrict results based on boolean conditions. The expression you pass
+ * should evaluate to true or false. Use this with comparison operators, regex
+ * checks, or any other boolean expression.
+ * 
+ * @example Age filter
+ * ```ts
+ * filter(gte(v('age'), 18))
+ * // FILTER(?age >= 18)
+ * ```
+ * 
+ * @example Multiple conditions
+ * ```ts
+ * filter(and(
+ *   gte(v('age'), 18),
+ *   regex(v('name'), '^Spider')
+ * ))
+ * // FILTER(?age >= 18 && REGEX(?name, "^Spider"))
+ * ```
  */
 export function filter(expression: SparqlValue): SparqlValue {
   return wrapSparqlValue(`FILTER(${expression.value})`)
 }
 
 /**
- * Create OPTIONAL block
+ * Wrap a pattern in an OPTIONAL block.
  * 
- * @example
- * optional(sparql`?person foaf:email ?email`)
- * → OPTIONAL { ?person foaf:email ?email }
+ * Optional patterns don't fail the whole query if they don't match - they just
+ * leave variables unbound. This is like a LEFT JOIN in SQL. Use it for properties
+ * that might not exist on all results.
+ * 
+ * @example Email might not exist
+ * ```ts
+ * optional(triple('?person', 'foaf:email', '?email'))
+ * // OPTIONAL { ?person foaf:email ?email }
+ * ```
+ * 
+ * @example Multiple optional triples
+ * ```ts
+ * optional(triples('?person', [
+ *   ['foaf:email', '?email'],
+ *   ['foaf:phone', '?phone']
+ * ]))
+ * ```
  */
 export function optional(pattern: SparqlValue): SparqlValue {
   return wrapSparqlValue(`OPTIONAL { ${pattern.value} }`)
 }
 
 /**
- * Create BIND expression
+ * Create a BIND expression to compute new variables.
  * 
- * @example
- * bind(sparql`CONCAT(?firstName, " ", ?lastName)`, 'fullName')
- * → BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
+ * BIND lets you create new variables from expressions. Think of it like a computed
+ * column - you're deriving a new value from existing data. The variable will be
+ * available in the rest of the query.
+ * 
+ * @example Full name from parts
+ * ```ts
+ * bind(concat(v('firstName'), ' ', v('lastName')), 'fullName')
+ * // BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
+ * ```
+ * 
+ * @example Age calculation
+ * ```ts
+ * bind(sub(2024, v('birthYear')), 'age')
+ * // BIND(2024 - ?birthYear AS ?age)
+ * ```
  */
 export function bind(expression: SparqlValue, varName: VariableName): SparqlValue {
   const _varName = normalizeVariableName(varName)
@@ -52,9 +135,15 @@ export function bind(expression: SparqlValue, varName: VariableName): SparqlValu
 }
 
 // ============================================================================
-// Expression helpers (Drizzle-like SPARQL operations)
+// Expression Helpers
 // ============================================================================
 
+/**
+ * Values that can be used in SPARQL expressions.
+ * 
+ * These are the building blocks: literals, numbers, dates, and already-constructed
+ * SparqlValue objects. Most expression helpers accept these types.
+ */
 export type ExpressionPrimitive =
   | string
   | number
@@ -64,12 +153,11 @@ export type ExpressionPrimitive =
   | undefined
 
 /**
- * Treat a value as an expression term.
- *
- * - SparqlValue → use its `.value` directly
- * - primitives  → encoded using the `sparql` template, so they become
- *                 correctly escaped literals or IRIs/variables (depending
- *                 on how you pass them)
+ * Convert a value to a SparqlValue for use in expressions.
+ * 
+ * This is an internal helper that ensures values are properly formatted for
+ * SPARQL expressions. You usually don't need to call this directly since the
+ * other helpers call it for you.
  */
 export function exprTerm(
   value: SparqlValue | ExpressionPrimitive,
@@ -77,12 +165,14 @@ export function exprTerm(
   if (isSparqlValue(value)) {
     return value
   }
-  // primitives go through convertValue via the template tag
   return wrapSparqlValue(convertValue(value))
 }
 
 /**
- * Internal: convert a value to the raw SPARQL term string.
+ * Get the raw SPARQL string for a value.
+ * 
+ * Internal helper for converting values to strings that can be embedded in
+ * larger expressions.
  */
 export function exprTermString(
   value: SparqlValue | ExpressionPrimitive,
@@ -90,47 +180,87 @@ export function exprTermString(
   return exprTerm(value).value
 }
 
+// ============================================================================
+// String Functions
+// ============================================================================
+
 /**
- * CONCAT(arg1, arg2, ...)
- *
- * @example
+ * Concatenate strings or values.
+ * 
+ * CONCAT joins multiple values into a single string. All arguments are converted
+ * to strings first. This is your go-to for building full names, labels, or any
+ * composite string field.
+ * 
+ * @example Full name
  * ```ts
- * const fullName = concat(variable('firstName'), ' ', variable('lastName'))
- * const q = select(['?fullName'])
- *   .bind(fullName, 'fullName')
+ * concat(v('firstName'), ' ', v('lastName'))
+ * // CONCAT(?firstName, " ", ?lastName)
+ * ```
+ * 
+ * @example Label with prefix
+ * ```ts
+ * concat('Issue #', v('issueNumber'))
+ * // CONCAT("Issue #", ?issueNumber)
  * ```
  */
 export function concat(
   ...args: Array<SparqlValue | ExpressionPrimitive>
 ): SparqlValue {
   if (args.length === 0) {
-    // CONCAT() is invalid; return an empty string literal
-    return strlit('') // """"
+    return strlit('')
   }
 
   const inner = args.map(exprTermString).join(', ')
   return raw(`CONCAT(${inner})`)
 }
 
+/**
+ * Convert a value to a string.
+ * 
+ * Forces conversion to string representation. Useful when you need to ensure
+ * a value is treated as a string for comparison or manipulation.
+ */
 export function str(value: SparqlValue | ExpressionPrimitive): SparqlValue {
   return raw(`STR(${exprTermString(value)})`)
 }
 
+/**
+ * Get the length of a string.
+ * 
+ * Returns the character count. Note that this counts Unicode characters, not bytes.
+ */
 export function strlen(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`STRLEN(${exprTermString(value)})`)
 }
 
+/**
+ * Convert string to uppercase.
+ */
 export function ucase(value: SparqlValue | ExpressionPrimitive): SparqlValue {
   return raw(`UCASE(${exprTermString(value)})`)
 }
 
+/**
+ * Convert string to lowercase.
+ */
 export function lcase(value: SparqlValue | ExpressionPrimitive): SparqlValue {
   return raw(`LCASE(${exprTermString(value)})`)
 }
 
-
+/**
+ * Check if a string contains a substring.
+ * 
+ * Case-sensitive substring search. Returns true if pattern appears anywhere
+ * in the text.
+ * 
+ * @example
+ * ```ts
+ * contains(v('title'), 'Spider')
+ * // CONTAINS(?title, "Spider")
+ * ```
+ */
 export function contains(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
@@ -140,6 +270,11 @@ export function contains(
   )
 }
 
+/**
+ * Check if string starts with a prefix.
+ * 
+ * Case-sensitive prefix check.
+ */
 export function startsWith(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
@@ -149,6 +284,11 @@ export function startsWith(
   )
 }
 
+/**
+ * Check if string ends with a suffix.
+ * 
+ * Case-sensitive suffix check.
+ */
 export function endsWith(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
@@ -158,6 +298,24 @@ export function endsWith(
   )
 }
 
+/**
+ * Extract substring from a string.
+ * 
+ * Starting position is 1-indexed (SPARQL convention). If length is omitted,
+ * extracts to the end of the string.
+ * 
+ * @example First 5 characters
+ * ```ts
+ * substr(v('title'), 1, 5)
+ * // SUBSTR(?title, 1, 5)
+ * ```
+ * 
+ * @example Everything after position 10
+ * ```ts
+ * substr(v('description'), 10)
+ * // SUBSTR(?description, 10)
+ * ```
+ */
 export function substr(
   text: SparqlValue | ExpressionPrimitive,
   start: SparqlValue | ExpressionPrimitive,
@@ -172,6 +330,17 @@ export function substr(
   return raw(`SUBSTR(${t}, ${s}, ${l})`)
 }
 
+/**
+ * Replace occurrences of a pattern in text.
+ * 
+ * Replaces all occurrences of pattern with replacement string.
+ * 
+ * @example Remove dashes
+ * ```ts
+ * replaceStr(v('isbn'), '-', '')
+ * // REPLACE(?isbn, "-", "")
+ * ```
+ */
 export function replaceStr(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
@@ -183,14 +352,21 @@ export function replaceStr(
   return raw(`REPLACE(${textTerm}, ${patternTerm}, ${replacementTerm})`)
 }
 
-
 /**
- * REGEX helper
- *
- * @example
+ * Pattern matching with regular expressions.
+ * 
+ * Supports standard regex patterns. The flags parameter lets you control
+ * matching behavior (i for case-insensitive, m for multiline, etc.).
+ * 
+ * @example Case-insensitive match
  * ```ts
- * const condition = regex(variable('name'), '^Spidey', 'i')
- * builder.filter(condition)
+ * regex(v('name'), '^Spider', 'i')
+ * // REGEX(?name, "^Spider", "i")
+ * ```
+ * 
+ * @example Match email pattern
+ * ```ts
+ * regex(v('email'), '^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$', 'i')
  * ```
  */
 export function regex(
@@ -204,45 +380,88 @@ export function regex(
   return raw(`REGEX(${textTerm}, ${patternTerm}${flagsTerm})`)
 }
 
+// ============================================================================
+// Nullability & List Operations
+// ============================================================================
 
-// Nullish / list helpers (Drizzle-like)
-
+/**
+ * Check if a variable is unbound (null).
+ * 
+ * In SPARQL, variables can be unbound if an OPTIONAL pattern didn't match.
+ * This lets you check for that condition.
+ * 
+ * @example
+ * ```ts
+ * filter(isNull(v('email')))
+ * // FILTER(!BOUND(?email))
+ * ```
+ */
 export function isNull(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`!BOUND(${exprTermString(value)})`)
 }
 
+/**
+ * Check if a variable is bound (not null).
+ * 
+ * Opposite of isNull - checks if a variable has a value.
+ */
 export function isNotNull(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`BOUND(${exprTermString(value)})`)
 }
 
+/**
+ * Check if a value is in a list.
+ * 
+ * Like SQL's IN operator. Checks if the expression matches any value in the list.
+ * 
+ * @example Check publisher
+ * ```ts
+ * inList(v('publisher'), ['Marvel', 'DC Comics', 'Image'])
+ * // ?publisher IN ("Marvel", "DC Comics", "Image")
+ * ```
+ */
 export function inList(
   expr: SparqlValue | ExpressionPrimitive,
   values: Array<SparqlValue | ExpressionPrimitive>,
 ): SparqlValue {
   if (values.length === 0) {
-    // Nothing is in an empty set.
     return raw('false')
   }
   const list = values.map(exprTermString).join(', ')
   return raw(`${exprTermString(expr)} IN (${list})`)
 }
 
+/**
+ * Check if a value is not in a list.
+ * 
+ * Opposite of inList - returns true if the value doesn't match any list item.
+ */
 export function notInList(
   expr: SparqlValue | ExpressionPrimitive,
   values: Array<SparqlValue | ExpressionPrimitive>,
 ): SparqlValue {
   if (values.length === 0) {
-    // Everything is not in an empty set.
     return raw('true')
   }
   const list = values.map(exprTermString).join(', ')
   return raw(`${exprTermString(expr)} NOT IN (${list})`)
 }
 
+/**
+ * Check if a value is in a range.
+ * 
+ * Shorthand for value >= low AND value <= high. Both bounds are inclusive.
+ * 
+ * @example Age range
+ * ```ts
+ * between(v('age'), 18, 65)
+ * // (?age >= 18 && ?age <= 65)
+ * ```
+ */
 export function between(
   expr: SparqlValue | ExpressionPrimitive,
   low: SparqlValue | ExpressionPrimitive,
@@ -254,6 +473,18 @@ export function between(
   return raw(`(${e} >= ${l} && ${e} <= ${h})`)
 }
 
+/**
+ * Return first non-null value from a list.
+ * 
+ * Like SQL's COALESCE. Evaluates arguments left-to-right and returns the first
+ * one that's bound. Useful for providing fallback values.
+ * 
+ * @example Fallback label
+ * ```ts
+ * coalesce(v('preferredLabel'), v('commonLabel'), strlit('Unnamed'))
+ * // COALESCE(?preferredLabel, ?commonLabel, "Unnamed")
+ * ```
+ */
 export function coalesce(
   ...values: Array<SparqlValue | ExpressionPrimitive>
 ): SparqlValue {
@@ -264,6 +495,18 @@ export function coalesce(
   return raw(`COALESCE(${inner})`)
 }
 
+/**
+ * Conditional expression (ternary operator).
+ * 
+ * Like JavaScript's condition ? whenTrue : whenFalse. Evaluates the condition
+ * and returns one of two values based on the result.
+ * 
+ * @example Adult vs minor
+ * ```ts
+ * ifElse(gte(v('age'), 18), strlit('Adult'), strlit('Minor'))
+ * // IF(?age >= 18, "Adult", "Minor")
+ * ```
+ */
 export function ifElse(
   condition: SparqlValue,
   whenTrue: SparqlValue | ExpressionPrimitive,
@@ -276,9 +519,11 @@ export function ifElse(
   )
 }
 
+// ============================================================================
+// Numeric Operations
+// ============================================================================
 
-// ---- Numeric helpers ----
-
+/** Add two numbers. */
 export function add(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -286,6 +531,7 @@ export function add(
   return raw(`${exprTermString(left)} + ${exprTermString(right)}`)
 }
 
+/** Subtract two numbers. */
 export function sub(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -293,6 +539,7 @@ export function sub(
   return raw(`${exprTermString(left)} - ${exprTermString(right)}`)
 }
 
+/** Multiply two numbers. */
 export function mul(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -300,6 +547,7 @@ export function mul(
   return raw(`${exprTermString(left)} * ${exprTermString(right)}`)
 }
 
+/** Divide two numbers. */
 export function div(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -307,6 +555,7 @@ export function div(
   return raw(`${exprTermString(left)} / ${exprTermString(right)}`)
 }
 
+/** Modulo operation (remainder after division). */
 export function mod(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -314,61 +563,39 @@ export function mod(
   return raw(`(${exprTermString(left)} % ${exprTermString(right)})`)
 }
 
+/** Absolute value. */
 export function abs(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`ABS(${exprTermString(value)})`)
 }
 
-export function ceil(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`CEIL(${exprTermString(value)})`)
-}
-
-export function floor(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`FLOOR(${exprTermString(value)})`)
-}
-
+/** Round to nearest integer. */
 export function round(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`ROUND(${exprTermString(value)})`)
 }
 
-// ---- Date/Time helpers (SPARQL 1.1) ----
-
-export function nowFn(): SparqlValue {
-  return raw('NOW()')
-}
-
-export function yearFn(
+/** Round up to next integer. */
+export function ceil(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
-  return raw(`YEAR(${exprTermString(value)})`)
+  return raw(`CEIL(${exprTermString(value)})`)
 }
 
-export function monthFn(
+/** Round down to previous integer. */
+export function floor(
   value: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
-  return raw(`MONTH(${exprTermString(value)})`)
+  return raw(`FLOOR(${exprTermString(value)})`)
 }
 
-export function dayFn(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
-  return raw(`DAY(${exprTermString(value)})`)
-}
+// ============================================================================
+// Comparison Operations
+// ============================================================================
 
-
-/**
- * Comparison helpers
- *
- * These all build simple binary expressions and return them as SparqlValue.
- */
-
+/** Equal to. */
 export function eq(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -376,6 +603,7 @@ export function eq(
   return raw(`${exprTermString(left)} = ${exprTermString(right)}`)
 }
 
+/** Not equal to. */
 export function neq(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -383,6 +611,7 @@ export function neq(
   return raw(`${exprTermString(left)} != ${exprTermString(right)}`)
 }
 
+/** Greater than. */
 export function gt(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -390,6 +619,7 @@ export function gt(
   return raw(`${exprTermString(left)} > ${exprTermString(right)}`)
 }
 
+/** Greater than or equal to. */
 export function gte(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -397,6 +627,7 @@ export function gte(
   return raw(`${exprTermString(left)} >= ${exprTermString(right)}`)
 }
 
+/** Less than. */
 export function lt(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -404,6 +635,7 @@ export function lt(
   return raw(`${exprTermString(left)} < ${exprTermString(right)}`)
 }
 
+/** Less than or equal to. */
 export function lte(
   left: SparqlValue | ExpressionPrimitive,
   right: SparqlValue | ExpressionPrimitive,
@@ -411,10 +643,26 @@ export function lte(
   return raw(`${exprTermString(left)} <= ${exprTermString(right)}`)
 }
 
-/**
- * Logical helpers
- */
+// ============================================================================
+// Logical Operations
+// ============================================================================
 
+/**
+ * Combine conditions with AND.
+ * 
+ * All conditions must be true for the result to be true. Short-circuits on
+ * the first false condition.
+ * 
+ * @example Multiple filters
+ * ```ts
+ * and(
+ *   gte(v('age'), 18),
+ *   lte(v('age'), 65),
+ *   eq(v('status'), 'active')
+ * )
+ * // ?age >= 18 && ?age <= 65 && ?status = "active"
+ * ```
+ */
 export function and(
   ...conditions: SparqlValue[]
 ): SparqlValue {
@@ -423,6 +671,21 @@ export function and(
   return raw(conditions.map((c) => c.value).join(' && '))
 }
 
+/**
+ * Combine conditions with OR.
+ * 
+ * Any condition being true makes the result true. Short-circuits on the
+ * first true condition.
+ * 
+ * @example Alternative publishers
+ * ```ts
+ * or(
+ *   eq(v('publisher'), 'Marvel'),
+ *   eq(v('publisher'), 'DC Comics')
+ * )
+ * // ?publisher = "Marvel" || ?publisher = "DC Comics"
+ * ```
+ */
 export function or(
   ...conditions: SparqlValue[]
 ): SparqlValue {
@@ -431,85 +694,93 @@ export function or(
   return raw(conditions.map((c) => c.value).join(' || '))
 }
 
+/**
+ * Negate a condition.
+ * 
+ * Flips true to false and false to true.
+ */
 export function not(condition: SparqlValue): SparqlValue {
   return raw(`!(${condition.value})`)
 }
 
 /**
- * EXISTS/NOT EXISTS helpers
- *
- * You pass a SparqlValue that represents a group pattern:
- *   exists(triple('?s', 'rdf:type', 'ex:Thing'))
+ * Check if a pattern exists in the data.
+ * 
+ * EXISTS tests whether a graph pattern has any matches. The pattern you pass
+ * is evaluated but doesn't affect variable bindings in the main query.
+ * 
+ * @example Has any email
+ * ```ts
+ * exists(triple('?person', 'foaf:email', '?anyEmail'))
+ * // EXISTS { ?person foaf:email ?anyEmail }
+ * ```
  */
 export function exists(pattern: SparqlValue): SparqlValue {
   return raw(`EXISTS { ${pattern.value} }`)
 }
 
+/**
+ * Check if a pattern does not exist in the data.
+ * 
+ * Opposite of EXISTS - returns true if the pattern has no matches.
+ * 
+ * @example No email address
+ * ```ts
+ * notExists(triple('?person', 'foaf:email', '?email'))
+ * // NOT EXISTS { ?person foaf:email ?email }
+ * ```
+ */
 export function notExists(pattern: SparqlValue): SparqlValue {
   return raw(`NOT EXISTS { ${pattern.value} }`)
 }
 
 // ============================================================================
-// RDF Term Type Testing Functions
+// RDF Term Type Tests
 // ============================================================================
 
-/**
- * Test if a term is an IRI
- */
+/** Check if a term is an IRI. */
 export function isIri(
   term: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`isIRI(${exprTermString(term)})`)
 }
 
-/**
- * Test if a term is a blank node
- */
+/** Check if a term is a blank node. */
 export function isBlank(
   term: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`isBlank(${exprTermString(term)})`)
 }
 
-/**
- * Test if a term is a literal
- */
+/** Check if a term is a literal. */
 export function isLiteral(
   term: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`isLiteral(${exprTermString(term)})`)
 }
 
-/**
- * Test if a variable is bound
- */
+/** Check if a variable is bound. */
 export function bound(
   variable: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`BOUND(${exprTermString(variable)})`)
 }
 
-/**
- * Get language tag of a literal
- */
+/** Get the language tag of a literal. */
 export function getlang(
   literal: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`LANG(${exprTermString(literal)})`)
 }
 
-/**
- * Get datatype IRI of a literal
- */
+/** Get the datatype IRI of a literal. */
 export function datatype(
   literal: SparqlValue | ExpressionPrimitive,
 ): SparqlValue {
   return raw(`DATATYPE(${exprTermString(literal)})`)
 }
 
-/**
- * Alias for startsWith (matches SPARQL STRSTARTS function name)
- */
+/** Alias for {@link startsWith} (matches SPARQL function name). */
 export function strstarts(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
@@ -517,9 +788,7 @@ export function strstarts(
   return startsWith(text, pattern)
 }
 
-/**
- * Alias for endsWith (matches SPARQL STRENDS function name)
- */
+/** Alias for {@link endsWith} (matches SPARQL function name). */
 export function strends(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
@@ -532,14 +801,18 @@ export function strends(
 // ============================================================================
 
 /**
- * Interface for aggregation expressions with AS clause
+ * Aggregation expression that can be aliased with AS.
+ * 
+ * Aggregations reduce a group of values to a single result. They're typically
+ * used with GROUP BY clauses. The `.as()` method lets you assign the result
+ * to a variable.
  */
 export interface AggregationExpression extends SparqlValue {
   as(variable: string): SparqlValue
 }
 
 /**
- * Create an aggregation expression with optional AS binding
+ * Internal helper to create aggregation expressions.
  */
 function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPrimitive): AggregationExpression {
   const exprStr = expr ? exprTermString(expr) : '*'
@@ -558,18 +831,21 @@ function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPr
 }
 
 /**
- * COUNT aggregation
+ * Count the number of rows.
  * 
- * @example
+ * Without arguments, counts all rows (COUNT(*)). With an expression, counts
+ * non-null values of that expression.
+ * 
+ * @example Count all
  * ```ts
- * // COUNT(*)
- * count()
+ * select([count().as('total')])
+ * // SELECT COUNT(*) AS ?total
+ * ```
  * 
- * // COUNT(?person)
- * count(variable('person'))
- * 
- * // COUNT(?person) AS ?personCount
- * count(variable('person')).as('personCount')
+ * @example Count specific values
+ * ```ts
+ * select([count(v('email')).as('emailCount')])
+ * // SELECT COUNT(?email) AS ?emailCount
  * ```
  */
 export function count(
@@ -579,7 +855,15 @@ export function count(
 }
 
 /**
- * COUNT DISTINCT aggregation
+ * Count distinct values.
+ * 
+ * Like COUNT but only counts unique values.
+ * 
+ * @example Unique publishers
+ * ```ts
+ * select([countDistinct(v('publisher')).as('publisherCount')])
+ * // SELECT COUNT(DISTINCT ?publisher) AS ?publisherCount
+ * ```
  */
 export function countDistinct(
   expr: SparqlValue | ExpressionPrimitive,
@@ -600,15 +884,14 @@ export function countDistinct(
 }
 
 /**
- * SUM aggregation
+ * Sum numeric values.
  * 
- * @example
+ * Adds up all values in the group.
+ * 
+ * @example Total price
  * ```ts
- * // SUM(?amount)
- * sum(variable('amount'))
- * 
- * // SUM(?amount) AS ?total
- * sum(variable('amount')).as('total')
+ * select([sum(v('price')).as('totalPrice')])
+ * // SELECT SUM(?price) AS ?totalPrice
  * ```
  */
 export function sum(
@@ -617,27 +900,21 @@ export function sum(
   return createAggregation('SUM', expr)
 }
 
-/**
- * AVG aggregation
- */
+/** Calculate average of numeric values. */
 export function avg(
   expr: SparqlValue | ExpressionPrimitive,
 ): AggregationExpression {
   return createAggregation('AVG', expr)
 }
 
-/**
- * MIN aggregation
- */
+/** Find minimum value. */
 export function min(
   expr: SparqlValue | ExpressionPrimitive,
 ): AggregationExpression {
   return createAggregation('MIN', expr)
 }
 
-/**
- * MAX aggregation
- */
+/** Find maximum value. */
 export function max(
   expr: SparqlValue | ExpressionPrimitive,
 ): AggregationExpression {
@@ -645,18 +922,15 @@ export function max(
 }
 
 /**
- * GROUP_CONCAT aggregation
+ * Concatenate values into a single string.
  * 
- * @example
+ * Joins multiple values with an optional separator. Useful for creating
+ * comma-separated lists or similar aggregations.
+ * 
+ * @example Author list
  * ```ts
- * // GROUP_CONCAT(?name)
- * groupConcat(variable('name'))
- * 
- * // GROUP_CONCAT(?name; separator=", ")
- * groupConcat(variable('name'), ', ')
- * 
- * // GROUP_CONCAT(?name) AS ?names
- * groupConcat(variable('name')).as('names')
+ * select([groupConcat(v('author'), ', ').as('authors')])
+ * // SELECT GROUP_CONCAT(?author; separator=", ") AS ?authors
  * ```
  */
 export function groupConcat(
@@ -680,9 +954,10 @@ export function groupConcat(
 }
 
 /**
- * SAMPLE aggregation
+ * Return an arbitrary value from the group.
  * 
- * Returns an arbitrary value from the group
+ * When you just need one value from each group but don't care which one.
+ * Useful for properties that should be the same across a group.
  */
 export function sample(
   expr: SparqlValue | ExpressionPrimitive,
