@@ -271,7 +271,8 @@ export async function executeSparql(
  * const result = await execute(sparql`SELECT * WHERE { ?s ?p ?o } LIMIT 10`);
  * ```
  */
-export function createExecutor(config: ExecutorConfig) {
+export function createExecutor(config: ExecutorConfig): (query: SparqlValue | string,
+    overrides?: Partial<ExecutorConfig>) => Promise<SparqlResult> {
   return (
     query: SparqlValue | string,
     overrides?: Partial<ExecutorConfig>

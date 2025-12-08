@@ -11,8 +11,8 @@
  * ```
  */
 
-// @deno-types=npm:@types/n3
-import { Parser, Store, DataFactory, Quad } from 'n3'
+// @deno-types=npm:@types/n3@^1.26.0
+import { Parser, Store, DataFactory, Quad } from 'npm:n3@^1.26.0'
 const { namedNode } = DataFactory
 
 // ============================================================================

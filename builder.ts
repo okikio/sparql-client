@@ -457,7 +457,10 @@ export class QueryBuilder {
 // Convenience Exports
 // ============================================================================
 
-export const { select, ask, construct, describe } = QueryBuilder
+export const select = QueryBuilder.select;
+export const ask = QueryBuilder.ask;
+export const construct = QueryBuilder.construct;
+export const describe = QueryBuilder.describe;
 
 /**
  * Quick executor shorthand
