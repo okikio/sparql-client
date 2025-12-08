@@ -1,13 +1,24 @@
 {
   "name": "sparql-client",
   "version": "0.1.0",
-  "exports": "./src/mod.ts",
+  "exports": {
+    ".": "./mod.ts",
+    "./sparql": "./sparql.ts",
+    "./utils": "./utils.ts",
+    "./executor": "./executor.ts",
+    "./builder": "./builder",
+    "./patterns/cypher": "./patterns/cypher.ts",
+    "./patterns/objects": "./patterns/objects.ts",
+    "./patterns/triples": "./patterns/triples.ts",
+    "./generate": "./scripts/ttl-to-ts.ts"
+  },
   "license": "MIT",
   
   "tasks": {
     "dev": "deno run --watch examples/basic.ts",
     "test": "deno test --allow-net",
     "test:watch": "deno test --allow-net --watch",
+    "generate:types": "deno run --allow-read --allow-write scripts/ttl-to-ts.ts --input infra/blazegraph/data/narrative.ttl --output types/narrative",
     "bench": "deno bench --allow-net",
     "check": "deno check src/**/*.ts",
     "fmt": "deno fmt",

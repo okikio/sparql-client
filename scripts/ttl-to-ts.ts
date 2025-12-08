@@ -5,9 +5,9 @@
  * 
  * Usage:
  * ```bash
- * deno run --allow-read --allow-write ttl-to-ts.ts \
- *   --input ontology/narrative.ttl \
- *   --output src/types/narrative
+ * deno run --allow-read --allow-write scripts/ttl-to-ts.ts \
+ *  --input infra/blazegraph/data/narrative.ttl \
+ *  --output types/narrative
  * ```
  */
 
