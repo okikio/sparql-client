@@ -6,7 +6,7 @@
     "./sparql": "./sparql.ts",
     "./utils": "./utils.ts",
     "./executor": "./executor.ts",
-    "./builder": "./builder",
+    "./builder": "./builder.ts",
     "./patterns/cypher": "./patterns/cypher.ts",
     "./patterns/objects": "./patterns/objects.ts",
     "./patterns/triples": "./patterns/triples.ts",

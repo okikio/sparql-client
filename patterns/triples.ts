@@ -1,4 +1,5 @@
-import { exprTermString, raw, type SparqlValue, type ExpressionPrimitive } from '../sparql.ts'
+import { raw, type SparqlValue } from '../sparql.ts'
+import { exprTermString, type ExpressionPrimitive } from '../utils.ts'
 
 /**
  * Triple pattern component (subject, predicate, or object)
