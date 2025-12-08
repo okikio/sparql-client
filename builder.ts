@@ -113,6 +113,7 @@ interface QueryState {
   readonly type: 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE'
   readonly projection: Projection
   readonly from?: string[]
+  readonly fromNamed?: string[]
   readonly where: SparqlValue[]
   readonly filters: SparqlValue[]
   readonly optional: SparqlValue[]
@@ -122,6 +123,9 @@ interface QueryState {
   readonly limit?: number
   readonly offset?: number
   readonly modifier: SelectModifier
+  readonly groupBy?: string[]
+  readonly having?: SparqlValue[]
+  readonly values?: Map<string, SparqlValue[]>
 }
 
 /**
@@ -302,6 +306,29 @@ export class QueryBuilder {
   }
 
   /**
+   * Add FROM NAMED clause for named graph queries.
+   * 
+   * FROM NAMED declares which named graphs are available for GRAPH patterns.
+   * Without FROM NAMED, GRAPH patterns can access any named graph. Use this
+   * to restrict which graphs your query can access.
+   * 
+   * @param graphIRI Named graph IRI
+   * 
+   * @example Restrict to specific graph
+   * ```ts
+   * select(['?s', '?p', '?o'])
+   *   .fromNamed('http://example.org/graph1')
+   *   .where(graph('?g', triple('?s', '?p', '?o')))
+   * ```
+   */
+  fromNamed(graphIRI: string): QueryBuilder {
+    return new QueryBuilder({
+      ...this.state,
+      fromNamed: [...(this.state.fromNamed || []), graphIRI],
+    })
+  }
+
+  /**
    * Add a WHERE pattern.
    * 
    * WHERE patterns define what you're looking for in the graph. Each pattern
@@ -450,6 +477,157 @@ export class QueryBuilder {
       ...this.state,
       unions: [...this.state.unions, branches],
     })
+  }
+
+  /**
+   * Add GROUP BY clause for aggregation.
+   * 
+   * GROUP BY groups results by specified variables before applying aggregation
+   * functions like COUNT, SUM, MAX. All non-aggregated variables in your SELECT
+   * must appear in GROUP BY.
+   * 
+   * @param variables Variables to group by (with or without ? prefix)
+   * 
+   * @example Count products per publisher
+   * ```ts
+   * select([v('publisher'), count(v('product')).as('total')])
+   *   .where(triple('?product', 'schema:publisher', '?publisher'))
+   *   .groupBy('?publisher')
+   * ```
+   * 
+   * @example Multiple grouping variables
+   * ```ts
+   * select([v('publisher'), v('year'), count().as('total')])
+   *   .where(triple('?product', 'schema:publisher', '?publisher'))
+   *   .where(triple('?product', 'schema:datePublished', '?date'))
+   *   .bind(year(v('date')), 'year')
+   *   .groupBy('?publisher', '?year')
+   * ```
+   */
+  groupBy(...variables: string[]): QueryBuilder {
+    const normalized = variables.map(v => 
+      v.startsWith('?') ? v : `?${v}`
+    )
+    return new QueryBuilder({
+      ...this.state,
+      groupBy: [...(this.state.groupBy || []), ...normalized],
+    })
+  }
+
+  /**
+   * Add HAVING clause to filter grouped results.
+   * 
+   * HAVING is like FILTER but operates on grouped/aggregated data. Use it to
+   * filter based on aggregation results (like "groups with COUNT > 10").
+   * Multiple having() calls are ANDed together.
+   * 
+   * @param condition Boolean expression on aggregated values
+   * 
+   * @example Publishers with many products
+   * ```ts
+   * select([v('publisher'), count().as('total')])
+   *   .where(triple('?product', 'schema:publisher', '?publisher'))
+   *   .groupBy('?publisher')
+   *   .having(gt(count(), 10))
+   * ```
+   * 
+   * @example Multiple conditions
+   * ```ts
+   * select([v('publisher'), sum(v('price')).as('revenue')])
+   *   .where(triple('?product', 'schema:publisher', '?publisher'))
+   *   .where(triple('?product', 'schema:price', '?price'))
+   *   .groupBy('?publisher')
+   *   .having(and(
+   *     gt(count(), 5),
+   *     gt(sum(v('price')), 1000)
+   *   ))
+   * ```
+   */
+  having(condition: SparqlValue): QueryBuilder {
+    return new QueryBuilder({
+      ...this.state,
+      having: [...(this.state.having || []), condition],
+    })
+  }
+
+  /**
+   * Add VALUES clause for inline data.
+   * 
+   * VALUES provides a list of possible bindings for a variable. Like a small
+   * in-memory table that gets joined with your query patterns. Useful for
+   * filtering by specific values or providing test data.
+   * 
+   * @param variable Variable name (with or without ?)
+   * @param vals Array of values
+   * 
+   * @example Filter by specific cities
+   * ```ts
+   * select(['?person', '?city'])
+   *   .values('city', [str('London'), str('Paris'), str('Tokyo')])
+   *   .where(triple('?person', 'schema:address', '?address'))
+   *   .where(triple('?address', 'schema:city', '?city'))
+   * ```
+   * 
+   * @example Provide test data
+   * ```ts
+   * select(['?city', '?population'])
+   *   .values('city', [str('NYC'), str('LA'), str('Chicago')])
+   *   .where(triple('?city', 'schema:population', '?population'))
+   * ```
+   */
+  values(variable: string, vals: SparqlValue[]): QueryBuilder {
+    const varName = normalizeVariableName(variable)
+    const existing = this.state.values || new Map()
+    const updated = new Map(existing)
+    updated.set(varName, vals)
+    
+    return new QueryBuilder({
+      ...this.state,
+      values: updated,
+    })
+  }
+
+  /**
+   * Convert this query to a subquery pattern.
+   * 
+   * Subqueries let you use a SELECT as a pattern in another query's WHERE clause.
+   * The subquery executes first, binding its variables, then those bindings are
+   * available to the outer query. Useful for complex aggregations or filtering
+   * on aggregated results.
+   * 
+   * @returns SparqlValue representing the subquery block
+   * 
+   * @example Nested aggregation
+   * ```ts
+   * const inner = select([v('publisher'), count().as('total')])
+   *   .where(triple('?product', 'schema:publisher', '?publisher'))
+   *   .groupBy('?publisher')
+   * 
+   * const outer = select([v('publisher'), v('total')])
+   *   .where(inner.asSubquery())
+   *   .filter(gt(v('total'), 10))
+   * ```
+   * 
+   * @example Multi-level analysis
+   * ```ts
+   * // Count per property-range pair
+   * const level1 = select([v('property'), v('range'), count().as('c')])
+   *   .where(triple('?s', '?property', '?o'))
+   *   .where(triple('?o', 'a', '?range'))
+   *   .groupBy('?property', '?range')
+   * 
+   * // Aggregate to single range per property
+   * const level2 = select([v('property'), sample(v('range')).as('mainRange')])
+   *   .where(level1.asSubquery())
+   *   .groupBy('?property')
+   * 
+   * const query = construct(triple('?property', 'rdfs:range', '?mainRange'))
+   *   .where(level2.asSubquery())
+   * ```
+   */
+  asSubquery(): SparqlValue {
+    const query = this.build().value
+    return { __sparql: true, value: `{\n  ${query}\n}` }
   }
 
   /**
@@ -605,15 +783,31 @@ export class QueryBuilder {
       }
     }
 
+    // FROM NAMED clauses
+    if (this.state.fromNamed) {
+      for (const graph of this.state.fromNamed) {
+        parts.push(`FROM NAMED <${graph}>`)
+      }
+    }
+
     // WHERE clause
     if (
       this.state.where.length > 0 ||
       this.state.filters.length > 0 ||
       this.state.optional.length > 0 ||
       this.state.bindings.length > 0 ||
-      this.state.unions.length > 0
+      this.state.unions.length > 0 ||
+      this.state.values
     ) {
       parts.push('WHERE {')
+
+      // VALUES clauses
+      if (this.state.values) {
+        for (const [varName, vals] of this.state.values.entries()) {
+          const valueStrs = vals.map(v => v.value).join(' ')
+          parts.push(`  VALUES ?${varName} { ${valueStrs} }`)
+        }
+      }
 
       // WHERE patterns
       for (const pattern of this.state.where) {
@@ -646,6 +840,19 @@ export class QueryBuilder {
       }
 
       parts.push('}')
+    }
+
+    // GROUP BY clause
+    if (this.state.groupBy && this.state.groupBy.length > 0) {
+      parts.push(`GROUP BY ${this.state.groupBy.join(' ')}`)
+    }
+
+    // HAVING clause
+    if (this.state.having && this.state.having.length > 0) {
+      const havingClauses = this.state.having
+        .map(h => h.value)
+        .join(' && ')
+      parts.push(`HAVING(${havingClauses})`)
     }
 
     // ORDER BY clause
@@ -706,6 +913,31 @@ export const select = QueryBuilder.select;
 export const ask = QueryBuilder.ask;
 export const construct = QueryBuilder.construct;
 export const describe = QueryBuilder.describe;
+
+/**
+ * Create a subquery from a query builder.
+ * 
+ * Convenience function that's equivalent to calling builder.asSubquery().
+ * Subqueries let you nest SELECT queries within WHERE clauses for complex
+ * analytical queries.
+ * 
+ * @param builder Query to use as subquery
+ * @returns SparqlValue for use in WHERE clause
+ * 
+ * @example
+ * ```ts
+ * const inner = select([v('property'), count().as('total')])
+ *   .where(triple('?s', '?property', '?o'))
+ *   .groupBy('?property')
+ * 
+ * const outer = select(['?property', '?total'])
+ *   .where(subquery(inner))
+ *   .filter(gt(v('total'), 10))
+ * ```
+ */
+export function subquery(builder: QueryBuilder): SparqlValue {
+  return builder.asSubquery()
+}
 
 /**
  * Quick execute shorthand.

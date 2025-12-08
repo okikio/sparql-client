@@ -1,18 +1,19 @@
 {
   "name": "@okikio/sparql",
   "version": "0.0.0",
+  "license": "MIT",
   "exports": {
     ".": "./mod.ts",
     "./sparql": "./sparql.ts",
     "./utils": "./utils.ts",
     "./executor": "./executor.ts",
     "./builder": "./builder.ts",
+    "./update": "./update.ts",
     "./patterns/cypher": "./patterns/cypher.ts",
     "./patterns/objects": "./patterns/objects.ts",
     "./patterns/triples": "./patterns/triples.ts",
     "./generate": "./scripts/ttl-to-ts.ts"
   },
-  "license": "MIT",
 
   "publish": {
     "exclude": ["infra", "examples", ".github"]

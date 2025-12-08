@@ -75,13 +75,14 @@ export interface NodePropertyMap {
 /**
  * A node in your graph pattern.
  * 
- * Nodes represent resources - people, places, things. Each node has a variable
- * that will bind to matching resources in your data. You can specify the node's
- * type (what kind of resource it is) and properties (facts about it).
+ * Nodes represent resources - people, places, things. Each node has a variable that will bind to
+ * matching resources in your data. You can specify the node's type (what kind of resource it is)
+ * and properties (facts about it). Properties can be simple values, variables, or other nodes for
+ * nested structures. When you nest nodes, the library generates all necessary triples automatically.
  * 
- * The pattern gets compiled to SPARQL triples, but you write it in a more
- * intuitive nested structure. This handles the bookkeeping of variable names
- * and relationships between nodes.
+ * The pattern gets compiled to SPARQL triples, but you write it in a more intuitive nested structure.
+ * This handles the bookkeeping of variable names and relationships between nodes. You can also nest
+ * relationships within properties to create patterns that combine node and edge metadata.
  * 
  * @example Basic node
  * ```ts
@@ -101,7 +102,7 @@ export interface NodePropertyMap {
  * // ?person foaf:age ?age .
  * ```
  * 
- * @example Nested nodes
+ * @example Nested nodes (one level)
  * ```ts
  * const product = node('product', 'schema:Product', {
  *   'schema:name': v('title'),
@@ -115,6 +116,71 @@ export interface NodePropertyMap {
  * // ?product schema:publisher ?publisher .
  * // ?publisher a schema:Organization .
  * // ?publisher rdfs:label "Marvel Comics" .
+ * ```
+ * 
+ * @example Deeply nested nodes (multiple levels)
+ * ```ts
+ * const product = node('product', 'schema:Product', {
+ *   'schema:name': v('title'),
+ *   'schema:publisher': node('publisher', 'schema:Organization', {
+ *     'schema:name': v('pubName'),
+ *     'schema:location': node('location', 'schema:Place', {
+ *       'schema:city': v('city'),
+ *       'schema:country': v('country'),
+ *       'schema:geo': node('geo', 'schema:GeoCoordinates', {
+ *         'schema:latitude': v('lat'),
+ *         'schema:longitude': v('lon')
+ *       })
+ *     })
+ *   })
+ * })
+ * // Generates all triples for product → publisher → location → geo
+ * ```
+ * 
+ * @example Nesting relationships within properties
+ * ```ts
+ * const person = node('person', 'foaf:Person', {
+ *   'foaf:name': v('name'),
+ *   'foaf:knows': node('friend', 'foaf:Person', {
+ *     'foaf:name': v('friendName')
+ *   })
+ * })
+ * // You can also use rel() for relationships with metadata:
+ * const personWithRel = node('person', 'foaf:Person')
+ *   .prop('foaf:name', v('name'))
+ *   .prop('foaf:knows', 
+ *     rel('person', 'foaf:knows', node('friend', 'foaf:Person'))
+ *       .prop('ex:since', date(new Date('2020-01-01')))
+ *   )
+ * ```
+ * 
+ * @example Multiple nested nodes of the same type
+ * ```ts
+ * const book = node('book', 'schema:Book', {
+ *   'schema:name': v('title'),
+ *   'schema:author': [
+ *     node('author1', 'schema:Person', { 'schema:name': str('Stan Lee') }),
+ *     node('author2', 'schema:Person', { 'schema:name': str('Jack Kirby') })
+ *   ]
+ * })
+ * // Generates triples for book with both authors
+ * ```
+ * 
+ * @example Chain-style building with nested structures
+ * ```ts
+ * const query = select(['?productName', '?publisherName', '?city'])
+ *   .where(
+ *     node('product', 'schema:Product')
+ *       .prop('schema:name', v('productName'))
+ *       .prop('schema:publisher', 
+ *         node('publisher', 'schema:Organization')
+ *           .prop('schema:name', v('publisherName'))
+ *           .prop('schema:location',
+ *             node('location', 'schema:Place')
+ *               .prop('schema:city', v('city'))
+ *           )
+ *       )
+ *   )
  * ```
  */
 export class Node implements SparqlValue {
@@ -396,13 +462,16 @@ export interface RelationshipPropertyMap {
 /**
  * A relationship between two nodes.
  * 
- * Relationships describe how nodes connect. In the simplest case, a relationship
- * is just an edge between two nodes with a predicate. But you can also add
- * properties to the relationship itself (metadata about the connection).
+ * Relationships describe how nodes connect. In the simplest case, a relationship is just an edge
+ * between two nodes with a predicate. But you can also add properties to the relationship itself
+ * (metadata about the connection) and nest relationships with full node structures. When you pass
+ * Node objects as the from/to arguments, the library automatically generates all necessary triples
+ * for those nodes plus the connecting edge.
  * 
- * When you add properties to a relationship, it uses RDF reification to represent
- * the edge as a resource. This lets you attach information like timestamps,
- * confidence scores, or provenance data to connections.
+ * When you add properties to a relationship, it uses RDF reification to represent the edge as a
+ * resource. This lets you attach information like timestamps, confidence scores, or provenance data
+ * to connections. You can also nest nodes within relationships to create patterns where both the
+ * nodes and their connection have detailed structures.
  * 
  * @example Simple relationship
  * ```ts
@@ -423,6 +492,83 @@ export interface RelationshipPropertyMap {
  * //   rdf:object ?friend ;
  * //   rel:since "2020-01-01"^^xsd:date ;
  * //   rel:confidence 0.95 .
+ * ```
+ * 
+ * @example Relationship between nested nodes
+ * ```ts
+ * rel(
+ *   node('person', 'foaf:Person', {
+ *     'foaf:name': v('personName'),
+ *     'foaf:age': v('personAge')
+ *   }),
+ *   'foaf:knows',
+ *   node('friend', 'foaf:Person', {
+ *     'foaf:name': v('friendName'),
+ *     'foaf:age': v('friendAge')
+ *   })
+ * )
+ * // Generates:
+ * // ?person a foaf:Person .
+ * // ?person foaf:name ?personName .
+ * // ?person foaf:age ?personAge .
+ * // ?friend a foaf:Person .
+ * // ?friend foaf:name ?friendName .
+ * // ?friend foaf:age ?friendAge .
+ * // ?person foaf:knows ?friend .
+ * ```
+ * 
+ * @example Relationship with nested nodes and metadata
+ * ```ts
+ * rel(
+ *   node('employee', 'org:Employee', {
+ *     'foaf:name': v('empName'),
+ *     'org:department': v('dept')
+ *   }),
+ *   'org:reportsTo',
+ *   node('manager', 'org:Manager', {
+ *     'foaf:name': v('mgrName'),
+ *     'org:level': num(5)
+ *   })
+ * )
+ *   .prop('org:since', date(new Date('2023-01-01')))
+ *   .prop('org:directReport', bool(true))
+ * // Generates all node triples, the relationship triple, and reification with metadata
+ * ```
+ * 
+ * @example Chain-style relationship building
+ * ```ts
+ * const pattern = select(['?person', '?friend', '?friendCity'])
+ *   .where(
+ *     rel(
+ *       node('person', 'foaf:Person')
+ *         .prop('foaf:name', v('personName')),
+ *       'foaf:knows',
+ *       node('friend', 'foaf:Person')
+ *         .prop('foaf:name', v('friendName'))
+ *         .prop('schema:city', v('friendCity'))
+ *     )
+ *       .prop('ex:closeness', v('score'))
+ *       .prop('ex:since', v('friendshipDate'))
+ *   )
+ *   .filter(v('score').gte(0.8))
+ * ```
+ * 
+ * @example Multiple relationships from one node
+ * ```ts
+ * const person = node('person', 'foaf:Person', {
+ *   'foaf:name': v('name')
+ * })
+ * 
+ * const friend1Rel = rel(person, 'foaf:knows', node('friend1', 'foaf:Person'))
+ *   .prop('ex:closeness', num(0.9))
+ * 
+ * const friend2Rel = rel(person, 'foaf:knows', node('friend2', 'foaf:Person'))
+ *   .prop('ex:closeness', num(0.7))
+ * 
+ * select(['?name', '?friend1', '?friend2'])
+ *   .where(person)
+ *   .where(friend1Rel)
+ *   .where(friend2Rel)
  * ```
  */
 export class Relationship implements SparqlValue {

@@ -196,3 +196,59 @@ export function triples(
 
   return raw(`${s}\n${lines.join('\n')}`)
 }
+
+
+// ============================================================================
+// SPARQL* (RDF-star)
+// ============================================================================
+
+/**
+ * Quoted triple for SPARQL* (RDF-star).
+ * 
+ * SPARQL* extends SPARQL to work with quoted triples - statements about statements.
+ * This lets you add metadata to edges in your graph (like confidence scores,
+ * sources, or timestamps on relationships).
+ * 
+ * @param subject Subject of quoted triple
+ * @param predicate Predicate of quoted triple
+ * @param object Object of quoted triple
+ * 
+ * @example Statement about a relationship
+ * ```ts
+ * const claim = quotedTriple('?person', 'foaf:knows', '?friend')
+ * select(['?person', '?friend', '?source'])
+ *   .where(triple(claim, 'dc:source', '?source'))
+ * // << ?person foaf:knows ?friend >> dc:source ?source
+ * ```
+ * 
+ * @example Add confidence to statements
+ * ```ts
+ * construct(triple(
+ *   quotedTriple('?person', 'foaf:knows', '?friend'),
+ *   'ex:confidence',
+ *   num(0.95)
+ * ))
+ *   .where(triple('?person', 'foaf:knows', '?friend'))
+ * // Annotates each friendship with a confidence score
+ * ```
+ * 
+ * @example Query metadata on relationships
+ * ```ts
+ * const statement = quotedTriple('?s', '?p', '?o')
+ * select(['?s', '?p', '?o', '?timestamp'])
+ *   .where(triple(statement, 'prov:generatedAtTime', '?timestamp'))
+ *   .filter(gte(v('timestamp'), date('2024-01-01')))
+ * // Finds recent statements
+ * ```
+ */
+export function quotedTriple(
+  subject: string | SparqlValue,
+  predicate: string | SparqlValue,
+  object: SparqlValue | ExpressionPrimitive
+): SparqlValue {
+  const s = typeof subject === 'string' ? subject : subject.value
+  const p = typeof predicate === 'string' ? predicate : predicate.value
+  const o = exprTermString(object)
+  
+  return raw(`<< ${s} ${p} ${o} >>`)
+}

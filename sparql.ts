@@ -118,19 +118,175 @@ export function normalizeVariableName(name: string | `?${string}`): VariableName
 }
 
 /**
- * Escape special characters for SPARQL string literals.
- * 
- * SPARQL strings can contain newlines, quotes, and other special characters.
- * This function ensures they're properly escaped so the query stays valid.
- * We use backslash escaping for: \, ", \n, \r, \t
+ * Escape a JavaScript string so it can be safely embedded as a
+ * SPARQL string literal.
+ *
+ * This is designed for building SPARQL queries by hand or via a query
+ * builder, where you need to interpolate arbitrary user/content strings
+ * into a literal like:
+ *
+ * ```sparql
+ * "some value"
+ * 'some value'
+ * ```
+ *
+ * In raw SPARQL, string literals:
+ *
+ * - Are delimited by either double quotes (`"..."`) or single quotes (`'...'`)
+ * - Must escape certain characters using backslashes (e.g. `\"`, `\\`, `\n`)
+ * - Cannot contain unescaped control characters (U+0000–U+001F)
+ *
+ * This function handles those rules for you so you can safely do:
+ *
+ * ```ts
+ * const escaped = escapeString(userInput, '"')
+ * const query = `
+ *   SELECT ?s WHERE {
+ *     ?s rdfs:label "${escaped}" .
+ *   }
+ * `
+ * ```
+ *
+ * # What this function does
+ *
+ * 1. **Escapes the backslash**:
+ *    - `\` → `\\`
+ *
+ * 2. **Escapes the chosen quote delimiter**:
+ *    - If `quote` is `"`, then `"` → `\"`
+ *    - If `quote` is `'`, then `'` → `\'`
+ *
+ * 3. **Escapes common control characters using SPARQL-style escapes**:
+ *    - Newline (`\n`)      → `\\n`
+ *    - Carriage return (`\r`) → `\\r`
+ *    - Tab (`\t`)          → `\\t`
+ *    - Backspace (`\b`)    → `\\b`
+ *    - Form feed (`\f`)    → `\\f`
+ *
+ * 4. **Escapes all remaining control characters U+0000–U+001F**:
+ *    - Anything not covered above is encoded as a Unicode escape:
+ *      - e.g. `\x01` (U+0001) → `\\u0001`
+ *
+ * 5. **Leaves all other characters as-is**:
+ *    - Emoji, accents, CJK characters, etc. are preserved directly.
+ *    - For example:
+ *      - `"Don't panic 🦇"` is valid as a SPARQL literal once the backslashes
+ *        and quotes are handled.
+ *
+ * # What this function does *not* do
+ *
+ * - It does **not** escape IRIs or prefixed names:
+ *   - This is only for string literals, e.g. `"value"`, not `<http://example.com>`.
+ *
+ * - It does **not** handle long string literals (triple quotes) specially:
+ *   - It is safe to use, but you still need to wrap the result in the correct
+ *     triple-quoted delimiters yourself (e.g. `"""${escaped}"""`).
+ *
+ * - It does **not** validate that your string is semantically correct SPARQL:
+ *   - It only makes sure the literal part is syntactically safe.
+ *
+ * # Usage guidelines
+ *
+ * - Always choose the `quote` argument to match how you will wrap the literal:
+ *   - Use `escapeString(value, '"')` when you will emit `"${...}"`.
+ *   - Use `escapeString(value, "'")` when you will emit `'${...}'`.
+ *
+ * - Prefer double-quoted literals (`"..."`) unless you have a specific reason
+ *   to use single-quoted ones. That keeps things simpler.
+ *
+ * @param str
+ *   The raw JavaScript string you want to embed inside a SPARQL literal.
+ *   This can contain newlines, emoji, quotes, and other Unicode characters.
+ *
+ * @param quote
+ *   The quote character you intend to use to delimit the SPARQL string literal:
+ *   - `"\""` – for `"double-quoted"` literals (default)
+ *   - `"'"`  – for `'single-quoted'` literals
+ *
+ *   This affects which quote character is escaped. The *other* quote character
+ *   is allowed to remain unescaped because the SPARQL grammar allows it.
+ *
+ * @returns
+ *   A string that can be safely interpolated inside a SPARQL literal delimited
+ *   by `quote`, without breaking the query or introducing unescaped control
+ *   characters.
+ *
+ * @example
+ * // Example 1: Double-quoted literal with apostrophes and emoji
+ * const input = `Don't panic 🦇\nLine 2`
+ * const escaped = escapeString(input, '"')
+ *
+ * // escaped now looks like:
+ * //   Don't panic 🦇\nLine 2
+ * //
+ * // so you can safely emit:
+ * const query = `
+ *   SELECT ?s WHERE {
+ *     ?s rdfs:label "${escaped}" .
+ *   }
+ * `
+ *
+ * @example
+ * // Example 2: Single-quoted literal
+ * const input = `Don't panic 🦇\nLine 2`
+ * const escaped = escapeString(input, "'")
+ *
+ * // escaped now looks like:
+ * //   Don\'t panic 🦇\nLine 2
+ * //
+ * // and you can safely emit:
+ * const query = `
+ *   SELECT ?s WHERE {
+ *     ?s rdfs:label '${escaped}' .
+ *   }
+ * `
+ *
+ * @example
+ * // Example 3: Defensive handling of weird control characters
+ * const input = 'prefix' + String.fromCharCode(1) + 'suffix'
+ * const escaped = escapeString(input)
+ *
+ * // The U+0001 control character is turned into a Unicode escape:
+ * //   prefix\\u0001suffix
+ * //
+ * // This keeps the SPARQL query syntactically valid even if the source
+ * // data contains unexpected binary-like content.
  */
-export function escapeString(str: string): string {
-  return str
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t')
+export function escapeString(
+  str: string,
+  quote: '"' | "'" = '"',
+): string {
+  return str.replace(/[\u0000-\u001F\\'"]/g, function (ch: string): string {
+    // Always escape backslash
+    if (ch === '\\') {
+      return '\\\\'
+    }
+
+    // Escape whichever quote you are actually using as the delimiter
+    if (ch === quote) {
+      return '\\' + ch
+    }
+
+    // The non-delimiting quote does not *need* escaping for SPARQL's grammar.
+    if (ch === '"' || ch === "'") {
+      return ch
+    }
+
+    // Control characters with explicit SPARQL-style escapes
+    switch (ch) {
+      case '\n': return '\\n'
+      case '\r': return '\\r'
+      case '\t': return '\\t'
+      case '\b': return '\\b'
+      case '\f': return '\\f'
+      default: {
+        // Any remaining control char U+0000–U+001F gets a \u00XX escape
+        const code = ch.charCodeAt(0)
+        const hex = code.toString(16).toUpperCase().padStart(4, '0')
+        return '\\u' + hex
+      }
+    }
+  })
 }
 
 /**
@@ -398,13 +554,6 @@ export function uri(iri: string): SparqlValue {
 }
 
 /**
- * Alias for {@link uri} with a more explicit name.
- */
-export function iri(value: string): SparqlValue {
-  return uri(value)
-}
-
-/**
  * Create a SPARQL variable reference.
  * 
  * Variables are placeholders that get bound to values during query execution.
@@ -414,18 +563,9 @@ export function iri(value: string): SparqlValue {
  * @example variable('?person') → ?person (? is normalized)
  */
 export function variable(name: VariableName): SparqlValue {
-  const n = name.startsWith('?') ? name.slice(1) : name
+  const n = normalizeVariableName(name)
   validateVariableName(n)
   return wrapSparqlValue(`?${n}`)
-}
-
-/**
- * Short alias for {@link variable}.
- * 
- * Convenient when you're writing lots of variable references.
- */
-export function v(name: string): SparqlValue {
-  return variable(name)
 }
 
 /**
