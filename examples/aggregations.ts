@@ -21,8 +21,8 @@ import {
   max,
   groupConcat,
   sample,
-  type ExecutorConfig,
   transformResults,
+  type ExecutorConfig,
 } from '../mod.ts'
 
 const config: ExecutorConfig = {
