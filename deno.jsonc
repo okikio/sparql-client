@@ -1,6 +1,6 @@
 {
-  "name": "sparql-client",
-  "version": "0.1.0",
+  "name": "@okikio/sparql",
+  "version": "0.0.0",
   "exports": {
     ".": "./mod.ts",
     "./sparql": "./sparql.ts",
