@@ -116,17 +116,21 @@ export class Node implements SparqlValue {
   get that(): this { return this }
   get has(): this { return this }
 
-  constructor(subject: TripleSubject, options?: NodePropertyMap) {
-    // Parse pattern: "?variable is type:Class" or just "?variable"
+  constructor(subject: TripleSubject, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap) {
     const subjectString = tripleSubjectString(subject)
-    const [_variable, _type] = subjectString.trim().split('is')
-
-    const variableName = normalizeVariableName(_variable.trim())
+    const variableName = normalizeVariableName(subjectString.trim())
+    
     this.varName = variableName
     this.subjectTerm = variable(variableName)
 
-    const nodeType = _type && _type?.trim?.()?.length > 0 ? _type.trim() : null;
-    if (nodeType) this.a(nodeType);
+    // Handle type(s) explicitly
+    if (type) {
+      if (Array.isArray(type)) {
+        this.typesTerm.push(...type)
+      } else {
+        this.typesTerm.push(type)
+      }
+    }
 
     if (options) {
       for (const [key, value] of Object.entries(options)) {
@@ -138,8 +142,8 @@ export class Node implements SparqlValue {
   /**
    * Helper: create a node bound to ?<name>
    */
-  static create(name: string, options?: NodePropertyMap): Node {
-    return new Node(name, options)
+  static create(name: string, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap): Node {
+    return new Node(name, type, options)
   }
 
   /**
@@ -376,6 +380,8 @@ export interface RelationshipPropertyMap {
  */
 export class Relationship implements SparqlValue {
   readonly __sparql = true
+  private readonly fromNode?: Node
+  private readonly toNode?: Node
   private readonly fromTerm: TripleSubject
   private readonly toTerm: TripleSubject
   private readonly predicate: TriplePredicate
@@ -388,15 +394,25 @@ export class Relationship implements SparqlValue {
   get has(): this { return this }
 
   constructor(
-    from: TripleSubject,
+    from: Node | TripleSubject,
     predicate: TriplePredicate,
-    to: TripleSubject,
+    to: Node | TripleSubject,
   ) {
-    const fromString = tripleSubjectString(from)
-    this.fromTerm = variable(normalizeVariableName(fromString.trim()))
+    if (from instanceof Node) {
+      this.fromNode = from
+      this.fromTerm = from.term()
+    } else {
+      const fromString = tripleSubjectString(from)
+      this.fromTerm = variable(normalizeVariableName(fromString.trim()))
+    }
 
-    const toString = tripleSubjectString(to)
-    this.toTerm = variable(normalizeVariableName(toString.trim()))
+    if (to instanceof Node) {
+      this.toNode = to
+      this.toTerm = to.term()
+    } else {
+      const toString = tripleSubjectString(to)
+      this.toTerm = variable(normalizeVariableName(toString.trim()))
+    }
 
     this.predicate = predicate
   }
@@ -475,8 +491,8 @@ export class Relationship implements SparqlValue {
  *   .is.a('narrative:Product')
  *   .with.prop('narrative:productTitle', variable('title'))
  */
-export function node(name: string, options?: NodePropertyMap): Node {
-  return Node.create(name, options)
+export function node(name: string, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap): Node {
+  return Node.create(name, type, options)
 }
 
 /**
