@@ -628,3 +628,444 @@ export async function fetchProperties(
 
   return propertyMap
 }
+
+// ============================================================================
+// Enhanced Result Parsing
+// ============================================================================
+
+/**
+ * Parsed SPARQL binding with type information preserved.
+ * 
+ * **Common use case:** When you need to know not just the value, but also what
+ * *kind* of value it is - whether it's a URI, a typed literal, or has a language tag.
+ * 
+ * **How it works:** SPARQL results include metadata about each value. This interface
+ * structures that metadata in an easy-to-use format while preserving all the
+ * type information the endpoint provided.
+ */
+export interface ParsedValue {
+  /** The actual value as a string */
+  readonly raw: string
+  /** What kind of RDF term this is */
+  readonly type: 'uri' | 'literal' | 'bnode'
+  /** Datatype IRI for typed literals (e.g., xsd:integer) */
+  readonly datatype?: string
+  /** Language tag for language-tagged strings (e.g., "en", "fr") */
+  readonly language?: string
+}
+
+/**
+ * Parse a SPARQL binding while preserving all type metadata.
+ * 
+ * **Common use case:** When you need to inspect the type information of a result,
+ * such as checking if a value is a URI vs a literal, or what datatype it has.
+ * 
+ * **How it works:** Converts the raw SPARQL JSON binding format into a cleaner
+ * TypeScript interface. All the information is preserved, just in a more
+ * convenient structure.
+ * 
+ * @param binding - Raw SPARQL binding from query results
+ * @returns Parsed value with type information
+ * 
+ * @example Inspect value types
+ * ```ts
+ * const result = await query.execute(config)
+ * if (result.success) {
+ *   for (const row of result.data.results.bindings) {
+ *     const parsed = parseBinding(row.value)
+ *     
+ *     if (parsed.type === 'uri') {
+ *       console.log('IRI:', parsed.raw)
+ *     } else if (parsed.datatype === 'http://www.w3.org/2001/XMLSchema#integer') {
+ *       console.log('Integer:', parsed.raw)
+ *     } else if (parsed.language) {
+ *       console.log(`Text in ${parsed.language}:`, parsed.raw)
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export function parseBinding(binding: SparqlBinding): ParsedValue {
+  return {
+    raw: binding.value,
+    type: binding.type as 'uri' | 'literal' | 'bnode',
+    datatype: binding.datatype,
+    language: binding['xml:lang'],
+  }
+}
+
+/**
+ * Convert SPARQL typed literals to native JavaScript types.
+ * 
+ * **Common use case:** Working with numeric data, dates, or booleans where you want
+ * actual JavaScript types instead of strings. Makes it easier to do calculations,
+ * comparisons, and date manipulation.
+ * 
+ * **How it works:** Reads the XSD datatype from the binding and converts the string
+ * value to the corresponding JavaScript type. Falls back to returning the string if
+ * the datatype isn't recognized.
+ * 
+ * **Important:** This only works for bindings with XSD datatypes. Language-tagged
+ * strings and plain literals return as-is. URIs are never coerced.
+ * 
+ * **Performance note:** Type conversion happens for every value. For large result
+ * sets where you don't need type conversion, use `transformResults()` instead.
+ * 
+ * @param binding - SPARQL binding to convert
+ * @returns Native JavaScript value (number, boolean, Date, or string)
+ * 
+ * @example Working with numeric data
+ * ```ts
+ * const result = await select(['?age', '?price'])
+ *   .where(triple('?person', 'foaf:age', '?age'))
+ *   .where(triple('?person', 'schema:price', '?price'))
+ *   .execute(config)
+ * 
+ * if (result.success) {
+ *   for (const row of result.data.results.bindings) {
+ *     const age = coerceValue(row.age)    // number
+ *     const price = coerceValue(row.price) // number
+ *     
+ *     if (typeof age === 'number') {
+ *       console.log('Person is', age, 'years old')
+ *     }
+ *   }
+ * }
+ * ```
+ * 
+ * @example Date handling
+ * ```ts
+ * // Query returns xsd:dateTime literals
+ * const binding = row.timestamp
+ * const date = coerceValue(binding)  // Date object
+ * 
+ * if (date instanceof Date) {
+ *   console.log('Event happened:', date.toLocaleDateString())
+ * }
+ * ```
+ * 
+ * @example Supported type conversions
+ * ```ts
+ * // xsd:integer, xsd:int, xsd:long → number (parsed as integer)
+ * // xsd:decimal, xsd:float, xsd:double → number (parsed as float)
+ * // xsd:boolean → boolean (true/false)
+ * // xsd:date, xsd:dateTime → Date object
+ * // Anything else → string (unchanged)
+ * ```
+ */
+export function coerceValue(binding: SparqlBinding): string | number | boolean | Date {
+  const { value, datatype } = binding
+
+  if (!datatype) return value
+
+  // Integer types
+  if (
+    datatype === 'http://www.w3.org/2001/XMLSchema#integer' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#int' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#long' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#short' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#byte'
+  ) {
+    return parseInt(value, 10)
+  }
+
+  // Decimal/float types
+  if (
+    datatype === 'http://www.w3.org/2001/XMLSchema#decimal' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#float' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#double'
+  ) {
+    return parseFloat(value)
+  }
+
+  // Boolean
+  if (datatype === 'http://www.w3.org/2001/XMLSchema#boolean') {
+    return value === 'true' || value === '1'
+  }
+
+  // Date/time types
+  if (
+    datatype === 'http://www.w3.org/2001/XMLSchema#date' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#dateTime' ||
+    datatype === 'http://www.w3.org/2001/XMLSchema#time'
+  ) {
+    return new Date(value)
+  }
+
+  // Unknown datatype - return as string
+  return value
+}
+
+/**
+ * Transform SPARQL results with automatic type coercion.
+ * 
+ * **Common use case:** When you want to work with properly typed data instead of
+ * everything being strings. Particularly useful for numeric calculations, date
+ * comparisons, or boolean logic.
+ * 
+ * **How it works:** Like `transformResults()`, but runs `coerceValue()` on every
+ * binding to convert typed literals to JavaScript types. Numbers become numbers,
+ * booleans become booleans, dates become Date objects.
+ * 
+ * **Performance tradeoff:** Slightly slower than `transformResults()` due to type
+ * checking and conversion. For very large result sets, only use this if you actually
+ * need the type conversion.
+ * 
+ * @param response - SPARQL response data
+ * @returns Array of objects with native JavaScript types
+ * 
+ * @example Numeric calculations
+ * ```ts
+ * const result = await select(['?product', '?price', '?quantity'])
+ *   .where(triple('?product', 'schema:price', '?price'))
+ *   .where(triple('?product', 'schema:quantity', '?quantity'))
+ *   .execute(config)
+ * 
+ * if (result.success) {
+ *   const rows = transformResultsTyped(result.data)
+ *   
+ *   for (const row of rows) {
+ *     // price and quantity are numbers, not strings
+ *     const total = row.price * row.quantity
+ *     console.log(`Total value: $${total.toFixed(2)}`)
+ *   }
+ * }
+ * ```
+ * 
+ * @example Date filtering
+ * ```ts
+ * const rows = transformResultsTyped(result.data)
+ * const recentEvents = rows.filter(row => {
+ *   // timestamp is a Date object
+ *   return row.timestamp instanceof Date && 
+ *          row.timestamp > new Date('2024-01-01')
+ * })
+ * ```
+ * 
+ * @example Type checking
+ * ```ts
+ * const rows = transformResultsTyped(result.data)
+ * for (const row of rows) {
+ *   if (typeof row.age === 'number') {
+ *     console.log('Age:', row.age)
+ *   }
+ *   if (typeof row.active === 'boolean') {
+ *     console.log('Active:', row.active)
+ *   }
+ *   if (row.created instanceof Date) {
+ *     console.log('Created:', row.created.toISOString())
+ *   }
+ * }
+ * ```
+ */
+export function transformResultsTyped(
+  response: SparqlResponse
+): Array<Record<string, string | number | boolean | Date>> {
+  return response.results.bindings.map((binding) => {
+    const row: Record<string, string | number | boolean | Date> = {}
+    for (const [key, value] of Object.entries(binding)) {
+      row[key] = coerceValue(value)
+    }
+    return row
+  })
+}
+
+/**
+ * Extract values for a specific variable from query results.
+ * 
+ * **Common use case:** When you only care about one column from your results.
+ * Perfect for building lists, checking for existence, or collecting IDs.
+ * 
+ * **How it works:** Walks through all result rows, extracts the specified variable,
+ * and returns just those values as an array. Optionally applies type coercion.
+ * 
+ * **Filtering behavior:** Rows where the variable is unbound (undefined) are
+ * automatically filtered out. This is useful when using OPTIONAL patterns.
+ * 
+ * @param response - SPARQL response data
+ * @param variable - Variable name to extract (without the ? prefix)
+ * @param coerce - Whether to apply type coercion (default: false)
+ * @returns Array of values for that variable
+ * 
+ * @example Get list of names
+ * ```ts
+ * const result = await select(['?name', '?age'])
+ *   .where(triple('?person', 'foaf:name', '?name'))
+ *   .where(triple('?person', 'foaf:age', '?age'))
+ *   .execute(config)
+ * 
+ * if (result.success) {
+ *   const names = pluck(result.data, 'name')
+ *   // ['Alice', 'Bob', 'Charlie']
+ *   
+ *   console.log('Found', names.length, 'people')
+ *   names.forEach(name => console.log(name))
+ * }
+ * ```
+ * 
+ * @example With type coercion
+ * ```ts
+ * const ages = pluck<number>(result.data, 'age', true)
+ * // [25, 30, 42] as numbers, not strings
+ * 
+ * const averageAge = ages.reduce((a, b) => a + b, 0) / ages.length
+ * console.log('Average age:', averageAge)
+ * ```
+ * 
+ * @example Collect URIs for further processing
+ * ```ts
+ * const productURIs = pluck(result.data, 'product')
+ * const labels = await resolveLabels(config, { uris: productURIs })
+ * ```
+ * 
+ * @example With OPTIONAL patterns (undefined filtering)
+ * ```ts
+ * // Some people have emails, some don't
+ * select(['?name', '?email'])
+ *   .where(triple('?person', 'foaf:name', '?name'))
+ *   .optional(triple('?person', 'foaf:mbox', '?email'))
+ * 
+ * const emails = pluck(result.data, 'email')
+ * // Only includes rows where email was bound
+ * ```
+ */
+export function pluck<T = string>(
+  response: SparqlResponse,
+  variable: string,
+  coerce = false
+): T[] {
+  return response.results.bindings
+    .filter((b) => variable in b)
+    .map((b) => (coerce ? coerceValue(b[variable]) : b[variable].value) as T)
+}
+
+/**
+ * Get the first result row, or undefined if no results.
+ * 
+ * **Common use case:** Queries where you expect exactly one result (or zero) and
+ * don't want to write array access logic. Perfect for lookups, existence checks,
+ * or queries with LIMIT 1.
+ * 
+ * **How it works:** Returns the first row transformed to a simple object, or
+ * undefined if the result set is empty. No type coercion is applied - use
+ * `transformResultsTyped()` first if you need that.
+ * 
+ * **Safety note:** Returns `undefined` rather than throwing on empty results,
+ * so you can safely use optional chaining or nullish coalescing.
+ * 
+ * @param response - SPARQL response data
+ * @returns First result row or undefined
+ * 
+ * @example Lookup by unique identifier
+ * ```ts
+ * const result = await select(['?name', '?email'])
+ *   .where(triple('?person', 'foaf:accountName', 'alice'))
+ *   .where(triple('?person', 'foaf:name', '?name'))
+ *   .where(triple('?person', 'foaf:mbox', '?email'))
+ *   .limit(1)
+ *   .execute(config)
+ * 
+ * if (result.success) {
+ *   const person = first(result.data)
+ *   
+ *   if (person) {
+ *     console.log('Found:', person.name)
+ *     console.log('Email:', person.email)
+ *   } else {
+ *     console.log('No person found with that username')
+ *   }
+ * }
+ * ```
+ * 
+ * @example With optional chaining
+ * ```ts
+ * const person = first(result.data)
+ * const email = person?.email ?? 'No email'
+ * console.log(email)
+ * ```
+ * 
+ * @example Existence check
+ * ```ts
+ * const exists = first(result.data) !== undefined
+ * if (exists) {
+ *   console.log('Record found')
+ * }
+ * ```
+ * 
+ * @example Safe destructuring
+ * ```ts
+ * const row = first(result.data)
+ * if (!row) {
+ *   console.error('Query returned no results')
+ *   return
+ * }
+ * 
+ * // TypeScript knows row is defined here
+ * const { name, age } = row
+ * console.log(name, age)
+ * ```
+ */
+export function first(response: SparqlResponse): Record<string, string> | undefined {
+  const bindings = response.results.bindings
+  return bindings.length > 0 ? transformResults(response)[0] : undefined
+}
+
+/**
+ * Check if an ASK query returned true.
+ * 
+ * **Common use case:** ASK queries return a different response format than SELECT
+ * queries. This helper makes it easy to extract the boolean result.
+ * 
+ * **How it works:** ASK query responses have a `boolean` field instead of result
+ * bindings. This function safely extracts that boolean, defaulting to false if
+ * the format is unexpected.
+ * 
+ * **Type safety note:** The response parameter is `unknown` because ASK and SELECT
+ * have different response formats. This function handles the type check internally.
+ * 
+ * @param response - Raw response from ASK query
+ * @returns True if pattern exists, false otherwise
+ * 
+ * @example Basic existence check
+ * ```ts
+ * const result = await ask()
+ *   .where(triple('?person', 'foaf:name', 'Alice'))
+ *   .execute(config)
+ * 
+ * if (result.success) {
+ *   const exists = askResult(result.data)
+ *   console.log('Alice exists:', exists)
+ * }
+ * ```
+ * 
+ * @example Conditional logic
+ * ```ts
+ * const hasAdults = askResult(
+ *   await ask()
+ *     .where(triple('?person', 'foaf:age', '?age'))
+ *     .filter(v('age').gte(18))
+ *     .execute(config)
+ *     .then(r => r.success ? r.data : { boolean: false })
+ * )
+ * 
+ * if (hasAdults) {
+ *   console.log('Dataset contains adults')
+ * }
+ * ```
+ * 
+ * @example Validation check
+ * ```ts
+ * async function validatePerson(id: string): Promise<boolean> {
+ *   const result = await ask()
+ *     .where(triple(`<${id}>`, RDF.type, uri(FOAF.Person)))
+ *     .execute(config)
+ *   
+ *   return result.success && askResult(result.data)
+ * }
+ * 
+ * const isValid = await validatePerson('http://example.org/person/123')
+ * ```
+ */
+export function askResult(response: unknown): boolean {
+  return (response as { boolean?: boolean }).boolean ?? false
+}
