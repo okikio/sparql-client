@@ -141,7 +141,7 @@ const pricing = select(['?product', '?total'])
   .filter(v('total').gte(20))
 ```
 
-String operations chain the same way. Build display names with fallbacks:
+String operations chain naturally. Build display names with fallbacks:
 
 ```ts
 select(['?displayName'])
@@ -149,17 +149,17 @@ select(['?displayName'])
   .where(triple('?person', 'foaf:lastName', '?last'))
   .optional(triple('?person', 'foaf:nickname', '?nick'))
   .bind(
-    coalesce(v('nick'), v('first'))
-      .ucase()
-      .substr(0, 10)
+    substr(coalesce(v('nick'), v('first')).ucase(), 1, 10)
       .concat(' ')
-      .concat(v('last').ucase().substr(0, 1))
+      .concat(v('last').ucase().substr(1, 1))
       .concat('.')
       .as('displayName')
   )
 ```
 
 Read it step by step: "Use nickname if available, otherwise first name. Uppercase it. Take first 10 characters. Add space. Add uppercased first letter of last name. Add period."
+
+Note: `substr()` is a standalone function, not a fluent method. Most string operations like `ucase()`, `lcase()`, `concat()`, `strlen()` are available as fluent methods for chaining.
 
 Conditional logic stays readable with nested fluent operations:
 
@@ -442,6 +442,394 @@ age.gte('not a number')  // ✗ TypeScript error
 ```
 
 You get autocomplete in your editor. The library guides you toward correct code. Generated SPARQL is safe from injection attacks because values are properly escaped automatically.
+
+## Query Composition and Reuse
+
+Building complex queries from reusable pieces makes your code cleaner and more maintainable. These patterns show how to compose queries, extract common logic, and build flexible query templates.
+
+### Reusable Pattern Fragments
+
+Extract common triple patterns into functions. This reduces duplication and makes queries easier to understand:
+
+```ts
+import { RDF, FOAF, SCHEMA } from '@okikio/sparql'
+
+// Define reusable pattern fragments
+function personPattern(personVar = 'person') {
+  return node(personVar, FOAF.Person, {
+    [FOAF.name]: v('name'),
+    [FOAF.age]: v('age')
+  })
+}
+
+function addressPattern(personVar = 'person') {
+  return node(personVar)
+    .prop(SCHEMA.address, node('address', SCHEMA.PostalAddress, {
+      [SCHEMA.addressLocality]: v('city'),
+      [SCHEMA.addressCountry]: v('country')
+    }))
+}
+
+// Use them in queries
+const adults = select(['?name', '?age'])
+  .where(personPattern())
+  .filter(v('age').gte(18))
+
+const peopleWithAddress = select(['?name', '?city', '?country'])
+  .where(personPattern())
+  .where(addressPattern())
+```
+
+Patterns compose naturally. Mix and match to build exactly the query you need without repeating yourself.
+
+### Filter Builder Functions
+
+Extract filter logic into reusable functions. This makes query intentions clearer:
+
+```ts
+// Define filter builders
+function olderThan(age: number) {
+  return v('age').gte(age)
+}
+
+function nameMatches(pattern: string, caseInsensitive = true) {
+  return caseInsensitive
+    ? v('name').regex(pattern, 'i')
+    : v('name').regex(pattern)
+}
+
+function inCountry(country: string) {
+  return v('country').eq(country)
+}
+
+// Use them in queries
+const query = select(['?name', '?age'])
+  .where(personPattern())
+  .where(addressPattern())
+  .filter(olderThan(21))
+  .filter(nameMatches('^John'))
+  .filter(inCountry('USA'))
+```
+
+Read the query like English: "Select name and age where person is older than 21, name matches '^John', and in country USA."
+
+### Query Templates with Parameters
+
+Build flexible query templates that adapt based on parameters. This pattern works great for search interfaces:
+
+```ts
+interface SearchFilters {
+  minAge?: number
+  maxAge?: number
+  namePattern?: string
+  city?: string
+  country?: string
+}
+
+function searchPeople(filters: SearchFilters) {
+  let query = select(['?name', '?age', '?city', '?country'])
+    .prefix('rdf', getNamespaceIRI(RDF))
+    .prefix('foaf', getNamespaceIRI(FOAF))
+    .prefix('schema', getNamespaceIRI(SCHEMA))
+    .where(personPattern())
+    .where(addressPattern())
+
+  // Add filters conditionally
+  if (filters.minAge !== undefined) {
+    query = query.filter(v('age').gte(filters.minAge))
+  }
+
+  if (filters.maxAge !== undefined) {
+    query = query.filter(v('age').lte(filters.maxAge))
+  }
+
+  if (filters.namePattern) {
+    query = query.filter(v('name').regex(filters.namePattern, 'i'))
+  }
+
+  if (filters.city) {
+    query = query.filter(v('city').eq(filters.city))
+  }
+
+  if (filters.country) {
+    query = query.filter(v('country').eq(filters.country))
+  }
+
+  return query
+}
+
+// Use it with different filter combinations
+const youngAdults = searchPeople({ minAge: 18, maxAge: 25 })
+const londonResidents = searchPeople({ city: 'London' })
+const ukSeniors = searchPeople({ minAge: 65, country: 'UK' })
+```
+
+The query adapts automatically. Only the filters you provide get added.
+
+### Base Query Extension
+
+Start with a base query and extend it for different use cases:
+
+```ts
+// Base query everyone shares
+const baseProductQuery = select(['?product', '?name', '?price'])
+  .prefix('schema', getNamespaceIRI(SCHEMA))
+  .where(
+    node('product', SCHEMA.Product, {
+      [SCHEMA.name]: v('name'),
+      [SCHEMA.price]: v('price')
+    })
+  )
+
+// Extend for specific needs
+const affordableProducts = baseProductQuery
+  .filter(v('price').lte(50))
+  .orderBy('?price')
+  .limit(20)
+
+const expensiveProducts = baseProductQuery
+  .filter(v('price').gte(100))
+  .orderBy('?price', 'DESC')
+  .limit(10)
+
+const searchResults = baseProductQuery
+  .filter(v('name').regex(userInput, 'i'))
+  .limit(50)
+```
+
+The base query stays immutable. Each extension creates a new query without affecting the original.
+
+### Combining Subqueries
+
+Break complex logic into subqueries then combine them:
+
+```ts
+// Find top sellers
+const topSellers = select([v('product'), count().as('sales')])
+  .where(triple('?order', SCHEMA.product, '?product'))
+  .where(triple('?order', SCHEMA.orderDate, '?date'))
+  .filter(v('date').gte('2024-01-01'))
+  .groupBy('?product')
+  .orderBy('?sales', 'DESC')
+  .limit(10)
+
+// Enrich with product details
+const enrichedProducts = select([
+  '?product',
+  '?name',
+  '?price',
+  '?sales',
+  '?category'
+])
+  .where(subquery(topSellers))
+  .where(
+    node('product', {
+      [SCHEMA.name]: v('name'),
+      [SCHEMA.price]: v('price'),
+      [SCHEMA.category]: v('category')
+    })
+  )
+  .orderBy('?sales', 'DESC')
+```
+
+Each subquery solves one piece of the problem. Combine them to solve the whole thing.
+
+### Pattern Collections
+
+Group related patterns together for complex domains:
+
+```ts
+// E-commerce patterns
+const ecommerce = {
+  product(productVar = 'product') {
+    return node(productVar, SCHEMA.Product, {
+      [SCHEMA.name]: v('productName'),
+      [SCHEMA.price]: v('price'),
+      [SCHEMA.sku]: v('sku')
+    })
+  },
+
+  order(orderVar = 'order') {
+    return node(orderVar, SCHEMA.Order, {
+      [SCHEMA.orderDate]: v('orderDate'),
+      [SCHEMA.orderNumber]: v('orderNumber'),
+      [SCHEMA.customer]: v('customer')
+    })
+  },
+
+  customer(customerVar = 'customer') {
+    return node(customerVar, SCHEMA.Person, {
+      [SCHEMA.name]: v('customerName'),
+      [SCHEMA.email]: v('email')
+    })
+  },
+
+  // Relationship connectors
+  orderContains(orderVar = 'order', productVar = 'product') {
+    return triple(`?${orderVar}`, SCHEMA.orderedItem, `?${productVar}`)
+  },
+
+  orderBy(orderVar = 'order', customerVar = 'customer') {
+    return triple(`?${orderVar}`, SCHEMA.customer, `?${customerVar}`)
+  }
+}
+
+// Use pattern collection
+const orderAnalysis = select([
+  '?orderNumber',
+  '?customerName',
+  '?productName',
+  '?price'
+])
+  .where(ecommerce.order())
+  .where(ecommerce.orderBy())
+  .where(ecommerce.customer())
+  .where(ecommerce.orderContains())
+  .where(ecommerce.product())
+  .filter(v('orderDate').gte('2024-01-01'))
+```
+
+Pattern collections organize domain knowledge. Your queries become high-level descriptions of what you want to find.
+
+### Dynamic Query Construction
+
+Build queries programmatically from user input or configuration:
+
+```ts
+interface FieldSelection {
+  fields: string[]
+  filters: Array<{ field: string, operator: string, value: any }>
+  sort?: { field: string, direction: 'ASC' | 'DESC' }
+  limit?: number
+}
+
+function buildDynamicQuery(config: FieldSelection) {
+  // Map user field names to actual predicates
+  const fieldMap: Record<string, string> = {
+    name: FOAF.name,
+    age: FOAF.age,
+    email: SCHEMA.email,
+    city: SCHEMA.addressLocality
+  }
+
+  // Start with base pattern
+  let query = select(config.fields.map(f => `?${f}`))
+    .where(triple('?person', RDF.type, uri(FOAF.Person)))
+
+  // Add triples for each requested field
+  for (const field of config.fields) {
+    const predicate = fieldMap[field]
+    if (predicate) {
+      query = query.where(triple('?person', predicate, `?${field}`))
+    }
+  }
+
+  // Apply filters
+  for (const filter of config.filters) {
+    const varRef = v(filter.field)
+    switch (filter.operator) {
+      case 'eq':
+        query = query.filter(varRef.eq(filter.value))
+        break
+      case 'gt':
+        query = query.filter(varRef.gt(filter.value))
+        break
+      case 'lt':
+        query = query.filter(varRef.lt(filter.value))
+        break
+      case 'contains':
+        query = query.filter(varRef.contains(filter.value))
+        break
+    }
+  }
+
+  // Apply sorting
+  if (config.sort) {
+    query = query.orderBy(`?${config.sort.field}`, config.sort.direction)
+  }
+
+  // Apply limit
+  if (config.limit) {
+    query = query.limit(config.limit)
+  }
+
+  return query
+}
+
+// Use with different configurations
+const query1 = buildDynamicQuery({
+  fields: ['name', 'email'],
+  filters: [{ field: 'name', operator: 'contains', value: 'John' }],
+  limit: 10
+})
+
+const query2 = buildDynamicQuery({
+  fields: ['name', 'age', 'city'],
+  filters: [
+    { field: 'age', operator: 'gt', value: 18 },
+    { field: 'city', operator: 'eq', value: 'London' }
+  ],
+  sort: { field: 'age', direction: 'DESC' }
+})
+```
+
+Dynamic construction turns configuration into queries. Good for building query builders, APIs, or UI-driven search.
+
+### Cached Query Builders
+
+Pre-configure query builders for common operations:
+
+```ts
+// Create specialized builders
+class PersonQueries {
+  private readonly baseQuery: QueryBuilder
+
+  constructor() {
+    this.baseQuery = select(['?person', '?name', '?age'])
+      .prefix('rdf', getNamespaceIRI(RDF))
+      .prefix('foaf', getNamespaceIRI(FOAF))
+      .where(triple('?person', RDF.type, uri(FOAF.Person)))
+      .where(triple('?person', FOAF.name, '?name'))
+      .where(triple('?person', FOAF.age, '?age'))
+  }
+
+  all() {
+    return this.baseQuery
+  }
+
+  adults() {
+    return this.baseQuery.filter(v('age').gte(18))
+  }
+
+  children() {
+    return this.baseQuery.filter(v('age').lt(18))
+  }
+
+  byName(name: string) {
+    return this.baseQuery.filter(v('name').eq(name))
+  }
+
+  olderThan(age: number) {
+    return this.baseQuery.filter(v('age').gt(age))
+  }
+
+  byAgeRange(min: number, max: number) {
+    return this.baseQuery
+      .filter(v('age').gte(min))
+      .filter(v('age').lte(max))
+  }
+}
+
+// Use it
+const people = new PersonQueries()
+
+const adults = await people.adults().execute(config)
+const seniors = await people.olderThan(65).execute(config)
+const alice = await people.byName('Alice').execute(config)
+const millennials = await people.byAgeRange(25, 40).execute(config)
+```
+
+Query builders encapsulate domain logic. Each method returns a ready-to-execute query.
 
 ## Further Reading
 
