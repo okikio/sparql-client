@@ -1,38 +1,28 @@
 services:
-  qlever:
+  # One-shot init container to fix permissions on the data volume
+  qlever-init:
+    image: busybox:latest
+    container_name: qlever-init
+    command: ["sh", "-c", "chown -R 65534:0 /data"]
+    volumes:
+      - ./qlever-data:/data
+    restart: "no"
+
+  qlever-server:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: qlever
-    environment:
-      - UID=${QLEVER_UID:-1234}
-      - GID=${QLEVER_GID:-1234}
+      dockerfile: ./Dockerfile
+    image: local/qlever-server:latest
+    container_name: qlever-server
+    user: "65534:0"          # run as 'nobody' (uid 65534), group root
+    depends_on:
+      - qlever-init          # make sure perms are fixed first
+    env_file:
+      - ./qlever.env         # QLever + indexing config (see below)
     volumes:
-      - qlever-data:/data
-    working_dir: /data
+      - ./qlever-data:/data      # QLever index + Qleverfile live here
+      - ./data/data.nt:/data/data.nt:ro  # your RDF data file
     ports:
-      - "7001:7001"
-    command:
-      - -c
-      - |
-        sudo groupadd sharedgroup || true   # avoid error if it already exists
-        sudo usermod -aG sharedgroup qlever # add qlever user to sharedgroup
-        sudo usermod -aG sharedgroup $(whoami) # add your current user by name
-        sudo chown -R qlever:sharedgroup /data
-        sudo chmod -R 770 /data
-        if [ ! -f /data/Qleverfile ]; then
-          qlever setup-config olympics &&
-          qlever get-data &&
-          qlever index
-        fi &&
-        echo "Starting QLever server..."
-        qlever start --name olympics --description "Olympics Dataset"
+      - "7001:7001"          # SPARQL endpoint
+    stop_grace_period: 0s
     restart: unless-stopped
-
-    deploy:
-      resources:
-        limits:
-          memory: 8g
-
-volumes:
-  qlever-data:
