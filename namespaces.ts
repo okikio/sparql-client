@@ -70,7 +70,7 @@ export interface NamespaceLike {
  * )
  * ```
  */
-export const XSD = {
+export const XSD: NamespaceLike = {
   /** Base namespace for all XML Schema datatypes. */
   _namespace: 'http://www.w3.org/2001/XMLSchema#',
 
@@ -239,7 +239,7 @@ export const XSD = {
  *   .where(triple('?list', RDF.rest, RDF.nil))
  * ```
  */
-export const RDF = {
+export const RDF: NamespaceLike = {
   _namespace: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
 
   /** Assigns a class to a resource: `?s rdf:type ?class`. */
@@ -338,7 +338,7 @@ export const RDF = {
  *   .where(triple('?sub', RDFS.subClassOf, 'narrative:Product'))
  * ```
  */
-export const RDFS = {
+export const RDFS: NamespaceLike = {
   _namespace: 'http://www.w3.org/2000/01/rdf-schema#',
 
   /** Human-readable label. */
@@ -413,7 +413,7 @@ export const RDFS = {
  * where(triple('?comic', OWL.sameAs, '?externalComic'))
  * ```
  */
-export const OWL = {
+export const OWL: NamespaceLike = {
   _namespace: 'http://www.w3.org/2002/07/owl#',
 
   // Core classes
@@ -556,7 +556,7 @@ export const OWL = {
  *   .optional(triple('?person', FOAF.mbox, '?email'))
  * ```
  */
-export const FOAF = {
+export const FOAF: NamespaceLike = {
   _namespace: 'http://xmlns.com/foaf/0.1/',
 
   // Core classes
@@ -691,7 +691,7 @@ export const FOAF = {
  *   .where(triple('?p', SCHEMA.price, '?price'))
  * ```
  */
-export const SCHEMA = {
+export const SCHEMA: NamespaceLike = {
   // Note: schema.org now often uses https:// in docs, but http:// IRIs are widely used.
   _namespace: 'http://schema.org/',
 
@@ -872,7 +872,7 @@ export const SCHEMA = {
  * **Typical uses**
  * - Inspecting an endpoint’s capabilities before deciding which features to use.
  */
-export const SD = {
+export const SD: NamespaceLike = {
   _namespace: 'http://www.w3.org/ns/sparql-service-description#',
 
   Service: 'http://www.w3.org/ns/sparql-service-description#Service',
@@ -926,7 +926,7 @@ export const SD = {
  * - Validating datasets before loading them into a KG.
  * - Encoding business rules and invariants in RDF form.
  */
-export const SHACL = {
+export const SHACL: NamespaceLike = {
   _namespace: 'http://www.w3.org/ns/shacl#',
 
   // Core classes
@@ -1014,7 +1014,7 @@ export const SHACL = {
  * - Modeling genres, subject headings, tag vocabularies.
  * - Multi-level classification systems for products, story arcs, etc.
  */
-export const SKOS = {
+export const SKOS: NamespaceLike = {
   _namespace: 'http://www.w3.org/2004/02/skos/core#',
 
   // Core classes
@@ -1091,7 +1091,7 @@ export const SKOS = {
  * - Tracking data lineage.
  * - Recording who asserted which statements and when.
  */
-export const PROV = {
+export const PROV: NamespaceLike = {
   _namespace: 'http://www.w3.org/ns/prov#',
 
   // Core classes
@@ -1140,7 +1140,7 @@ export const PROV = {
  * - Size, links, partitions, example resources.
  * - SPARQL endpoints and data dumps.
  */
-export const VOID = {
+export const VOID: NamespaceLike = {
   _namespace: 'http://rdfs.org/ns/void#',
 
   Dataset: 'http://rdfs.org/ns/void#Dataset',
@@ -1181,7 +1181,7 @@ export const VOID = {
  * Dublin Core is a generic metadata vocabulary used all over the web
  * and in many RDF datasets for titles, creators, dates, rights, etc.
  */
-export const DCTERMS = {
+export const DCTERMS: NamespaceLike = {
   _namespace: 'http://purl.org/dc/terms/',
 
   // Core DC elements (terms flavor)
@@ -1223,7 +1223,7 @@ export const DCTERMS = {
  * Simple latitude/longitude/altitude vocabulary for expressing points
  * on Earth (WGS84).
  */
-export const GEO = {
+export const GEO: NamespaceLike = {
   _namespace: 'http://www.w3.org/2003/01/geo/wgs84_pos#',
 
   SpatialThing:
@@ -1248,7 +1248,7 @@ export const GEO = {
  * - Datatypes for geometries (WKT, GML)
  * - Topological relations (within, contains, etc.)
  */
-export const GEOSPARQL = {
+export const GEOSPARQL: NamespaceLike = {
   _namespace: 'http://www.opengis.net/ont/geosparql#',
 
   // Core classes
@@ -1286,7 +1286,7 @@ export const GEOSPARQL = {
  * Defines IRI identifiers for spatial functions like distance, buffer, etc.,
  * used in SPARQL `FILTER` expressions.
  */
-export const GEOF = {
+export const GEOF: NamespaceLike = {
   _namespace: 'http://www.opengis.net/def/function/geosparql/',
 
   distance:
@@ -1313,7 +1313,7 @@ export const GEOF = {
  * structured into RDF). You’ll see these IRIs if you round-trip results
  * via RDF form.
  */
-export const SPARQL_RESULTS = {
+export const SPARQL_RESULTS: NamespaceLike = {
   _namespace: 'http://www.w3.org/2005/sparql-results#',
 
   ResultSet:
