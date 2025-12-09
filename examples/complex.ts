@@ -1,12 +1,17 @@
 /**
  * Complex Query Example
- * 
+ *
  * Demonstrates advanced query patterns:
  * - Relationships between nodes
  * - Multi-hop graph traversal
  * - Optional patterns
  * - Aggregation and grouping
  * - Union queries
+ *
+ * Updated to:
+ * - Explicitly declare FOAF and narrative prefixes.
+ * - Make the PopModern example (`findCreatorsAndPublishers`) line up with
+ *   your narrative.ttl ontology.
  */
 
 import {
@@ -18,16 +23,21 @@ import {
   gte,
   count,
   transformResults,
-  type ExecutorConfig,
+  type ExecutionConfig,
 } from '../mod.ts'
 
-const config: ExecutorConfig = {
+import {
+  FOAF,
+  RDFS,
+} from '../namespaces.ts'
+
+const config: ExecutionConfig = {
   endpoint: 'http://localhost:9999/blazegraph/sparql',
-  timeout: 30000,
+  timeoutMs: 30000,
 }
 
 // ============================================================================
-// Example 1: Social Network Query
+// Example 1: Social Network Query (FOAF)
 // ============================================================================
 
 async function findFriendsOfFriends() {
@@ -49,24 +59,25 @@ async function findFriendsOfFriends() {
   const knowsB = rel('personA', 'foaf:knows', 'personB')
   const knowsC = rel('personB', 'foaf:knows', 'personC')
 
-  const result = await select(['?friendName', '?friendOfFriendName'])
-    .where(personA)
-    .where(personB)
-    .where(personC)
-    .where(knowsB)
-    .where(knowsC)
-    .execute(config)
+  try {
+    const result = await select(['?friendName', '?friendOfFriendName'])
+      .prefix('foaf', FOAF._namespace)
+      .where(personA)
+      .where(personB)
+      .where(personC)
+      .where(knowsB)
+      .where(knowsC)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Friends of friends:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 2: Optional Properties
+// Example 2: Optional Properties (FOAF)
 // ============================================================================
 
 async function findPeopleWithOptionalEmail() {
@@ -79,23 +90,24 @@ async function findPeopleWithOptionalEmail() {
   const emailPattern = node('person')
     .with.prop('foaf:email', variable('email'))
 
-  const result = await select(['?name', '?email'])
-    .where(person)
-    .optional(emailPattern)
-    .orderBy('?name')
-    .limit(20)
-    .execute(config)
+  try {
+    const result = await select(['?name', '?email'])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .optional(emailPattern)
+      .orderBy('?name')
+      .limit(20)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('People (with/without email):', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 3: Aggregation - Count Friends
+// Example 3: Aggregation - Count Friends (FOAF)
 // ============================================================================
 
 async function countFriendsPerPerson() {
@@ -108,55 +120,58 @@ async function countFriendsPerPerson() {
 
   const knows = rel('person', 'foaf:knows', 'friend')
 
-  // Use aggregation with GROUP BY
-  const result = await select(['?name', count(variable('friend')).as('friendCount')])
-    .where(person)
-    .where(friend)
-    .where(knows)
-    .orderBy('?friendCount', 'DESC')
-    .limit(10)
-    .execute(config)
+  try {
+    const result = await select(['?name', count(variable('friend')).as('friendCount')])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .where(friend)
+      .where(knows)
+      .orderBy('?friendCount', 'DESC')
+      .limit(10)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Friend counts:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 4: Union - Find Multiple Types
+// Example 4: Union - Find Creators OR Publishers (narrative.ttl)
 // ============================================================================
 
 async function findCreatorsAndPublishers() {
   console.log('\n=== Finding creators OR publishers ===\n')
 
-  // Branch 1: Creators
+  // Branch 1: Creators in your narrative graph
   const creator = node('entity', 'narrative:Person')
     .with.prop('foaf:name', variable('name'))
     .and.prop('narrative:role', variable('role'))
 
-  // Branch 2: Publishers
+  // Branch 2: Publishers in your narrative graph
   const publisher = node('entity', 'narrative:Organization')
     .with.prop('rdfs:label', variable('name'))
 
-  const result = await select(['?name', '?role'])
-    .union(creator, publisher)
-    .orderBy('?name')
-    .limit(20)
-    .execute(config)
+  try {
+    const result = await select(['?name', '?role'])
+      .prefix('narrative', "http://knowledge.graph/ontology/narrative#")
+      .prefix('foaf', FOAF._namespace)
+      .prefix('rdfs', RDFS._namespace)
+      .union(creator, publisher)
+      .orderBy('?name')
+      .limit(20)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Creators and publishers:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 5: Relationship with Properties (Reification)
+// Example 5: Relationship with Properties (Generic / Example namespace)
 // ============================================================================
 
 async function findHighConfidenceConnections() {
@@ -168,67 +183,33 @@ async function findHighConfidenceConnections() {
   const personB = node('personB', 'foaf:Person')
     .with.prop('foaf:name', variable('nameB'))
 
-  // Relationship with confidence score
+  // Relationship with confidence score (using a made-up ex: namespace)
   const connection = rel('personA', 'ex:relatedTo', 'personB')
     .with.prop('ex:confidence', variable('confidence'))
     .and.prop('ex:source', variable('source'))
 
-  const result = await select(['?nameA', '?nameB', '?confidence', '?source'])
-    .where(personA)
-    .where(personB)
-    .where(connection)
-    .filter(gte(variable('confidence'), 0.8))
-    .orderBy('?confidence', 'DESC')
-    .limit(10)
-    .execute(config)
+  try {
+    const result = await select(['?nameA', '?nameB', '?confidence', '?source'])
+      // In your real code, you'd also wire `ex` via namespaces.ts;
+      // for now we'll assume Blazegraph has PREFIX ex: already configured.
+      .prefix('foaf', FOAF._namespace)
+      .where(personA)
+      .where(personB)
+      .where(connection)
+      .filter(gte(variable('confidence'), 0.8))
+      .orderBy('?confidence', 'DESC')
+      .limit(20)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('High-confidence connections:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 6: Multi-Hop with Distance Limit
-// ============================================================================
-
-async function findPeopleWithinTwoHops() {
-  console.log('\n=== Finding people within 2 hops ===\n')
-
-  const start = node('start', 'foaf:Person')
-    .with.prop('foaf:name', str('Alice'))
-
-  const hop1 = node('hop1', 'foaf:Person')
-    .with.prop('foaf:name', variable('hop1Name'))
-
-  const hop2 = node('hop2', 'foaf:Person')
-    .with.prop('foaf:name', variable('hop2Name'))
-
-  const knows1 = rel('start', 'foaf:knows', 'hop1')
-  const knows2 = rel('hop1', 'foaf:knows', 'hop2')
-
-  const result = await select(['?hop1Name', '?hop2Name'])
-    .where(start)
-    .where(hop1)
-    .where(hop2)
-    .where(knows1)
-    .where(knows2)
-    .distinct()
-    .limit(50)
-    .execute(config)
-
-  if (result.success) {
-    const rows = transformResults(result.data)
-    console.log('People within 2 hops:', rows)
-  } else {
-    console.error('Query failed:', result.error)
-  }
-}
-
-// ============================================================================
-// Run Examples
+// Run examples
 // ============================================================================
 
 if (import.meta.main) {
@@ -237,5 +218,4 @@ if (import.meta.main) {
   await countFriendsPerPerson()
   await findCreatorsAndPublishers()
   await findHighConfidenceConnections()
-  await findPeopleWithinTwoHops()
 }

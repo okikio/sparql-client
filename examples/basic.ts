@@ -1,11 +1,14 @@
 /**
  * Basic Query Example
- * 
+ *
  * Demonstrates fundamental usage of the query builder:
  * - Creating node patterns
  * - Using fluent property chains
  * - Basic filtering and sorting
  * - Query execution
+ *
+ * Now wired to your namespace constants so it works cleanly with Blazegraph +
+ * narrative.ttl and any FOAF/Schema data you load.
  */
 
 import {
@@ -15,17 +18,27 @@ import {
   gte,
   regex,
   and,
-  type ExecutorConfig,
+  type ExecutionConfig,
 } from '../mod.ts'
 
-// Configure your SPARQL endpoint
-const config: ExecutorConfig = {
+import {
+  FOAF,
+  SCHEMA,
+} from '../namespaces.ts'
+
+/**
+ * Configure your SPARQL endpoint.
+ *
+ * This assumes Blazegraph with your `narrative.ttl` (and optionally FOAF/Schema)
+ * is loaded into a single namespace and exposed at `/sparql`.
+ */
+const config: ExecutionConfig = {
   endpoint: 'http://localhost:9999/blazegraph/sparql',
-  timeout: 30000,
+  timeoutMs: 30000,
 }
 
 // ============================================================================
-// Example 1: Simple Person Query
+// Example 1: Simple Person Query (FOAF)
 // ============================================================================
 
 async function findPeopleByAge() {
@@ -36,22 +49,23 @@ async function findPeopleByAge() {
     .with.prop('foaf:name', variable('name'))
     .and.prop('foaf:age', variable('age'))
 
-  const result = await select(['?name', '?age'])
-    .where(person)
-    .filter(gte(variable('age'), 18))
-    .orderBy('?age', 'DESC')
-    .limit(10)
-    .execute(config)
+  try {
+    const result = await select(['?name', '?age'])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .filter(gte(variable('age'), 18))
+      .orderBy('?age', 'DESC')
+      .limit(10)
+      .execute(config)
 
-  if (result.success) {
-    console.log('Results:', result.data.results.bindings)
-  } else {
-    console.error('Query failed:', result.error)
+    console.log('Results:', result.results.bindings)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 2: Pattern Matching with Filters
+// Example 2: Pattern Matching with Filters (FOAF)
 // ============================================================================
 
 async function findPeopleByNamePattern() {
@@ -63,21 +77,22 @@ async function findPeopleByNamePattern() {
 
   const nameCondition = regex(variable('name'), '^John', 'i')
 
-  const result = await select(['?name', '?email'])
-    .where(person)
-    .filter(nameCondition)
-    .orderBy('?name')
-    .execute(config)
+  try {
+    const result = await select(['?name', '?email'])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .filter(nameCondition)
+      .orderBy('?name')
+      .execute(config)
 
-  if (result.success) {
-    console.log('Results:', result.data.results.bindings)
-  } else {
-    console.error('Query failed:', result.error)
+    console.log('Results:', result.results.bindings)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 3: Multiple Conditions
+// Example 3: Multiple Conditions (FOAF)
 // ============================================================================
 
 async function findAdultsWithEmail() {
@@ -91,29 +106,30 @@ async function findAdultsWithEmail() {
   // Combine multiple conditions
   const conditions = and(
     gte(variable('age'), 18),
-    regex(variable('email'), '@', 'i')
+    regex(variable('email'), '@', 'i'),
   )
 
-  const result = await select(['?name', '?age', '?email'])
-    .where(person)
-    .filter(conditions)
-    .orderBy('?name')
-    .limit(20)
-    .execute(config)
+  try {
+    const result = await select(['?name', '?age', '?email'])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .filter(conditions)
+      .orderBy('?name')
+      .limit(20)
+      .execute(config)
 
-  if (result.success) {
-    console.log('Results:', result.data.results.bindings)
-  } else {
-    console.error('Query failed:', result.error)
+    console.log('Results:', result.results.bindings)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 4: Using Domain Types
+// Example 4: Using Domain Types (FOAF + Schema.org)
 // ============================================================================
 
 async function queryWithTypes() {
-  console.log('\n=== Query with explicit typing ===\n')
+  console.log('\n=== Query with explicit typing (FOAF + Schema) ===\n')
 
   // You can specify multiple types
   const person = node('person')
@@ -122,21 +138,23 @@ async function queryWithTypes() {
     .with.prop('foaf:name', variable('name'))
     .and.prop('foaf:age', variable('age'))
 
-  const result = await select(['?name', '?age'])
-    .where(person)
-    .orderBy('?name')
-    .limit(10)
-    .execute(config)
+  try {
+    const result = await select(['?name', '?age'])
+      .prefix('foaf', FOAF._namespace)
+      .prefix('schema', SCHEMA._namespace)
+      .where(person)
+      .orderBy('?name')
+      .limit(20)
+      .execute(config)
 
-  if (result.success) {
-    console.log('Results:', result.data.results.bindings)
-  } else {
-    console.error('Query failed:', result.error)
+    console.log('Results:', result.results.bindings)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Run Examples
+// Run examples when executed directly
 // ============================================================================
 
 if (import.meta.main) {

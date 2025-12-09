@@ -1,11 +1,15 @@
 /**
  * Aggregation Functions Example
- * 
+ *
  * Demonstrates SPARQL aggregation functions:
  * - COUNT, SUM, AVG, MIN, MAX
  * - GROUP_CONCAT, SAMPLE
  * - Using .as() for variable binding
  * - GROUP BY patterns
+ *
+ * Updated to:
+ * - Use FOAF & narrative namespaces explicitly.
+ * - Work cleanly with Blazegraph + narrative.ttl.
  */
 
 import {
@@ -22,16 +26,21 @@ import {
   groupConcat,
   sample,
   transformResults,
-  type ExecutorConfig,
+  type ExecutionConfig,
 } from '../mod.ts'
 
-const config: ExecutorConfig = {
+import {
+  FOAF,
+  RDFS,
+} from '../namespaces.ts'
+
+const config: ExecutionConfig = {
   endpoint: 'http://localhost:9999/blazegraph/sparql',
-  timeout: 30000,
+  timeoutMs: 30000,
 }
 
 // ============================================================================
-// Example 1: COUNT - Simple Counting
+// Example 1: COUNT - Simple Counting (FOAF)
 // ============================================================================
 
 async function countPeople() {
@@ -39,21 +48,21 @@ async function countPeople() {
 
   const person = node('person', 'foaf:Person')
 
-  // COUNT(*) AS ?total
-  const result = await select([count().as('total')])
-    .where(person)
-    .execute(config)
+  try {
+    const result = await select([count().as('total')])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Total people:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 2: COUNT with GROUP BY
+// Example 2: COUNT with GROUP BY (FOAF)
 // ============================================================================
 
 async function countByAge() {
@@ -62,25 +71,25 @@ async function countByAge() {
   const person = node('person', 'foaf:Person')
     .with.prop('foaf:age', variable('age'))
 
-  // COUNT(?person) AS ?count
-  const result = await select([
-    '?age',
-    count(variable('person')).as('count')
-  ])
-    .where(person)
-    .orderBy('?count', 'DESC')
-    .execute(config)
+  try {
+    const result = await select([
+      '?age',
+      count(variable('person')).as('count'),
+    ])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .orderBy('?count', 'DESC')
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Count by age:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 3: COUNT DISTINCT
+// Example 3: COUNT DISTINCT (FOAF)
 // ============================================================================
 
 async function countUniqueNames() {
@@ -89,22 +98,23 @@ async function countUniqueNames() {
   const person = node('person', 'foaf:Person')
     .with.prop('foaf:name', variable('name'))
 
-  const result = await select([
-    countDistinct(variable('name')).as('uniqueNames')
-  ])
-    .where(person)
-    .execute(config)
+  try {
+    const result = await select([
+      countDistinct(variable('name')).as('uniqueNames'),
+    ])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Unique names:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 4: SUM, AVG, MIN, MAX - Numeric Aggregations
+// Example 4: SUM, AVG, MIN, MAX - Numeric Aggregations (FOAF)
 // ============================================================================
 
 async function numericAggregations() {
@@ -113,25 +123,26 @@ async function numericAggregations() {
   const person = node('person', 'foaf:Person')
     .with.prop('foaf:age', variable('age'))
 
-  const result = await select([
-    sum(variable('age')).as('totalAge'),
-    avg(variable('age')).as('avgAge'),
-    min(variable('age')).as('minAge'),
-    max(variable('age')).as('maxAge'),
-  ])
-    .where(person)
-    .execute(config)
+  try {
+    const result = await select([
+      sum(variable('age')).as('totalAge'),
+      avg(variable('age')).as('avgAge'),
+      min(variable('age')).as('minAge'),
+      max(variable('age')).as('maxAge'),
+    ])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Age statistics:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 5: GROUP_CONCAT - String Aggregation
+// Example 5: GROUP_CONCAT - String Aggregation (FOAF)
 // ============================================================================
 
 async function concatenateNames() {
@@ -145,27 +156,27 @@ async function concatenateNames() {
 
   const knows = rel('person', 'foaf:knows', 'friend')
 
-  // GROUP_CONCAT(?friendName; separator=", ") AS ?allFriends
-  const result = await select([
-    '?personName',
-    groupConcat(variable('friendName'), ', ').as('allFriends')
-  ])
-    .where(person)
-    .where(friend)
-    .where(knows)
-    .orderBy('?personName')
-    .execute(config)
+  try {
+    const result = await select([
+      '?personName',
+      groupConcat(variable('friendName'), ', ').as('allFriends'),
+    ])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .where(friend)
+      .where(knows)
+      .orderBy('?personName')
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Friends list:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 6: SAMPLE - Arbitrary Value Selection
+// Example 6: SAMPLE - Arbitrary Value Selection (FOAF)
 // ============================================================================
 
 async function sampleValues() {
@@ -175,25 +186,25 @@ async function sampleValues() {
     .with.prop('foaf:age', variable('age'))
     .and.prop('foaf:name', variable('name'))
 
-  // Get one example name for each age
-  const result = await select([
-    '?age',
-    sample(variable('name')).as('exampleName')
-  ])
-    .where(person)
-    .orderBy('?age')
-    .execute(config)
+  try {
+    const result = await select([
+      '?age',
+      sample(variable('name')).as('exampleName'),
+    ])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .orderBy('?age')
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Sample names by age:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 7: Multiple Aggregations with Filtering
+// Example 7: Multiple Aggregations with Filtering (FOAF)
 // ============================================================================
 
 async function complexAggregation() {
@@ -207,29 +218,30 @@ async function complexAggregation() {
 
   const knows = rel('person', 'foaf:knows', 'friend')
 
-  const result = await select([
-    '?name',
-    '?age',
-    count(variable('friend')).as('friendCount'),
-    avg(variable('age')).as('avgAge'),
-  ])
-    .where(person)
-    .where(friend)
-    .where(knows)
-    .orderBy('?friendCount', 'DESC')
-    .limit(10)
-    .execute(config)
+  try {
+    const result = await select([
+      '?name',
+      '?age',
+      count(variable('friend')).as('friendCount'),
+      avg(variable('age')).as('avgAge'),
+    ])
+      .prefix('foaf', FOAF._namespace)
+      .where(person)
+      .where(friend)
+      .where(knows)
+      .orderBy('?friendCount', 'DESC')
+      .limit(10)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Complex aggregation:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
 // ============================================================================
-// Example 8: Pop Modern - Count Comics by Publisher
+// Example 8: Pop Modern - Count Comics by Publisher (narrative.ttl)
 // ============================================================================
 
 async function countComicsByPublisher() {
@@ -242,22 +254,24 @@ async function countComicsByPublisher() {
 
   const publishedBy = rel('comic', 'narrative:publishedBy', 'publisher')
 
-  const result = await select([
-    '?publisherName',
-    count(variable('comic')).as('comicCount')
-  ])
-    .where(comic)
-    .where(publisher)
-    .where(publishedBy)
-    .orderBy('?comicCount', 'DESC')
-    .limit(20)
-    .execute(config)
+  try {
+    const result = await select([
+      '?publisherName',
+      count(variable('comic')).as('comicCount'),
+    ])
+      .prefix('narrative', "http://knowledge.graph/ontology/narrative#")
+      .prefix('rdfs', RDFS._namespace)
+      .where(comic)
+      .where(publisher)
+      .where(publishedBy)
+      .orderBy('?comicCount', 'DESC')
+      .limit(20)
+      .execute(config)
 
-  if (result.success) {
-    const rows = transformResults(result.data)
+    const rows = transformResults(result)
     console.log('Comics by publisher:', rows)
-  } else {
-    console.error('Query failed:', result.error)
+  } catch (e) {
+    console.error('Query failed:', e)
   }
 }
 
