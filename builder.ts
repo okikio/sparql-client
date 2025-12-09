@@ -54,7 +54,7 @@ import {
   filter as filterExpr,
   optional as optionalExpr,
 } from './utils.ts'
-import { createExecutor, type ExecutorConfig, type SparqlResult } from './executor.ts'
+import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
 
 // ============================================================================
 // Core Query Types
@@ -985,9 +985,9 @@ export class QueryBuilder {
    * }
    * ```
    */
-  execute(config: ExecutorConfig): Promise<SparqlResult> {
+  execute<TBind extends BindingMap = BindingMap>(config: ExecutionConfig): Promise<QueryResult<TBind>> {
     const executor = createExecutor(config)
-    return executor(this.build())
+    return executor.execute<TBind>(this.build())
   }
 }
 
@@ -1045,9 +1045,9 @@ export function subquery(builder: QueryBuilder): SparqlValue {
  * )
  * ```
  */
-export function execute(
+export function execute<TBind extends BindingMap = BindingMap>(
   builder: QueryBuilder,
-  config: ExecutorConfig
-): Promise<SparqlResult> {
-  return builder.execute(config)
+  config: ExecutionConfig
+): Promise<QueryResult<TBind>> {
+  return builder.execute<TBind>(config)
 }
