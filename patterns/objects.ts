@@ -20,6 +20,7 @@ import {
   normalizeVariableName,
   raw,
   variable,
+  SPARQL_VALUE_BRAND,
   type SparqlValue,
 } from '../sparql.ts'
 
@@ -184,7 +185,7 @@ export interface NodePropertyMap {
  * ```
  */
 export class Node implements SparqlValue {
-  readonly __sparql = true
+  readonly [SPARQL_VALUE_BRAND] = true
   readonly subjectTerm: SparqlValue
   private readonly varName: string
   private readonly typesTerm: TriplePredicate[] = []
@@ -357,15 +358,21 @@ export class Node implements SparqlValue {
     // Add rdf:type triples
     if (this.typesTerm.length > 0) {
       const typeObjs: TripleObject[] = this.typesTerm.map((t) =>
-        typeof t === 'string' ? t : t.value,
+        typeof t === 'string' ? raw(t) : t.value,
       )
-      const existing = poNormalized['rdf:type']
+
+      const existing =
+        poNormalized['a'] ||
+        poNormalized['rdf:type'] ||
+        poNormalized['http://www.w3.org/1999/02/22-rdf-syntax-ns#type'] ||
+        poNormalized['<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>'];
+
       if (existing === undefined) {
-        poNormalized['rdf:type'] = typeObjs
+        poNormalized['a'] = typeObjs
       } else if (Array.isArray(existing)) {
-        poNormalized['rdf:type'] = [...existing, ...typeObjs]
+        poNormalized['a'] = [...existing, ...typeObjs]
       } else {
-        poNormalized['rdf:type'] = [existing, ...typeObjs]
+        poNormalized['a'] = [existing, ...typeObjs]
       }
     }
 
@@ -572,7 +579,7 @@ export interface RelationshipPropertyMap {
  * ```
  */
 export class Relationship implements SparqlValue {
-  readonly __sparql = true
+  readonly [SPARQL_VALUE_BRAND] = true
   private readonly fromNode?: Node
   private readonly toNode?: Node
   private readonly fromTerm: TripleSubject
@@ -675,9 +682,12 @@ export class Relationship implements SparqlValue {
     // Reify with properties
     const edgeId = this.getEdgeId()
     const poMap: RelationshipPropertyMap = {
-      'rdf:type': 'rdf:Statement',
+      // `a` = `rdf:type`
+      'a': raw('rdf:Statement'),
       'rdf:subject': this.fromTerm,
-      'rdf:predicate': this.predicate,
+      'rdf:predicate': typeof this.predicate === 'string' 
+        ? raw(this.predicate) 
+        : this.predicate,
       'rdf:object': this.toTerm,
       ...this.properties,
     }

@@ -45,39 +45,38 @@ import { outdent } from "outdent"
 // ============================================================================
 
 /**
- * Wrapper that marks a value as SPARQL-ready.
- * 
- * This prevents double-escaping and lets us mix raw SPARQL with constructed values.
- * When you see SparqlValue in a function signature, it means that value has already
- * been processed and is safe to insert directly into queries.
+ * Internal brand used to distinguish SPARQL values from plain strings.
+ */
+export const SPARQL_VALUE_BRAND = Symbol('SparqlValueBrand')
+
+/**
+ * A SPARQL snippet that is already syntactically valid and should be used
+ * verbatim in the final query.
+ *
+ * This is the "wrapped" representation returned by helpers like `strlit`,
+ * `num`, `boolean`, `dateTime`, `bnode`, `valuesList`, etc.
  */
 export interface SparqlValue {
-  readonly __sparql: true
+  readonly [SPARQL_VALUE_BRAND]: true
   readonly value: string
 }
 
 /**
- * Any value that can be safely interpolated into a SPARQL query.
- * 
- * The system automatically converts these to proper SPARQL syntax:
- * - Strings → triple-quoted literals with xsd:string datatype
- * - Numbers → raw integers or decimals with appropriate datatypes
- * - Booleans → raw true/false
- * - Dates → xsd:dateTime literals
- * - Arrays → space-separated lists for VALUES or RDF lists
- * - Objects → blank nodes with properties
- * - SparqlValue → used as-is (already processed)
+ * Values that can be safely interpolated into the `sparql` tag *as a single
+ * RDF term*. This deliberately does NOT include arrays or plain objects.
+ *
+ * Composite structures (lists, blank-node patterns) must use dedicated helpers:
+ * - `valuesList(...)`, `exprList(...)`, `rdfList(...)`
+ * - `bnodePattern(...)`
  */
 export type SparqlInterpolatable =
+  | SparqlValue
   | string
   | number
   | boolean
   | Date
   | null
   | undefined
-  | SparqlValue
-  | SparqlInterpolatable[]
-  | { [key: string]: SparqlInterpolatable }
 
 /**
  * Variable name without the leading ? or $ sigil.
@@ -103,20 +102,60 @@ export type DatatypeIRI = string
 export type LanguageTag = string
 
 // ============================================================================
-// Escaping & Validation
+// Internal Helpers
 // ============================================================================
 
 /**
- * Normalize variable names to handle both ?foo and foo formats.
- * 
- * SPARQL lets you write variables with ? or $ prefixes, but we want consistent
- * internal representation. This function strips the prefix if present, so both
- * "foo" and "?foo" become "foo" internally.
+ * Type guard for `SparqlValue`.
  */
-export function normalizeVariableName(name: VariableName): string {
-  const n = isSparqlValue(name) ? name?.value : name;
-  return n.startsWith('?') ? (n.slice(1) as string) : (n as string)
+export function isSparqlValue(value: unknown): value is SparqlValue {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as SparqlValue)[SPARQL_VALUE_BRAND] === true
+  )
 }
+
+/**
+ * Wrap a raw SPARQL snippet as a `SparqlValue`.
+ *
+ * Use this when you *know* the string is already valid SPARQL syntax and you
+ * do not want any further escaping or conversion.
+ * 
+ * Inserts raw SPARQL without any processing.
+ * 
+ * You can use this as an escape hatch when the builder doesn't support your syntax:
+ * - Property paths
+ * - Custom functions
+ * - Complex expressions
+ * 
+ * ⚠️ WARNING: No escaping or validation. Ensure input is safe, before use.
+ * 
+ * @example
+ * raw('foaf:knows+')           // Property path
+ * raw('BNODE()')               // Built-in function
+ * raw('ex:customFunc(?x, ?y)') // Custom function
+ */
+export function raw(value: string): SparqlValue {
+  return {
+    [SPARQL_VALUE_BRAND]: true,
+    value,
+  }
+}
+
+/**
+ * Extract the raw string from a SparqlValue or return the string as-is.
+ * 
+ * Use this when you need the underlying string value without any conversion.
+ * This is for SYNTAX elements that should pass through unchanged.
+ */
+export function toRawString(value: string | SparqlValue): string {
+  return isSparqlValue(value) ? value.value : value
+}
+
+// ============================================================================
+// String Escaping
+// ============================================================================
 
 /**
  * Escape a JavaScript string so it can be safely embedded as a
@@ -259,19 +298,13 @@ export function escapeString(
 ): string {
   return str.replace(/[\u0000-\u001F\\'"]/g, function (ch: string): string {
     // Always escape backslash
-    if (ch === '\\') {
-      return '\\\\'
-    }
+    if (ch === '\\') return '\\\\'
 
     // Escape whichever quote you are actually using as the delimiter
-    if (ch === quote) {
-      return '\\' + ch
-    }
+    if (ch === quote) return '\\' + ch
 
     // The non-delimiting quote does not *need* escaping for SPARQL's grammar.
-    if (ch === '"' || ch === "'") {
-      return ch
-    }
+    if (ch === '"' || ch === "'") return ch
 
     // Control characters with explicit SPARQL-style escapes
     switch (ch) {
@@ -291,18 +324,38 @@ export function escapeString(
 }
 
 /**
- * Validate that a string is a proper IRI.
+ * Check if a string needs triple-quoting (contains newlines or quotes).
+ */
+function needsLongQuotes(str: string): boolean {
+  return str.includes('\n') || str.includes('\r') || 
+         str.includes('"') || str.includes("'")
+}
+
+// ============================================================================
+// Validation (Security-focused, not overly restrictive)
+// ============================================================================
+
+/**
+ * Characters that could enable SPARQL injection.
+ */
+const INJECTION_CHARS = /[<>"'\n\r\t{}]/
+
+/**
+ * Validate an IRI for use in SPARQL.
  * 
- * IRIs must start with http:// or https:// and can't contain certain forbidden
- * characters like spaces, angle brackets, or pipes. This catches common mistakes
- * before they cause query errors.
+ * Allows any valid URI scheme (not just http/https).
+ * Blocks characters that could break SPARQL syntax or enable injection.
+ * 
+ * @throws {Error} If the IRI is invalid or contains forbidden characters
  */
 export function validateIRI(iri: string): void {
-  if (!iri.startsWith('http://') && !iri.startsWith('https://')) {
-    throw new Error(`IRI must start with http:// or https://, got: ${iri}`)
+  // Must have a valid URI scheme (RFC 3986)
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(iri)) {
+    throw new Error(`IRI must have a valid scheme (e.g., http:, urn:, file:), got: ${iri}`)
   }
-
-  const forbidden = ['<', '>', '"', '{', '}', '|', '^', '`', '\\', ' ']
+  
+  // Block characters that break IRI syntax in SPARQL
+  const forbidden = ['<', '>', '"', ' ', '\n', '\r', '\t', '{', '}']
   for (const char of forbidden) {
     if (iri.includes(char)) {
       throw new Error(`IRI contains forbidden character '${char}': ${iri}`)
@@ -311,230 +364,98 @@ export function validateIRI(iri: string): void {
 }
 
 /**
- * Validate SPARQL variable names.
+ * Validate a SPARQL variable name.
  * 
- * Variable names must start with a letter or underscore, followed by letters,
- * numbers, or underscores. This matches the SPARQL 1.1 specification.
+ * SPARQL allows Unicode in variable names, but we block injection chars.
+ * 
+ * @throws {Error} If the variable name is invalid
  */
 export function validateVariableName(name: string): void {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    throw new Error(`Invalid variable name: ${name}`)
+  if (!name || name.length === 0) {
+    throw new Error('Variable name cannot be empty')
+  }
+  
+  // Block characters that could enable injection
+  if (INJECTION_CHARS.test(name)) {
+    throw new Error(`Variable name contains forbidden characters: ${name}`)
+  }
+  
+  // Must start with letter or underscore (simplified check)
+  if (!/^[A-Za-z_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D]/.test(name)) {
+    throw new Error(`Variable name must start with a letter or underscore: ${name}`)
   }
 }
 
 /**
- * Validate namespace prefix names.
+ * Validate a namespace prefix name.
  * 
- * Prefixes follow the same rules as variable names - they're identifiers that
+ * Prefixes follow similar rules to variable names - they're identifiers that
  * get expanded to full IRIs during query execution.
+ * 
+ * @throws {Error} If the prefix name is invalid
  */
 export function validatePrefixName(name: string): void {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    throw new Error(`Invalid prefix name: ${name}`)
+  // Empty prefix (default namespace) is always valid
+  if (name === '') return
+  
+  // Block injection characters
+  if (INJECTION_CHARS.test(name) || name.includes(':')) {
+    throw new Error(`Prefix name contains forbidden characters: ${name}`)
+  }
+  
+  // Must start with letter or underscore
+  if (!/^[A-Za-z_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF]/.test(name)) {
+    throw new Error(`Prefix name must start with a letter or underscore: ${name}`)
   }
 }
 
-// ============================================================================
-// Type Conversion
-// ============================================================================
-
 /**
- * Convert Date to xsd:dateTime with full timestamp.
+ * Validate a prefixed name (prefix:localPart).
  * 
- * Uses ISO 8601 format with timezone. This is the standard way to represent
- * date-time values in RDF.
- * 
- * @example "2024-01-15T10:30:00.000Z"^^<http://www.w3.org/2001/XMLSchema#dateTime>
+ * @throws {Error} If the prefixed name is malformed
  */
-export function formatDateTime(date: Date): string {
-  return `"${date.toISOString()}"^^<http://www.w3.org/2001/XMLSchema#dateTime>`
+export function validatePrefixedName(prefixedName: string): void {
+  const colonIndex = prefixedName.indexOf(':')
+  if (colonIndex === -1) {
+    throw new Error(`Prefixed name must contain a colon: ${prefixedName}`)
+  }
+  
+  const prefix = prefixedName.slice(0, colonIndex)
+  const local = prefixedName.slice(colonIndex + 1)
+  
+  validatePrefixName(prefix)
+  
+  // Local part can be empty or must be a valid local name
+  // This is a simplified check - full PN_LOCAL is more complex
+  if (local !== '' && !/^[A-Za-z0-9_.-]*$/.test(local)) {
+    throw new Error(`Invalid local part in prefixed name: ${prefixedName}`)
+  }
 }
 
 /**
- * Convert Date to xsd:date with date only (no time component).
- * 
- * Useful when you only care about the calendar date, not the time. The format
- * is YYYY-MM-DD.
- * 
- * @example "2024-01-15"^^<http://www.w3.org/2001/XMLSchema#date>
+ * Validate a BCP 47 language tag.
  */
-export function formatDate(date: Date): string {
-  const yyyy = date.getFullYear()
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  return `"${yyyy}-${mm}-${dd}"^^<http://www.w3.org/2001/XMLSchema#date>`
+export function validateLanguageTag(tag: string): void {
+  // Basic BCP 47 validation
+  if (!/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]+)*$/.test(tag)) {
+    throw new Error(`Invalid language tag: ${tag}. Expected BCP 47 format (e.g., "en", "en-US")`)
+  }
 }
 
 /**
- * Convert array to SPARQL representation.
+ * Normalize variable names to handle both ?foo and foo formats.
  * 
- * The conversion depends on what's in the array. For primitive values, we generate
- * a space-separated list suitable for VALUES clauses. For complex values, we
- * generate an RDF list using parentheses notation.
- * 
- * @example Primitive values (for VALUES)
- * ```ts
- * formatArray([1, 2, 3]) // → "1 2 3"
- * ```
- * 
- * @example Complex values (RDF list)
- * ```ts
- * formatArray([obj1, obj2]) // → "( [props...] [props...] )"
- * ```
+ * SPARQL lets you write variables with ? or $ prefixes, but we want consistent
+ * internal representation. This function strips the prefix if present, so both
+ * "foo" and "?foo" become "foo" internally.
  */
-export function formatArray(arr: SparqlInterpolatable[]): string {
-  if (arr.length === 0) {
-    throw new Error('Cannot convert empty array to SPARQL')
+export function normalizeVariableName(name: VariableName): string {
+  const n = isSparqlValue(name) ? name?.value : name;
+  // Strip ? or $ prefix if present
+  if (n.startsWith('?') || n.startsWith('$')) {
+    return n.slice(1)
   }
-
-  // Check if all elements are simple primitives
-  const allPrimitives = arr.every(
-    (item) =>
-      item instanceof Date ||
-      typeof item === 'string' ||
-      typeof item === 'number' ||
-      typeof item === 'boolean' ||
-      item === null ||
-      item === undefined
-  )
-
-  if (allPrimitives) {
-    // For VALUES clauses, just space-separate the values
-    const values = arr.map((item) => convertValue(item)).join(' ')
-    return values
-  }
-
-  // For complex arrays, generate RDF list notation
-  const values = arr.map((item) => convertValue(item)).join(' ')
-  return `( ${values} )`
-}
-
-/**
- * Convert object to SPARQL blank node with properties.
- * 
- * JavaScript objects map naturally to RDF blank nodes. Each key becomes a predicate,
- * and each value becomes an object. Keys can be prefixed names (foaf:name) or
- * full IRIs.
- * 
- * @example
- * ```ts
- * formatObject({
- *   'foaf:name': 'Alice',
- *   'foaf:age': 30
- * })
- * // → [ foaf:name "Alice" ; foaf:age 30 ]
- * ```
- */
-export function formatObject(obj: { [key: string]: SparqlInterpolatable }): string {
-  const entries = Object.entries(obj)
-  if (entries.length === 0) {
-    throw new Error('Cannot convert empty object to SPARQL')
-  }
-
-  // Generate blank node syntax with semicolon-separated properties
-  const properties = entries
-    .map(([key, value]) => {
-      // Handle different predicate formats
-      const predicate = key.includes(':') || key.startsWith('http')
-        ? key.includes(':')
-          ? key // Already a prefixed name
-          : `<${key}>` // Full IRI needs angle brackets
-        : `:${key}` // Default to colon prefix
-
-      return `${predicate} ${convertValue(value)}`
-    })
-    .join(' ; ')
-
-  return `[ ${properties} ]`
-}
-
-/**
- * Convert any JavaScript value to its SPARQL representation.
- * 
- * This is the workhorse function that handles all type conversions. It's called
- * automatically by the sparql template tag, so you rarely need to call it directly.
- * The conversion rules match what developers expect - strings become literals,
- * numbers stay as numbers, dates get proper formatting.
- * 
- * @param value The value to convert
- * @param strict If true, throw errors for null/undefined; if false, convert to empty string
- * 
- * @throws {Error} For null/undefined when strict=true (use OPTIONAL instead)
- * @throws {Error} For empty arrays or objects (they're ambiguous in SPARQL)
- * @throws {Error} For values that can't be represented in SPARQL
- */
-export function convertValue(value: SparqlInterpolatable, strict = true): string {
-  // Already wrapped - use as-is
-  if (isSparqlValue(value)) {
-    return value.value
-  }
-
-  // Null/undefined - these are tricky in RDF
-  if (value === null || value === undefined) {
-    if (strict) {
-      throw new Error(
-        'Cannot convert null/undefined to SPARQL. Use OPTIONAL { } pattern instead.'
-      )
-    }
-    return strlit('').value
-  }
-
-  // String - becomes xsd:string literal
-  if (typeof value === 'string') {
-    return strlit(value).value
-  }
-
-  // Boolean - raw true/false keywords
-  if (typeof value === 'boolean') {
-    return boolean(value).value
-  }
-
-  // Number - raw numeric literal (SPARQL infers type)
-  if (typeof value === 'number') {
-    return num(value).value
-  }
-
-  // Date - becomes xsd:dateTime
-  if (value instanceof Date) {
-    return date(value).value
-  }
-
-  // Array - space-separated list or RDF list
-  if (Array.isArray(value)) {
-    return formatArray(value)
-  }
-
-  // Object - blank node with properties
-  if (typeof value === 'object') {
-    return formatObject(value as { [key: string]: SparqlInterpolatable })
-  }
-
-  throw new Error(`Cannot convert value of type ${typeof value} to SPARQL`)
-}
-
-/**
- * Check if a value is already wrapped as SparqlValue.
- * 
- * This type guard lets us avoid double-processing values that have already
- * been converted to SPARQL format.
- */
-export function isSparqlValue(value: unknown): value is SparqlValue {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    '__sparql' in value &&
-    value.__sparql === true
-  )
-}
-
-/**
- * Wrap a string as SparqlValue without any conversion.
- * 
- * Internal helper for creating SparqlValue objects. Marks the string as
- * already-processed SPARQL so it won't be escaped or converted again.
- */
-export function wrapSparqlValue(value: string): SparqlValue {
-  return { __sparql: true, value: value }
+  return n
 }
 
 // ============================================================================
@@ -542,87 +463,129 @@ export function wrapSparqlValue(value: string): SparqlValue {
 // ============================================================================
 
 /**
- * Create an IRI reference wrapped in angle brackets.
- * 
- * IRIs are how you reference resources in RDF. This function validates the IRI
- * format and wraps it in the required angle brackets.
- * 
- * @example uri('http://example.org/resource') → <http://example.org/resource>
- */
-export function uri(iri: string): SparqlValue {
-  validateIRI(iri)
-  return wrapSparqlValue(`<${iri}>`)
-}
-
-/**
  * Create a SPARQL variable reference.
  * 
  * Variables are placeholders that get bound to values during query execution.
  * The ? prefix is added automatically, so you can write either "name" or "?name".
  * 
- * @example variable('person') → ?person
- * @example variable('?person') → ?person (? is normalized)
+ * @example
+ * variable('name')  // → ?name
+ * variable('?name') // → ?name
  */
 export function variable(name: VariableName): SparqlValue {
   const n = normalizeVariableName(name)
   validateVariableName(n)
-  return wrapSparqlValue(`?${n}`)
+  return raw(`?${n}`)
+}
+
+/**
+ * Create an IRI reference wrapped in angle brackets.
+ * 
+ * IRIs are how you reference resources in RDF. This function validates the IRI
+ * format and wraps it in the required angle brackets.
+ * 
+ * @example
+ * uri('http://example.org/resource')  // → <http://example.org/resource>
+ * uri('urn:isbn:0451450523')          // → <urn:isbn:0451450523>
+
+ */
+export function uri(iri: string): SparqlValue {
+  validateIRI(iri)
+  return raw(`<${iri}>`)
 }
 
 /**
  * Create a prefixed name (namespace:local format).
  * 
- * Prefixes let you abbreviate long IRIs. Instead of writing out the full IRI
- * each time, you can use a short prefix. Your query needs matching PREFIX
- * declarations at the top.
+ * Prefixes let you abbreviate long IRIs.
  * 
- * @example prefixed('foaf', 'name') → foaf:name
- * @example prefixed('schema', 'Person') → schema:Person
+ * @example
+ * prefixed('foaf', 'name')  // → foaf:name
  */
 export function prefixed(prefix: PrefixName, localName: string): SparqlValue {
   validatePrefixName(prefix)
-  return wrapSparqlValue(`${prefix}:${localName}`)
+  // Local names have complex rules; block obvious injection
+  if (INJECTION_CHARS.test(localName)) {
+    throw new Error(`Local name contains forbidden characters: ${localName}`)
+  }
+  return raw(`${prefix}:${localName}`)
 }
 
 /**
  * Alias for {@link prefixed} with more explicit naming.
  */
-export function prefix(namespace: string, local: string): SparqlValue {
+export function prefix(namespace: PrefixName, local: string): SparqlValue {
   return prefixed(namespace, local)
 }
 
 /**
- * Create an xsd:date literal (calendar date without time).
+ * Create a simple string literal.
  * 
- * Use this when you only care about the date, not the time. Good for birthdays,
- * publication dates, or any calendar-based data.
+ * Uses the most concise valid syntax:
+ * - Simple strings: "value"
+ * - Strings with special chars: """value"""
  * 
- * @example date(new Date('2024-01-15')) → "2024-01-15"^^xsd:date
+ * Note: In RDF 1.1, simple string literals implicitly have type xsd:string.
+ * 
+ * @example
+ * strlit('Hello')           // → "Hello"
+ * strlit('Line 1\nLine 2')  // → """Line 1\nLine 2"""
  */
-export function date(value: Date | string): SparqlValue {
-  const dateObj = value instanceof Date ? value : new Date(value)
-  return wrapSparqlValue(formatDate(dateObj))
+export function strlit(value: string): SparqlValue {
+  const escaped = escapeString(value)
+  
+  if (needsLongQuotes(value)) {
+    return raw(`"""${escaped}"""`)
+  }
+
+  return raw(`"${escaped}"`)
 }
 
 /**
- * Create an xsd:dateTime literal (full timestamp with time).
+ * Create a typed literal with explicit datatype.
  * 
- * Use this when you need both date and time. The format includes milliseconds
- * and timezone information.
- * 
- * @example dateTime(new Date()) → "2024-01-15T10:30:00.000Z"^^xsd:dateTime
+ * @example
+ * typed('42', 'http://www.w3.org/2001/XMLSchema#integer')
+ * // → "42"^^<http://www.w3.org/2001/XMLSchema#integer>
  */
-export function dateTime(value: Date | string): SparqlValue {
-  const dateObj = value instanceof Date ? value : new Date(value)
-  return wrapSparqlValue(formatDateTime(dateObj))
+export function typed(value: string, datatype: DatatypeIRI): SparqlValue {
+  validateIRI(datatype)
+  const escaped = escapeString(value)
+  
+  if (needsLongQuotes(value)) {
+    return raw(`"""${escaped}"""^^<${datatype}>`)
+  }
+
+  return raw(`"${escaped}"^^<${datatype}>`)
 }
 
 /**
- * Create an xsd:integer literal.
+ * Create a language-tagged literal.
  * 
- * Explicitly marks a number as an integer. Throws if you pass a non-integer value.
- * Most of the time you can just use {@link num} instead, which picks the right
- * type automatically.
+ * Use this for multilingual text. The language tag indicates which language the
+ * text is in, following BCP 47 conventions (en, fr, ja-JP, etc.).
+ * 
+ * @example lang('Hello', 'en') → "Hello"@en
+ * @example lang('Bonjour', 'fr') → "Bonjour"@fr
+ */
+export function lang(value: string, tag: LanguageTag): SparqlValue {
+  validateLanguageTag(tag)
+  const escaped = escapeString(value)
+  
+  if (needsLongQuotes(value)) {
+    return raw(`"""${escaped}"""@${tag.toLowerCase()}`)
+  }
+
+  return raw(`"${escaped}"@${tag.toLowerCase()}`)
+}
+
+/**
+ * Create an integer literal using native SPARQL syntax.
+ * 
+ * SPARQL treats bare integers like `42` as xsd:integer.
+ * 
+ * @example
+ * integer(42)  // → 42
  * 
  * @throws {Error} If value is not an integer
  */
@@ -630,16 +593,19 @@ export function integer(value: number): SparqlValue {
   if (!Number.isInteger(value)) {
     throw new Error(`Expected integer, got: ${value}`)
   }
-  return wrapSparqlValue(
-    `"${value}"^^<http://www.w3.org/2001/XMLSchema#integer>`
-  )
+
+  // Use SPARQL native integer syntax
+  return raw(String(value))
 }
 
 /**
- * Create an xsd:decimal literal.
+ * Create a decimal literal using native SPARQL syntax.
  * 
- * Explicitly marks a number as a decimal. Good for currency or precise measurements
- * where you want decimal semantics rather than floating point.
+ * SPARQL treats numbers with decimal points like `3.14` as xsd:decimal.
+ * 
+ * @example
+ * decimal(3.14)  // → 3.14
+ * decimal(42)    // → 42.0 (ensures decimal interpretation)
  * 
  * @throws {Error} If value is not finite (NaN or Infinity)
  */
@@ -648,16 +614,42 @@ export function decimal(value: number): SparqlValue {
     throw new Error(`Expected finite number, got: ${value}`)
   }
 
-  return wrapSparqlValue(
-    `"${value}"^^<http://www.w3.org/2001/XMLSchema#decimal>`
-  )
+  const str = String(value)
+  // Ensure decimal point for unambiguous decimal type
+  if (!str.includes('.') && !str.includes('e') && !str.includes('E')) {
+    return raw(str + '.0')
+  }
+  return raw(str)
 }
 
 /**
- * Create a numeric literal (integer or decimal).
+ * Create a double literal using scientific notation.
  * 
- * Picks the right type automatically based on whether the number is an integer
- * or has a fractional part. This is what the automatic conversion uses.
+ * SPARQL treats numbers in scientific notation as xsd:double.
+ * 
+ * @example
+ * double(42)      // → 4.2e1
+ * double(3.14e10) // → 3.14e10
+ * 
+ * @throws {Error} If value is not an double
+ */
+export function double(value: number): SparqlValue {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Expected finite number, got: ${value}`)
+  }
+  // Scientific notation triggers xsd:double
+  return raw(value.toExponential())
+}
+
+/**
+ * Create a numeric literal, choosing appropriate type.
+ * 
+ * - Integers → native integer syntax (xsd:integer)
+ * - Decimals → native decimal syntax (xsd:decimal)
+ * 
+ * @example
+ * num(42)    // → 42
+ * num(3.14)  // → 3.14
  */
 export function num(value: number): SparqlValue {
   if (Number.isInteger(value)) {
@@ -673,7 +665,7 @@ export function num(value: number): SparqlValue {
  * Boolean values in SPARQL are written as bare keywords, not quoted strings.
  */
 export function boolean(value: boolean): SparqlValue {
-  return wrapSparqlValue(String(!!value))
+  return raw(value ? 'true' : 'false')
 }
 
 /**
@@ -684,54 +676,466 @@ export function bool(value: boolean): SparqlValue {
 }
 
 /**
- * Create a language-tagged literal.
+ * Create an xsd:date literal.
  * 
- * Use this for multilingual text. The language tag indicates which language the
- * text is in, following BCP 47 conventions (en, fr, ja-JP, etc.).
- * 
- * @example lang('Hello', 'en') → "Hello"@en
- * @example lang('Bonjour', 'fr') → "Bonjour"@fr
+ * @example
+ * date(new Date('2024-01-15'))  // → "2024-01-15"^^<xsd:date>
  */
-export function lang(value: string, tag: LanguageTag): SparqlValue {
-  return wrapSparqlValue(`"""${escapeString(value)}"""@${tag}`)
+export function date(value: Date | string): SparqlValue {
+  const dateObj = value instanceof Date ? value : new Date(value)
+  const yyyy = dateObj.getFullYear()
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const dd = String(dateObj.getDate()).padStart(2, '0')
+  return raw(`"${yyyy}-${mm}-${dd}"^^<http://www.w3.org/2001/XMLSchema#date>`)
 }
 
 /**
- * Create a typed literal with custom datatype.
+ * Create an xsd:dateTime literal.
  * 
- * For when you need a specific datatype that isn't covered by the standard helpers.
- * The datatype must be a full IRI.
- * 
- * @example typed('custom value', 'http://example.org/datatype')
+ * @example
+ * dateTime(new Date())  // → "2024-01-15T10:30:00.000Z"^^<xsd:dateTime>
  */
-export function typed(value: string, datatype: DatatypeIRI): SparqlValue {
-  validateIRI(datatype)
-  return wrapSparqlValue(
-    `"""${escapeString(value)}"""^^<${datatype}>`
+export function dateTime(value: Date | string): SparqlValue {
+  const dateObj = value instanceof Date ? value : new Date(value)
+  return raw(`"${dateObj.toISOString()}"^^<http://www.w3.org/2001/XMLSchema#dateTime>`)
+}
+
+// ============================================================================
+// Type Conversion (for DATA VALUES only)
+// ============================================================================
+
+/**
+ * Convert a single JavaScript value into a SPARQL *term* representation.
+ * 
+ * This is the workhorse function that handles all type conversions. It's called
+ * automatically by the sparql template tag, so you rarely need to call it directly.
+ * The conversion rules match what developers expect - strings become literals,
+ * numbers stay as numbers, dates get proper formatting.
+ *
+ * This function intentionally only supports **scalar** values (one RDF term).
+ * Composite structures (arrays, objects) are handled by dedicated helpers:
+ *
+ * - Use `valuesList(...)`, `exprList(...)`, `rdfList(...)` for lists.
+ * - Use `bnodePattern(...)` for `[ ... ]` blank node property lists.
+ * 
+ * ⚠️ IMPORTANT: This function is for DATA VALUES only, not SPARQL syntax.
+ * Do not use this for variables, prefixes, IRIs, or other syntax elements.
+ *
+ * It is also used by the `sparql` template tag internally for interpolations.
+ *
+ * @param value  The data value to convert.
+ * @param strict If true, `null`/`undefined` will throw. If false, they become
+ *               `""` (empty string literal).
+ *
+ * @throws {Error} For `null`/`undefined` when `strict = true`.
+ * @throws {Error} For non-finite numbers (NaN/Infinity).
+ * @throws {Error} For arrays/objects (use list/blank-node helpers instead).
+ *
+ * @example Converting simple scalars
+ * ```ts
+ * convertValue('Peter Parker')   // => "\"Peter Parker\""
+ * convertValue(18)               // => "18"
+ * convertValue(true)             // => "true"
+ * convertValue(new Date())       // => "\"...\"^^xsd:dateTime"
+ * ```
+ *
+ * @example Null handling
+ * ```ts
+ * convertValue(null, false)      // => "\"\""
+ * convertValue(undefined, false) // => "\"\""
+ * convertValue(null)             // throws
+ * ```
+ */
+export function convertValue(value: SparqlInterpolatable, strict = true): string { // Already a SPARQL value – pass straight through.
+  if (isSparqlValue(value)) {
+    return value.value
+  }
+
+  // Null/undefined cannot represent "unbound" – force caller to decide.
+  if (value === null || value === undefined) {
+    if (strict) {
+      throw new Error(
+        'Cannot convert null/undefined to a SPARQL term. Use OPTIONAL/BOUND or pass strict=false if you explicitly want an empty string literal.'
+      )
+    }
+    return strlit('').value
+  }
+
+  // Scalar primitives.
+  if (typeof value === 'string') {
+    return strlit(value).value
+  }
+
+  if (typeof value === 'boolean') {
+    return boolean(value).value
+  }
+
+  if (typeof value === 'number') {
+    return num(value).value
+  }
+
+  if (value instanceof Date) {
+    return dateTime(value).value
+  }
+
+  // Anything else (arrays, plain objects, etc.) is not a single term.
+  if (Array.isArray(value)) {
+    throw new Error(
+      'Cannot convert an array directly to a SPARQL term. Use valuesList(), exprList(), or rdfList() to control how the list appears in your query.'
+    )
+  }
+
+  if (typeof value === 'object') {
+    throw new Error(
+      'Cannot convert a plain object directly to a SPARQL term. Use bnodePattern() to create [ ... ] blank nodes, or pre-wrap it as a SparqlValue using raw().'
+    )
+  }
+
+  throw new Error(
+    `Cannot convert value of type "${typeof value}" to a SPARQL term`
+  )
+}
+
+// ============================================================================
+// List Helpers (arrays / iterables)
+// ============================================================================
+
+/**
+ * Internal: check for an iterable that is *not* a string.
+ */
+function isNonStringIterable(value: unknown): value is Iterable<unknown> {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value !== 'string' &&
+    typeof (value as any)[Symbol.iterator] === 'function'
   )
 }
 
 /**
- * Create an xsd:string literal.
- * 
- * Explicitly creates a string literal. This is what the automatic conversion uses
- * for string values.
+ * Create a VALUES-style list: `VALUES ?x { v1 v2 v3 }`.
+ *
+ * This is a generic "space-separated sequence of terms", suitable for:
+ *
+ * - `VALUES ?x { ${valuesList(...)} }`
+ * - `VALUES (?x ?y) { (${valuesList(...)} ) ... }` (when building row fragments)
+ *
+ * @throws {Error} For empty iterables.
+ *
+ * @example Simple VALUES
+ * ```ts
+ * const cities = ['London', 'Paris', 'Tokyo']
+ *
+ * const query = sparql`
+ *   SELECT * WHERE {
+ *     VALUES ?city { ${valuesList(cities)} }
+ *     ?place schema:name ?city .
+ *   }
+ * `
+ * // => VALUES ?city { "London" "Paris" "Tokyo" }
+ * ```
  */
-export function strlit(value: string): SparqlValue {
-  return typed(value, "http://www.w3.org/2001/XMLSchema#string")
+export function valuesList(
+  items: Iterable<SparqlInterpolatable>
+): SparqlValue {
+  const parts: string[] = []
+
+  for (const item of items) {
+    parts.push(convertValue(item))
+  }
+
+  if (parts.length === 0) {
+    throw new Error('Cannot create VALUES list from an empty iterable')
+  }
+
+  return raw(parts.join(' '))
 }
 
 /**
- * Insert raw SPARQL without any escaping.
- * 
- * ⚠️ DANGEROUS: This bypasses all safety checks. Only use this when you have
- * complete control over the input and you're certain it's safe. Prefer the
- * type-safe helpers whenever possible.
- * 
- * @example raw('?person foaf:name ?name') → ?person foaf:name ?name
+ * Create a comma-separated expression list: `IN (v1, v2, v3)`.
+ *
+ * This is appropriate where SPARQL expects an expression list, e.g. `IN`,
+ * function calls with multiple arguments, etc.
+ *
+ * @throws {Error} For empty iterables.
+ *
+ * @example IN list
+ * ```ts
+ * const ages = [18, 21, 25]
+ *
+ * const query = sparql`
+ *   SELECT * WHERE {
+ *     ?person schema:age ?age .
+ *     FILTER(?age IN (${exprList(ages)}))
+ *   }
+ * `
+ * // => FILTER(?age IN (18, 21, 25))
+ * ```
  */
-export function raw(value: string): SparqlValue {
-  return wrapSparqlValue(value)
+export function exprList(
+  items: Iterable<SparqlInterpolatable>
+): SparqlValue {
+  const parts: string[] = []
+
+  for (const item of items) {
+    parts.push(convertValue(item))
+  }
+
+  if (parts.length === 0) {
+    throw new Error('Cannot create expression list from an empty iterable')
+  }
+
+  return raw(parts.join(', '))
+}
+
+/**
+ * Create an RDF collection: `( v1 v2 v3 )`.
+ *
+ * This is for canonical RDF lists, which are whitespace-separated inside
+ * parentheses.
+ *
+ * @throws {Error} For empty iterables.
+ *
+ * @example RDF list
+ * ```ts
+ * const items = ['a', 'b', 'c']
+ *
+ * const query = sparql`
+ *   ?list ex:hasItems ${rdfList(items)} .
+ * `
+ * // => ?list ex:hasItems ( "a" "b" "c" ) .
+ * ```
+ */
+export function rdfList(
+  items: Iterable<SparqlInterpolatable>
+): SparqlValue {
+  const parts: string[] = []
+
+  for (const item of items) {
+    parts.push(convertValue(item))
+  }
+
+  if (parts.length === 0) {
+    throw new Error('Cannot create RDF list from an empty iterable')
+  }
+
+  return raw(`( ${parts.join(' ')} )`)
+}
+
+
+// ============================================================================
+// Blank Node Helpers
+// ============================================================================
+
+/**
+ * Create a blank node *term*.
+ *
+ * - With no `id`, this represents the SPARQL `BNODE()` function, which creates
+ *   a fresh blank node per evaluation.
+ * - With an `id`, this creates a labeled blank node like `_:b1`.
+ *
+ * This represents a **node term**, not a `[ ... ]` property pattern. For
+ * inline property lists, use `bnodePattern(...)` instead.
+ *
+ * @param id Optional blank node identifier (e.g. "b1")
+ *
+ * @example Generate fresh blank node with BNODE()
+ * ```ts
+ * bind(bnode(), 'restriction')
+ * // BIND(BNODE() AS ?restriction)
+ * ```
+ *
+ * @example Stable blank node label
+ * ```ts
+ * triple(bnode('b1'), 'rdf:type', 'owl:Restriction')
+ * // _:b1 rdf:type owl:Restriction .
+ * ```
+ *
+ * @example Use in CONSTRUCT
+ * ```ts
+ * construct(triple(bnode(), 'ex:property', '?value'))
+ *   .where(triple('?s', 'ex:property', '?value'))
+ * // Fresh blank nodes for each result row.
+ * ```
+ */
+export function bnode(id?: string): SparqlValue {
+  if (id) {
+    return raw(`_:${id}`)
+  }
+  return raw('BNODE()')
+}
+
+/**
+ * Property map for `bnodePattern`.
+ */
+export type BnodeProps = Record<string, BnodePropValue>
+
+/**
+ * Allowed values for blank node properties:
+ *
+ * - Single scalar term (string/number/boolean/Date/SparqlValue/null/undefined).
+ * - Arrays or other iterables → become **object lists**:
+ *   `predicate v1 , v2 , v3`.
+ * - Nested property objects → become nested `[ ... ]` blank nodes.
+ */
+export type BnodePropValue =
+  | SparqlInterpolatable
+  | Iterable<SparqlInterpolatable>
+
+/**
+ * Internal: check for a "plain" object (not Date, not SparqlValue, etc.).
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') {
+    return false
+  }
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+/**
+ * Normalise a property key into a predicate lexeme.
+ *
+ * Rules:
+ * - `<...>` → used as-is (already an IRI).
+ * - `http://...` / `https://...` → wrapped as `<...>`.
+ * - Anything with `:` → treated as a prefixed name (e.g. `foaf:name`).
+ * - Everything else → treated as `:${localName}` (assumes a default `:` prefix).
+ */
+function toPredicateName(key: string): string {
+  if (key.startsWith('<') && key.endsWith('>')) {
+    return key
+  }
+
+  if (key.startsWith('http://') || key.startsWith('https://')) {
+    return `<${key}>`
+  }
+
+  if (key.includes(':')) {
+    return key
+  }
+
+  // Fallback: assume a default ":" prefix is bound.
+  return `:${key}`
+}
+
+/**
+ * Create an inline blank node *pattern* using the `[ ... ]` syntax.
+ *
+ * This is syntactic sugar for:
+ *
+ * ```sparql
+ * [ predicate1 object1 ;
+ *   predicate2 object2 , object3 ;
+ *   ...
+ * ]
+ * ```
+ *
+ * Rules:
+ * - Plain values (string/number/boolean/Date/etc.) become single objects:
+ *   `predicate value`.
+ * - Arrays / other iterables become **object lists**:
+ *   `predicate v1 , v2 , v3`.
+ * - Nested plain objects become **nested blank nodes**:
+ *   `predicate [ ...nested props... ]`.
+ *
+ * @throws {Error} For empty property maps.
+ * @throws {Error} If a property has an empty iterable.
+ *
+ * @example Simple blank node pattern
+ * ```ts
+ * const personPattern = bnodePattern({
+ *   'foaf:name': 'Alice',
+ *   'foaf:age': 30,
+ * })
+ *
+ * const query = sparql`
+ *   INSERT DATA {
+ *     ?person ${personPattern} .
+ *   }
+ * `
+ * // => ?person [ foaf:name "Alice" ; foaf:age 30 ] .
+ * ```
+ *
+ * @example Multi-valued predicate
+ * ```ts
+ * const nicknames = bnodePattern({
+ *   'foaf:nick': ['Peter', 'Spidey'],
+ * })
+ *
+ * // [ foaf:nick "Peter" , "Spidey" ]
+ * ```
+ *
+ * @example Nested blank node
+ * ```ts
+ * const addressPattern = bnodePattern({
+ *   'schema:postalAddress': {
+ *     'schema:streetAddress': '123 Main St',
+ *     'schema:addressLocality': 'Metropolis',
+ *   },
+ * })
+ *
+ * // [ schema:postalAddress
+ * //     [ schema:streetAddress "123 Main St" ;
+ * //       schema:addressLocality "Metropolis"
+ * //     ]
+ * // ]
+ * ```
+ */
+export function bnodePattern(props: BnodeProps): SparqlValue {
+  const entries = Object.entries(props)
+
+  if (entries.length === 0) {
+    throw new Error('Cannot create blank node pattern from an empty object')
+  }
+
+  const propertyFragments: string[] = []
+
+  for (const [rawKey, rawVal] of entries) {
+    const predicate = toPredicateName(rawKey)
+
+    if (rawVal === null || rawVal === undefined) {
+      throw new Error(
+        `Property "${rawKey}" is null/undefined in bnodePattern(). Omit it or model absence with OPTIONAL patterns instead.`
+      )
+    }
+
+    // Nested blank-node via plain object.
+    if (
+      isPlainObject(rawVal) &&
+      !isSparqlValue(rawVal) &&
+      !(rawVal instanceof Date)
+    ) {
+      const nested = bnodePattern(rawVal as BnodeProps)
+      propertyFragments.push(`${predicate} ${nested.value}`)
+      continue
+    }
+
+    // Multi-valued via iterable / array.
+    if (Array.isArray(rawVal) || isNonStringIterable(rawVal)) {
+      const objects: string[] = []
+
+      for (const item of rawVal as Iterable<SparqlInterpolatable>) {
+        objects.push(convertValue(item))
+      }
+
+      if (objects.length === 0) {
+        throw new Error(
+          `Property "${rawKey}" has an empty iterable in bnodePattern().`
+        )
+      }
+
+      propertyFragments.push(`${predicate} ${objects.join(' , ')}`)
+      continue
+    }
+
+    // Single scalar value.
+    propertyFragments.push(
+      `${predicate} ${convertValue(rawVal as SparqlInterpolatable)}`
+    )
+  }
+
+  return raw(`[ ${propertyFragments.join(' ; ')} ]`)
 }
 
 // ============================================================================
@@ -740,52 +1144,56 @@ export function raw(value: string): SparqlValue {
 
 /**
  * Main template tag for building SPARQL queries.
- * 
- * This is the primary way to construct queries. It automatically converts
- * interpolated values to proper SPARQL syntax and handles indentation.
- * 
- * Use this whenever you're writing SPARQL. The automatic conversions handle
- * the tedious escaping work, and the template literal format keeps your queries
- * readable.
- * 
- * @example Basic query
+ *
+ * It:
+ * - Interpolates values using `convertValue` (scalars) or lets you insert
+ *   richer fragments using `SparqlValue` helpers (`raw`, `valuesList`, etc.).
+ * - Dedents/normalises indentation using `outdent`.
+ *
+ * Because `SparqlInterpolatable` deliberately excludes arrays/objects, you are
+ * guided towards the explicit helpers for composite structures.
+ *
+ * @example Basic query with scalars
  * ```ts
- * const name = "Peter Parker";
- * const minAge = 18;
- * 
+ * const name = 'Peter Parker'
+ * const minAge = 18
+ *
  * const query = sparql`
  *   SELECT ?person WHERE {
  *     ?person foaf:name ${name} ;
- *            foaf:age ?age .
+ *             foaf:age ?age .
  *     FILTER(?age >= ${minAge})
  *   }
- * `;
+ * `
+ * // ?person foaf:name "Peter Parker" ;
+ * //         foaf:age ?age .
+ * // FILTER(?age >= 18)
  * ```
- * 
- * @example With arrays
+ *
+ * @example VALUES with an array (via helper)
  * ```ts
- * const cities = ["London", "Paris", "Tokyo"];
- * 
+ * const cities = ['London', 'Paris', 'Tokyo']
+ *
  * const query = sparql`
  *   SELECT * WHERE {
- *     VALUES ?city { ${cities} }
+ *     VALUES ?city { ${valuesList(cities)} }
  *     ?place schema:name ?city .
  *   }
- * `;
+ * `
  * ```
- * 
- * @example With nested values
+ *
+ * @example Blank-node pattern
  * ```ts
- * const person = {
+ * const person = bnodePattern({
  *   'foaf:name': 'Alice',
- *   'foaf:age': 30
- * };
- * 
- * const query = sparql`
+ *   'foaf:age': 30,
+ * })
+ *
+ * const insert = sparql`
  *   INSERT DATA {
- *     ?person ${person}
+ *     ?person ${person} .
  *   }
- * `;
+ * `
  * ```
  */
 export function sparql(
@@ -795,15 +1203,20 @@ export function sparql(
   let result = strings[0]
 
   for (let i = 0; i < values.length; i++) {
-    result += convertValue(values[i])
+    const value = values[i]
+
+    // SparqlValue fragments are injected as-is.
+    if (isSparqlValue(value)) {
+      result += value.value
+    } else {
+      // Everything else must be a scalar and go through convertValue.
+      result += convertValue(value)
+    }
+
     result += strings[i + 1]
   }
 
-  return wrapSparqlValue(outdent.string(result))
+  return raw(outdent.string(result))
 }
-
-// ============================================================================
-// Re-exports
-// ============================================================================
 
 export default sparql

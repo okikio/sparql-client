@@ -171,7 +171,10 @@ export function triples(
   subject: TripleSubject,
   predicateObjects: PredicateObjectList | PredicateObjectMap,
 ): SparqlValue {
-  const s = tripleSubjectString(subject)
+  const subjectTerm = tripleSubjectString(subject)
+
+  // 4 spaces; 2 (block) + 2 (extra)
+  const CONTINUATION_INDENT = '    ';
 
   // Normalize to list format
   const list: PredicateObjectList = Array.isArray(predicateObjects)
@@ -185,16 +188,32 @@ export function triples(
         }
         return [[pred, value]]
     })
-  
+
   // Build semicolon-separated list
   const lines: string[] = list.map(([p, o], idx) => {
     const pred = triplePredicateString(p)
     const obj = exprTermString(o)
-    const sep = idx < list.length - 1 ? ' ;' : ' .'
-    return `  ${pred} ${obj}${sep}`
+    const suffix = idx < list.length - 1 ? ' ;' : ' .'
+
+    // Continuation lines should be indented one level *beyond* the line
+    // where the subject appears. We assume 2-space block indent, so we
+    // use 4 spaces here (2 for block + 2 extra).
+    return `${CONTINUATION_INDENT}${pred} ${obj}${suffix}`
   })
 
-  return raw(`${s}\n${lines.join('\n')}`)
+  const [first, ...rest] = lines
+  if (rest.length === 0) {
+    // Single predicate-object: everything on a single line
+    // `first` currently has leading spaces; strip them on the left.
+    return raw(`${subjectTerm} ${first.trimStart()}`)
+  }
+
+  // Multiple: first predicate shares the line with the subject,
+  // continuation lines keep their internal indentation.
+  const firstLine = `${subjectTerm} ${first.trimStart()}`
+  const restLines = rest.join('\n')
+
+  return raw(`${firstLine}\n${restLines}`)
 }
 
 
