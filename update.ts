@@ -35,7 +35,7 @@
  */
 
 import { raw, sparql, type SparqlValue } from './sparql.ts'
-import { createExecutor, type ExecutorConfig, type SparqlResult } from './executor.ts'
+import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
 
 // ============================================================================
 // Update Operation Types
@@ -672,9 +672,9 @@ export class UpdateBuilder {
    * }
    * ```
    */
-  execute(config: ExecutorConfig): Promise<SparqlResult> {
+  execute<TBind extends BindingMap = BindingMap>(config: ExecutionConfig): Promise<QueryResult<TBind>> {
     const executor = createExecutor(config)
-    return executor(this.build())
+    return executor.execute<TBind>(this.build())
   }
 }
 
