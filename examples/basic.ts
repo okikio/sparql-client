@@ -1,63 +1,45 @@
 /**
- * Basic Query Example
- *
- * Demonstrates fundamental usage of the query builder:
- * - Creating node patterns
- * - Using fluent property chains
- * - Basic filtering and sorting
- * - Query execution
- *
- * Now wired to your namespace constants so it works cleanly with Blazegraph +
- * narrative.ttl and any FOAF/Schema data you load.
+ * Basic Query Example - Updated for narrative.ttl ontology
  */
 
 import {
   node,
   select,
   variable,
-  gte,
   regex,
-  and,
+  v,
   type ExecutionConfig,
 } from '../mod.ts'
 
-import {
-  FOAF,
-  SCHEMA,
-} from '../namespaces.ts'
+import { RDFS } from '../namespaces.ts'
 
-/**
- * Configure your SPARQL endpoint.
- *
- * This assumes Blazegraph with your `narrative.ttl` (and optionally FOAF/Schema)
- * is loaded into a single namespace and exposed at `/sparql`.
- */
+const NARRATIVE = 'http://knowledge.graph/ontology/narrative#'
+
 const config: ExecutionConfig = {
   endpoint: 'http://localhost:9999/blazegraph/sparql',
   timeoutMs: 30000,
 }
 
 // ============================================================================
-// Example 1: Simple Person Query (FOAF)
+// Example 1: Find Creators (People)
 // ============================================================================
 
-async function findPeopleByAge() {
-  console.log('\n=== Finding people over 18 ===\n')
+async function findCreators() {
+  console.log('\n=== Finding creators ===\n')
 
-  // Build the query using fluent API
-  const person = node('person', 'foaf:Person')
-    .with.prop('foaf:name', variable('name'))
-    .and.prop('foaf:age', variable('age'))
+  const person = node('person', 'narrative:Person')
+    .with.prop('narrative:knownAs', variable('name'))
+
+  const query = select(['?person', '?name'])
+    .prefix('narrative', NARRATIVE)
+    .where(person)
+    .orderBy('?name')
+    .limit(10)
+
+  console.log(query.build().value)
 
   try {
-    const result = await select(['?name', '?age'])
-      .prefix('foaf', FOAF._namespace)
-      .where(person)
-      .filter(gte(variable('age'), 18))
-      .orderBy('?age', 'DESC')
-      .limit(10)
-      .execute(config)
-
+    const result = await query.execute(config)
     console.log('Results:', result.results.bindings)
   } catch (e) {
     console.error('Query failed:', e)
@@ -65,26 +47,27 @@ async function findPeopleByAge() {
 }
 
 // ============================================================================
-// Example 2: Pattern Matching with Filters (FOAF)
+// Example 2: Find Publishers (Organizations)
 // ============================================================================
 
-async function findPeopleByNamePattern() {
-  console.log('\n=== Finding people with names starting with "John" ===\n')
+async function findPublishers() {
+  console.log('\n=== Finding publishers ===\n')
 
-  const person = node('person', 'foaf:Person')
-    .with.prop('foaf:name', variable('name'))
-    .and.prop('foaf:email', variable('email'))
+  const org = node('org', 'narrative:Org')
+    .with.prop('rdfs:label', variable('name'))
+    .and.prop('narrative:orgType', variable('type'))
 
-  const nameCondition = regex(variable('name'), '^John', 'i')
+  const query = select(['?name', '?type'])
+    .prefix('narrative', NARRATIVE)
+    .prefix('rdfs', RDFS._namespace)
+    .where(org)
+    .orderBy('?name')
+    .limit(10)
+
+  console.log(query.build().value)
 
   try {
-    const result = await select(['?name', '?email'])
-      .prefix('foaf', FOAF._namespace)
-      .where(person)
-      .filter(nameCondition)
-      .orderBy('?name')
-      .execute(config)
-
+    const result = await query.execute(config)
     console.log('Results:', result.results.bindings)
   } catch (e) {
     console.error('Query failed:', e)
@@ -92,32 +75,26 @@ async function findPeopleByNamePattern() {
 }
 
 // ============================================================================
-// Example 3: Multiple Conditions (FOAF)
+// Example 3: Find Comics (StoryExpressions) with Series info
 // ============================================================================
 
-async function findAdultsWithEmail() {
-  console.log('\n=== Finding adults with email addresses ===\n')
+async function findComics() {
+  console.log('\n=== Finding comics ===\n')
 
-  const person = node('person', 'foaf:Person')
-    .with.prop('foaf:name', variable('name'))
-    .and.prop('foaf:age', variable('age'))
-    .and.prop('foaf:email', variable('email'))
+  const issue = node('issue', 'narrative:StoryExpression')
+    .with.prop('narrative:issueNumber', variable('number'))
+    .and.prop('narrative:coverDate', variable('date'))
 
-  // Combine multiple conditions
-  const conditions = and(
-    gte(variable('age'), 18),
-    regex(variable('email'), '@', 'i'),
-  )
+  const query = select(['?issue', '?number', '?date'])
+    .prefix('narrative', NARRATIVE)
+    .where(issue)
+    .orderBy('?date', 'DESC')
+    .limit(10)
+
+  console.log(query.build().value)
 
   try {
-    const result = await select(['?name', '?age', '?email'])
-      .prefix('foaf', FOAF._namespace)
-      .where(person)
-      .filter(conditions)
-      .orderBy('?name')
-      .limit(20)
-      .execute(config)
-
+    const result = await query.execute(config)
     console.log('Results:', result.results.bindings)
   } catch (e) {
     console.error('Query failed:', e)
@@ -125,28 +102,25 @@ async function findAdultsWithEmail() {
 }
 
 // ============================================================================
-// Example 4: Using Domain Types (FOAF + Schema.org)
+// Example 4: Find Characters
 // ============================================================================
 
-async function queryWithTypes() {
-  console.log('\n=== Query with explicit typing (FOAF + Schema) ===\n')
+async function findCharacters() {
+  console.log('\n=== Finding characters ===\n')
 
-  // You can specify multiple types
-  const person = node('person')
-    .is.a('foaf:Person')
-    .and.a('schema:Person')
-    .with.prop('foaf:name', variable('name'))
-    .and.prop('foaf:age', variable('age'))
+  const character = node('char', 'narrative:Character')
+    .with.prop('narrative:characterName', variable('name'))
+
+  const query = select(['?char', '?name'])
+    .prefix('narrative', NARRATIVE)
+    .where(character)
+    .orderBy('?name')
+    .limit(20)
+
+  console.log(query.build().value)
 
   try {
-    const result = await select(['?name', '?age'])
-      .prefix('foaf', FOAF._namespace)
-      .prefix('schema', SCHEMA._namespace)
-      .where(person)
-      .orderBy('?name')
-      .limit(20)
-      .execute(config)
-
+    const result = await query.execute(config)
     console.log('Results:', result.results.bindings)
   } catch (e) {
     console.error('Query failed:', e)
@@ -154,12 +128,12 @@ async function queryWithTypes() {
 }
 
 // ============================================================================
-// Run examples when executed directly
+// Run examples
 // ============================================================================
 
 if (import.meta.main) {
-  await findPeopleByAge()
-  await findPeopleByNamePattern()
-  await findAdultsWithEmail()
-  await queryWithTypes()
+  await findCreators()
+  await findPublishers()
+  await findComics()
+  await findCharacters()
 }
