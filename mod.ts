@@ -21,10 +21,11 @@
  * you write `filter(v('age').gte(18).and(v('age').lt(65)))`. For computed values, chain operations
  * left to right: `v('price').mul(0.9).round().add(5).as('discount')`. Conditional logic stays clear with
  * `ifElse(v('inStock').eq(true), v('price').mul(0.9), v('price').add(10))`. String operations chain
- * naturally: `coalesce(v('nickname'), v('name')).ucase().substr(0, 10).concat('...')`. Twenty-one
- * functions return FluentValue for seamless chaining - arithmetic (add, sub, mul, div, mod), math
- * (abs, round, ceil, floor), string operations (concat, strlen, ucase, lcase, substr, replaceStr),
- * conditionals (ifElse, coalesce), and type conversions (str, getlang, datatype).
+ * naturally: `v('name').ucase().concat('...')` for fluent methods, or use standalone functions like
+ * `substr(v('name').ucase(), 1, 10)` when needed. Twenty-one functions return FluentValue for
+ * seamless chaining - arithmetic (add, sub, mul, div, mod), math (abs, round, ceil, floor), string
+ * operations (concat, strlen, ucase, lcase, contains, startsWith, endsWith, regex), conditionals
+ * (ifElse, coalesce), and type checks (isNull, isNotNull, isIri, isBlank, isLiteral, bound).
  * 
  * @example Quick start with triple patterns
  * ```ts
@@ -107,7 +108,7 @@
  *     ).as('finalPrice')
  *   )
  *   .bind(
- *     v('name').ucase().substr(0, 15).concat('...').as('displayName')
+ *     v('name').ucase().concat('...').as('displayName')
  *   )
  *   .filter(v('finalPrice').gte(10))
  * ```
@@ -237,3 +238,6 @@ export * from './patterns/cypher.ts'
 export * from './builder.ts'
 export * from './update.ts'
 export * from './executor.ts'
+
+// Namespace constants
+export * from './namespaces.ts'

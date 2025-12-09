@@ -85,7 +85,7 @@ export type SparqlInterpolatable =
  * In SPARQL, variables can be written as ?name or $name. We normalize these
  * internally to just store the name part, then add the ? when generating queries.
  */
-export type VariableName = string
+export type VariableName = string | `?${string}` | SparqlValue
 
 /**
  * Namespace prefix for abbreviated IRIs (e.g., "foaf" in foaf:name).
@@ -113,8 +113,9 @@ export type LanguageTag = string
  * internal representation. This function strips the prefix if present, so both
  * "foo" and "?foo" become "foo" internally.
  */
-export function normalizeVariableName(name: string | `?${string}`): VariableName {
-  return name.startsWith('?') ? (name.slice(1) as VariableName) : (name as VariableName)
+export function normalizeVariableName(name: VariableName): string {
+  const n = isSparqlValue(name) ? name?.value : name;
+  return n.startsWith('?') ? (n.slice(1) as string) : (n as string)
 }
 
 /**

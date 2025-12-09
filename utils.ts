@@ -54,9 +54,11 @@ export function values(
   varName: VariableName,
   items: SparqlInterpolatable[]
 ): SparqlValue {
-  validateVariableName(varName)
+  const _var = normalizeVariableName(varName)
+  validateVariableName(_var)
+
   const converted = items.map((item) => convertValue(item)).join(' ')
-  return wrapSparqlValue(`VALUES ?${varName} { ${converted} }`)
+  return wrapSparqlValue(`VALUES ?${_var} { ${converted} }`)
 }
 
 /**
@@ -129,7 +131,9 @@ export function optional(pattern: SparqlValue): SparqlValue {
  * // BIND(2024 - ?birthYear AS ?age)
  * ```
  */
-export function bind(expression: SparqlValue, varName: VariableName): SparqlValue {
+export function bind(expression: SparqlValue, varName?: VariableName): SparqlValue {
+  if (!varName) return wrapSparqlValue(`BIND(${expression.value})`);
+
   const _varName = normalizeVariableName(varName)
   validateVariableName(_varName)
   return wrapSparqlValue(`BIND(${expression.value} AS ?${_varName})`)
@@ -335,22 +339,85 @@ export function substr(
  * Replace occurrences of a pattern in text.
  * 
  * Replaces all occurrences of pattern with replacement string.
+ * Optional flags parameter for case-insensitive matching (i), etc.
  * 
  * @example Remove dashes
  * ```ts
  * replaceStr(v('isbn'), '-', '')
  * // REPLACE(?isbn, "-", "")
  * ```
+ * 
+ * @example Case-insensitive replacement
+ * ```ts
+ * replaceStr(v('text'), 'hello', 'hi', 'i')
+ * // REPLACE(?text, "hello", "hi", "i")
+ * ```
  */
 export function replaceStr(
   text: SparqlValue | ExpressionPrimitive,
   pattern: SparqlValue | ExpressionPrimitive,
   replacement: SparqlValue | ExpressionPrimitive,
+  flags?: string,
 ): FluentValue {
   const textTerm = exprTermString(text)
   const patternTerm = exprTermString(pattern)
   const replacementTerm = exprTermString(replacement)
-  return fluent(raw(`REPLACE(${textTerm}, ${patternTerm}, ${replacementTerm})`))
+  const flagsTerm = flags ? `, ${exprTermString(flags)}` : ''
+  return fluent(raw(`REPLACE(${textTerm}, ${patternTerm}, ${replacementTerm}${flagsTerm})`))
+}
+
+/**
+ * Get substring before first occurrence of match string.
+ * 
+ * Returns the part of the text that appears before the first occurrence
+ * of the match string. If match is not found, returns empty string.
+ * 
+ * @example Extract username from email
+ * ```ts
+ * strBefore(v('email'), '@')
+ * // STRBEFORE(?email, "@")
+ * ```
+ * 
+ * @example Extract domain before subdomain
+ * ```ts
+ * strBefore(v('domain'), '.')
+ * // STRBEFORE(?domain, ".")
+ * ```
+ */
+export function strBefore(
+  text: SparqlValue | ExpressionPrimitive,
+  match: SparqlValue | ExpressionPrimitive,
+): FluentValue {
+  const textTerm = exprTermString(text)
+  const matchTerm = exprTermString(match)
+  return fluent(raw(`STRBEFORE(${textTerm}, ${matchTerm})`))
+}
+
+/**
+ * Get substring after first occurrence of match string.
+ * 
+ * Returns the part of the text that appears after the first occurrence
+ * of the match string. If match is not found, returns empty string.
+ * 
+ * @example Extract domain from email
+ * ```ts
+ * strAfter(v('email'), '@')
+ * // STRAFTER(?email, "@")
+ * ```
+ * 
+ * @example Extract file extension
+ * ```ts
+ * strAfter(v('filename'), '.')
+ * // STRAFTER(?filename, ".")
+ * ```
+ */
+export function strAfter(
+  text: SparqlValue | ExpressionPrimitive,
+  match: SparqlValue | ExpressionPrimitive,
+): FluentValue {
+  const textTerm = exprTermString(text)
+  const matchTerm = exprTermString(match)
+  return fluent(raw(`STRAFTER(${textTerm}, ${matchTerm})`))
 }
 
 /**
@@ -872,6 +939,10 @@ export interface FluentValue extends SparqlValue {
   strlen(): FluentValue
   ucase(): FluentValue
   lcase(): FluentValue
+  substr(start: SparqlValue | ExpressionPrimitive, length?: SparqlValue | ExpressionPrimitive): FluentValue
+  replace(pattern: SparqlValue | ExpressionPrimitive, replacement: SparqlValue | ExpressionPrimitive, flags?: string): FluentValue
+  strBefore(match: SparqlValue | ExpressionPrimitive): FluentValue
+  strAfter(match: SparqlValue | ExpressionPrimitive): FluentValue
   
   // Type checking
   isNull(): SparqlValue
@@ -893,7 +964,7 @@ export interface FluentValue extends SparqlValue {
   floor(): FluentValue
   
   // Utility
-  as(variable: string): SparqlValue
+  as(variable: VariableName): SparqlValue
 }
 
 /**
@@ -944,6 +1015,10 @@ export function fluent(value: SparqlValue): FluentValue {
     strlen: () => fluent(strlen(result)),
     ucase: () => fluent(ucase(result)),
     lcase: () => fluent(lcase(result)),
+    substr: (start, length) => fluent(substr(result, start, length)),
+    replace: (pattern, replacement, flags) => fluent(replaceStr(result, pattern, replacement, flags)),
+    strBefore: (match) => fluent(strBefore(result, match)),
+    strAfter: (match) => fluent(strAfter(result, match)),
     
     // Type checking
     isNull: () => isNull(result),
