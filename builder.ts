@@ -46,6 +46,7 @@ import {
   sparql,
   normalizeVariableName,
   type SparqlValue,
+  type VariableName,
 } from './sparql.ts'
 import {
   bind as bindExpr,
@@ -112,6 +113,7 @@ export type SelectModifier = 'none' | 'distinct' | 'reduced'
 interface QueryState {
   readonly type: 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE'
   readonly projection: Projection
+  readonly prefixes?: Map<string, string>
   readonly from?: string[]
   readonly fromNamed?: string[]
   readonly where: SparqlValue[]
@@ -270,7 +272,7 @@ export class QueryBuilder {
    * describe(['<http://example.org/person/1>', '<http://example.org/person/2>'])
    * ```
    */
-  static describe(resources: string[]): QueryBuilder {
+  static describe(resources: (string | SparqlValue)[]): QueryBuilder {
     return new QueryBuilder({
       ...initialState,
       type: 'DESCRIBE',
@@ -298,10 +300,10 @@ export class QueryBuilder {
    *   .where(triple('?s', '?p', '?o'))
    * ```
    */
-  from(graphIRI: string): QueryBuilder {
+  from(graphIRI: string | SparqlValue): QueryBuilder {
     return new QueryBuilder({
       ...this.state,
-      from: [...(this.state.from || []), graphIRI],
+      from: [...(this.state.from || []), exprTermString(graphIRI)],
     })
   }
 
@@ -321,10 +323,85 @@ export class QueryBuilder {
    *   .where(graph('?g', triple('?s', '?p', '?o')))
    * ```
    */
-  fromNamed(graphIRI: string): QueryBuilder {
+  fromNamed(graphIRI: string | SparqlValue): QueryBuilder {
     return new QueryBuilder({
       ...this.state,
-      fromNamed: [...(this.state.fromNamed || []), graphIRI],
+      fromNamed: [...(this.state.fromNamed || []), exprTermString(graphIRI)],
+    })
+  }
+
+  /**
+   * Declare a namespace prefix for abbreviated IRIs.
+   * 
+   * **Common use case:** Cleaning up queries by using short prefixes instead of typing
+   * full IRIs everywhere. Makes queries more readable and less error-prone.
+   * 
+   * **How it works:** Prefix declarations appear at the top of the generated SPARQL query.
+   * Once declared, you can use the short form (like `foaf:name`) anywhere in your patterns
+   * instead of the full IRI (`<http://xmlns.com/foaf/0.1/name>`).
+   * 
+   * **Best practice:** Declare all your prefixes upfront before adding patterns. This keeps
+   * the query structure clear and ensures prefixes are available for all subsequent patterns.
+   * 
+   * @param name - Prefix name (without the colon)
+   * @param iri - Full namespace IRI
+   * @returns QueryBuilder for chaining
+   * 
+   * @example Basic prefix usage
+   * ```ts
+   * select(['?name'])
+   *   .prefix('foaf', 'http://xmlns.com/foaf/0.1/')
+   *   .where(triple('?person', 'foaf:name', '?name'))
+   * 
+   * // Generates:
+   * // PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+   * // SELECT ?name WHERE { ?person foaf:name ?name }
+   * ```
+   * 
+   * @example Multiple prefixes
+   * ```ts
+   * select(['?name', '?email'])
+   *   .prefix('foaf', 'http://xmlns.com/foaf/0.1/')
+   *   .prefix('schema', 'https://schema.org/')
+   *   .where(triple('?person', 'foaf:name', '?name'))
+   *   .where(triple('?person', 'schema:email', '?email'))
+   * 
+   * // Generates:
+   * // PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+   * // PREFIX schema: <https://schema.org/>
+   * // SELECT ?name ?email WHERE { ... }
+   * ```
+   * 
+   * @example Using namespace constants
+   * ```ts
+   * import { RDF, FOAF, getNamespaceIRI } from '@okikio/sparql'
+   * 
+   * select(['?person'])
+   *   .prefix('rdf', getNamespaceIRI(RDF))
+   *   .prefix('foaf', getNamespaceIRI(FOAF))
+   *   .where(triple('?person', RDF.type, uri(FOAF.Person)))
+   * ```
+   * 
+   * @example Overriding prefixes (last one wins)
+   * ```ts
+   * select(['?name'])
+   *   .prefix('ex', 'http://example.org/old/')
+   *   .prefix('ex', 'http://example.org/new/')  // Replaces previous
+   *   .where(triple('?person', 'ex:name', '?name'))
+   * // Uses http://example.org/new/
+   * ```
+   * 
+   * @see getNamespaceIRI - Extract namespace IRI from constants
+   */
+  prefix(name: string | SparqlValue, iri: string | SparqlValue): QueryBuilder {
+    const prefixes = new Map(this.state.prefixes || [])
+    prefixes.set(
+      exprTermString(name),
+      exprTermString(iri)
+    )
+    return new QueryBuilder({
+      ...this.state,
+      prefixes,
     })
   }
 
@@ -335,7 +412,7 @@ export class QueryBuilder {
    * is typically created with triple(), triples(), node(), rel(), or match().
    * Multiple where() calls add patterns that must all match (they're ANDed together).
    * 
-   * @param pattern Pattern to match
+   * @param [...patterns] Patterns to match
    * 
    * @example Basic triples
    * ```ts
@@ -352,10 +429,10 @@ export class QueryBuilder {
    * query.where(person)
    * ```
    */
-  where(pattern: SparqlValue): QueryBuilder {
+  where(...patterns: SparqlValue[]): QueryBuilder {
     return new QueryBuilder({
       ...this.state,
-      where: [...this.state.where, pattern],
+      where: [...this.state.where, ...patterns],
     })
   }
 
@@ -366,7 +443,7 @@ export class QueryBuilder {
    * boolean expression built with comparison operators, functions, or logical
    * operators. Filters are applied after pattern matching.
    * 
-   * @param condition Boolean expression
+   * @param [...conditions] Boolean expression
    * 
    * @example Age filter
    * ```ts
@@ -381,12 +458,12 @@ export class QueryBuilder {
    * ))
    * ```
    */
-  filter(condition: SparqlValue): QueryBuilder {
-    const filterValue = filterExpr(condition)
+  filter(...conditions: SparqlValue[]): QueryBuilder {
+    const filterValues = conditions.map(c => filterExpr(c))
 
     return new QueryBuilder({
       ...this.state,
-      filters: [...this.state.filters, filterValue],
+      filters: [...this.state.filters, ...filterValues],
     })
   }
 
@@ -397,7 +474,7 @@ export class QueryBuilder {
    * leave variables unbound. This is like LEFT JOIN in SQL. Use it for data
    * that might not exist for all results.
    * 
-   * @param pattern Pattern to optionally match
+   * @param [...patterns] Pattern to optionally match
    * 
    * @example Optional email
    * ```ts
@@ -408,12 +485,12 @@ export class QueryBuilder {
    * 
    * Email will be bound if it exists, unbound otherwise.
    */
-  optional(pattern: SparqlValue): QueryBuilder {
-    const optionalPattern = optionalExpr(pattern)
+  optional(...patterns: SparqlValue[]): QueryBuilder {
+    const optionalPatterns = patterns.map(p => optionalExpr(p))
 
     return new QueryBuilder({
       ...this.state,
-      optional: [...this.state.optional, optionalPattern],
+      optional: [...this.state.optional, ...optionalPatterns],
     })
   }
 
@@ -443,9 +520,10 @@ export class QueryBuilder {
    * )
    * ```
    */
-  bind(expression: SparqlValue, asVariable: string): QueryBuilder {
-    const varName = normalizeVariableName(asVariable)
-    const bindValue = bindExpr(expression, varName)
+  bind(expression: SparqlValue, asVariable?: VariableName): QueryBuilder {
+    const bindValue = asVariable
+      ? bindExpr(expression, normalizeVariableName(asVariable))
+      : bindExpr(expression)
 
     return new QueryBuilder({
       ...this.state,
@@ -504,9 +582,9 @@ export class QueryBuilder {
    *   .groupBy('?publisher', '?year')
    * ```
    */
-  groupBy(...variables: string[]): QueryBuilder {
+  groupBy(...variables: VariableName[]): QueryBuilder {
     const normalized = variables.map(v => 
-      v.startsWith('?') ? v : `?${v}`
+      `?${normalizeVariableName(v)}`
     )
     return new QueryBuilder({
       ...this.state,
@@ -575,7 +653,7 @@ export class QueryBuilder {
    *   .where(triple('?city', 'schema:population', '?population'))
    * ```
    */
-  values(variable: string, vals: SparqlValue[]): QueryBuilder {
+  values(variable: VariableName, vals: SparqlValue[]): QueryBuilder {
     const varName = normalizeVariableName(variable)
     const existing = this.state.values || new Map()
     const updated = new Map(existing)
@@ -652,10 +730,10 @@ export class QueryBuilder {
    *   .orderBy('?firstName')
    * ```
    */
-  orderBy(variable: string, direction?: SortDirection): QueryBuilder {
+  orderBy(variable: VariableName, direction?: SortDirection): QueryBuilder {
     return new QueryBuilder({
       ...this.state,
-      sorts: [...this.state.sorts, { variable, direction }],
+      sorts: [...this.state.sorts, { variable: normalizeVariableName(variable), direction }],
     })
   }
 
@@ -751,6 +829,14 @@ export class QueryBuilder {
    */
   build(): SparqlValue {
     const parts: string[] = []
+
+    // PREFIX declarations
+    if (this.state.prefixes && this.state.prefixes.size > 0) {
+      for (const [name, iri] of this.state.prefixes) {
+        parts.push(`PREFIX ${name}: <${iri}>`)
+      }
+      parts.push('') // Blank line after prefixes for readability
+    }
 
     // Query type and projection
     if (this.state.type === 'SELECT') {

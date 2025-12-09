@@ -11,7 +11,7 @@
  * @module
  */
 
-import { raw, type SparqlValue } from '../sparql.ts'
+import { raw, type VariableName, type SparqlValue } from '../sparql.ts'
 import { exprTermString, type ExpressionPrimitive } from '../utils.ts'
 
 // ============================================================================
@@ -24,7 +24,7 @@ import { exprTermString, type ExpressionPrimitive } from '../utils.ts'
  * Can be a variable (?person), an IRI (<http://...>), or a blank node.
  * Most often you'll use variables to match multiple resources.
  */
-export type TripleSubject = string | SparqlValue
+export type TripleSubject = VariableName | SparqlValue
 
 /**
  * Predicate of a triple pattern.
@@ -40,7 +40,7 @@ export type TriplePredicate = string | SparqlValue
  * Can be any RDF term - variables, IRIs, literals, or blank nodes. This is
  * what the subject is related to or what value a property has.
  */
-export type TripleObject = SparqlValue | ExpressionPrimitive
+export type TripleObject = VariableName | SparqlValue | ExpressionPrimitive
 
 /**
  * Convert subject to string form.
