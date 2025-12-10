@@ -81,30 +81,15 @@ export type SelectModifier = 'none' | 'distinct' | 'reduced'
  * - Expressions with AS: already wrapped
  */
 function processProjectionItem(item: PatternLike): string {
-  if (isSparqlValue(item)) {
-    return item.value
-  }
+  if (isSparqlValue(item)) return item.value
   
   // Plain string - treat as variable name
   const str = item.trim()
   
   // Already looks like a variable
-  if (str.startsWith('?') || str.startsWith('$')) {
-    const name = str.slice(1)
-    validateVariableName(name)
-    return `?${name}`
-  }
-  
-  // Check if it's an expression (contains spaces, parens, AS keyword)
-  // These should be passed through as-is (user responsibility)
-  if (str.includes(' ') || str.includes('(')) {
-    // This is risky - but we warn in docs to use SparqlValue for complex expressions
-    return str
-  }
-  
-  // Simple identifier - treat as variable
-  validateVariableName(str)
-  return `?${str}`
+  const name = normalizeVariableName(str)
+  validateVariableName(name)
+  return `?${name}`
 }
 
 /**
@@ -112,15 +97,11 @@ function processProjectionItem(item: PatternLike): string {
  */
 function processOrderByVariable(varName: string): string {
   const str = varName.trim()
-  
-  if (str.startsWith('?') || str.startsWith('$')) {
-    const name = str.slice(1)
-    validateVariableName(name)
-    return `?${name}`
-  }
-  
-  validateVariableName(str)
-  return `?${str}`
+
+  // Already looks like a variable
+  const name = normalizeVariableName(str)
+  validateVariableName(name)
+  return `?${name}`
 }
 
 // ============================================================================

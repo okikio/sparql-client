@@ -326,7 +326,7 @@ export function escapeString(
 /**
  * Check if a string needs triple-quoting (contains newlines or quotes).
  */
-function needsLongQuotes(str: string): boolean {
+export function needsLongQuotes(str: string): boolean {
   return str.includes('\n') || str.includes('\r') || 
          str.includes('"') || str.includes("'")
 }
@@ -338,7 +338,7 @@ function needsLongQuotes(str: string): boolean {
 /**
  * Characters that could enable SPARQL injection.
  */
-const INJECTION_CHARS = /[<>"'\n\r\t{}]/
+export const INJECTION_CHARS = /[<>"'\n\r\t{}]/
 
 /**
  * Validate an IRI for use in SPARQL.
@@ -803,7 +803,7 @@ export function convertValue(value: SparqlInterpolatable, strict = true): string
 /**
  * Internal: check for an iterable that is *not* a string.
  */
-function isNonStringIterable(value: unknown): value is Iterable<unknown> {
+export function isNonStringIterable(value: unknown): value is Iterable<unknown> {
   return (
     value !== null &&
     value !== undefined &&
@@ -922,7 +922,6 @@ export function rdfList(
   return raw(`( ${parts.join(' ')} )`)
 }
 
-
 // ============================================================================
 // Blank Node Helpers
 // ============================================================================
@@ -985,7 +984,7 @@ export type BnodePropValue =
 /**
  * Internal: check for a "plain" object (not Date, not SparqlValue, etc.).
  */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object') {
     return false
   }
@@ -1002,7 +1001,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * - Anything with `:` → treated as a prefixed name (e.g. `foaf:name`).
  * - Everything else → treated as `:${localName}` (assumes a default `:` prefix).
  */
-function toPredicateName(key: string): string {
+export function toPredicateName(key: string): string {
   if (key.startsWith('<') && key.endsWith('>')) {
     return key
   }

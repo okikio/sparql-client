@@ -27,6 +27,8 @@ import {
   strlit,
   validateVariableName,
   variable,
+  toPredicateName,
+  toRawString,
   SPARQL_VALUE_BRAND,
   type VariableName,
   type SparqlValue,
@@ -1026,7 +1028,8 @@ export function fluent(value: SparqlValue): FluentValue {
     as: (variable) => {
       const varName = normalizeVariableName(variable)
       validateVariableName(varName)
-      return raw(`${value.value} AS ?${varName}`)
+      // Use the *current* expression and wrap as required by SPARQL
+      return raw(`(${result.value} AS ?${varName})`)
     }
   }
 
@@ -1116,7 +1119,8 @@ function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPr
     as(variable: string): SparqlValue {
       const varName = normalizeVariableName(variable)
       validateVariableName(varName)
-      return raw(`${baseValue} AS ?${varName}`)
+      // SPARQL 1.1 requires (Expression AS ?var) in SELECT
+      return raw(`(${baseValue} AS ?${varName})`)
     }
   }
 
@@ -1155,16 +1159,15 @@ export function count(
  * @example Unique publishers
  * ```ts
  * select([countDistinct(v('publisher')).as('publisherCount')])
- * // SELECT COUNT(DISTINCT ?publisher) AS ?publisherCount
+ * // SELECT (COUNT(DISTINCT ?publisher) AS ?publisherCount)
  * ```
  */
 export function countDistinct(
   expr: SparqlValue | ExpressionPrimitive,
 ): AggregationExpression {
   const exprStr = exprTermString(expr)
-  const baseValue = `DISTINCT ${exprStr}`
-
-  return count(baseValue)
+  // Treat DISTINCT … as raw SPARQL, not a literal
+  return createAggregation('COUNT', raw(`DISTINCT ${exprStr}`))
 }
 
 /**
@@ -1238,7 +1241,7 @@ export function groupConcat(
     ? `${exprStr}; SEPARATOR=${exprTermString(separator)}`
     : exprStr
 
-  return createAggregation('GROUP_CONCAT', baseValue)
+  return createAggregation('GROUP_CONCAT', raw(baseValue))
 }
 
 // ============================================================================
@@ -1281,18 +1284,7 @@ export function graph(
   graphIri: string | SparqlValue,
   pattern: SparqlValue
 ): SparqlValue {
-  let graphRef: string
-
-  if (typeof graphIri === 'string') {
-    if (graphIri.startsWith('?')) {
-      graphRef = graphIri
-    } else {
-      graphRef = `<${graphIri}>`
-    }
-  } else {
-    graphRef = graphIri.value
-  }
-
+  const graphRef = toPredicateName(toRawString(graphIri))
   return raw(`GRAPH ${graphRef} { ${pattern.value} }`)
 }
 
@@ -1360,7 +1352,7 @@ export function undef(): SparqlValue {
  * ```
  */
 export function zeroOrMore(property: string | SparqlValue): SparqlValue {
-  const prop = typeof property === 'string' ? property : property.value
+  const prop = toPredicateName(toRawString(property))
   return raw(`${prop}*`)
 }
 
@@ -1386,7 +1378,7 @@ export function zeroOrMore(property: string | SparqlValue): SparqlValue {
  * ```
  */
 export function oneOrMore(property: string | SparqlValue): SparqlValue {
-  const prop = typeof property === 'string' ? property : property.value
+  const prop = toPredicateName(toRawString(property))
   return raw(`${prop}+`)
 }
 
@@ -1407,7 +1399,7 @@ export function oneOrMore(property: string | SparqlValue): SparqlValue {
  * ```
  */
 export function zeroOrOne(property: string | SparqlValue): SparqlValue {
-  const prop = typeof property === 'string' ? property : property.value
+  const prop = toPredicateName(toRawString(property))
   return raw(`${prop}?`)
 }
 
@@ -1433,7 +1425,7 @@ export function zeroOrOne(property: string | SparqlValue): SparqlValue {
  * ```
  */
 export function sequence(...properties: Array<string | SparqlValue>): SparqlValue {
-  const props = properties.map(p => typeof p === 'string' ? p : p.value)
+  const props = properties.map(p => toPredicateName(toRawString(p)))
   return raw(props.join('/'))
 }
 
@@ -1459,7 +1451,7 @@ export function sequence(...properties: Array<string | SparqlValue>): SparqlValu
  * ```
  */
 export function alternative(...properties: Array<string | SparqlValue>): SparqlValue {
-  const props = properties.map(p => typeof p === 'string' ? p : p.value)
+  const props = properties.map(p => toPredicateName(toRawString(p)))
   return raw(`(${props.join('|')})`)
 }
 
@@ -1484,7 +1476,7 @@ export function alternative(...properties: Array<string | SparqlValue>): SparqlV
  * ```
  */
 export function inverse(property: string | SparqlValue): SparqlValue {
-  const prop = typeof property === 'string' ? property : property.value
+  const prop = toPredicateName(toRawString(property))
   return raw(`^${prop}`)
 }
 
@@ -1510,7 +1502,7 @@ export function inverse(property: string | SparqlValue): SparqlValue {
  * ```
  */
 export function negatedPropertySet(...properties: Array<string | SparqlValue>): SparqlValue {
-  const props = properties.map(p => typeof p === 'string' ? p : p.value)
+  const props = properties.map(p => toPredicateName(toRawString(p)))
   return raw(`!(${props.join('|')})`)
 }
 
@@ -1566,12 +1558,8 @@ export function service(
   pattern: SparqlValue,
   silent = false
 ): SparqlValue {
-  const endpointRef = typeof endpoint === 'string'
-    ? `<${endpoint}>`
-    : endpoint.value
-
+  const endpointRef = toPredicateName(toRawString(endpoint))
   const silentModifier = silent ? 'SILENT ' : ''
-
   return raw(`SERVICE ${silentModifier}${endpointRef} { ${pattern.value} }`)
 }
 
@@ -1620,7 +1608,8 @@ export function service(
  * ```
  */
 export function definePrefix(name: string, iri: string): SparqlValue {
-  return raw(`PREFIX ${name}: <${iri}>`)
+  const endpoint = toPredicateName(iri)
+  return raw(`PREFIX ${name}: ${endpoint}`)
 }
 
 // ============================================================================

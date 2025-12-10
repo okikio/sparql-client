@@ -52,6 +52,8 @@ async function countPeople() {
     const result = await select([count().as('total')])
       .prefix('foaf', FOAF._namespace)
       .where(person)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?total')
       .execute(config)
 
     const rows = transformResults(result)
@@ -78,6 +80,8 @@ async function countByAge() {
     ])
       .prefix('foaf', FOAF._namespace)
       .where(person)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?age')
       .orderBy('?count', 'DESC')
       .execute(config)
 
@@ -104,6 +108,8 @@ async function countUniqueNames() {
     ])
       .prefix('foaf', FOAF._namespace)
       .where(person)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?uniqueNames')
       .execute(config)
 
     const rows = transformResults(result)
@@ -132,6 +138,8 @@ async function numericAggregations() {
     ])
       .prefix('foaf', FOAF._namespace)
       .where(person)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?age')
       .execute(config)
 
     const rows = transformResults(result)
@@ -165,6 +173,8 @@ async function concatenateNames() {
       .where(person)
       .where(friend)
       .where(knows)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?personName')
       .orderBy('?personName')
       .execute(config)
 
@@ -193,6 +203,8 @@ async function sampleValues() {
     ])
       .prefix('foaf', FOAF._namespace)
       .where(person)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?age')
       .orderBy('?age')
       .execute(config)
 
@@ -229,6 +241,8 @@ async function complexAggregation() {
       .where(person)
       .where(friend)
       .where(knows)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?name', '?age')
       .orderBy('?friendCount', 'DESC')
       .limit(10)
       .execute(config)
@@ -264,6 +278,8 @@ async function countComicsByPublisher() {
       .where(comic)
       .where(publisher)
       .where(publishedBy)
+      // 🔧 NEW: make the aggregation legal in Blazegraph
+      .groupBy('?publisherName')
       .orderBy('?comicCount', 'DESC')
       .limit(20)
       .execute(config)
