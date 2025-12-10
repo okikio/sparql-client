@@ -24,16 +24,19 @@
  */
 
 import {
-  raw,
+  rawPattern,
   validatePrefixName,
   validateIRI,
-  toRawString,
   isSparqlValue,
+  toRawString,
   toVarToken,
   toVarOrIriRef,
   toGraphRef,
   type SparqlValue,
   type VariableName,
+  type PatternValue,
+  type SparqlTerm,
+  SparqlExpr,
 } from './sparql.ts'
 import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
 import { bind, filter, optional } from './utils.ts'
@@ -45,7 +48,7 @@ import { bind, filter, optional } from './utils.ts'
 /**
  * Pattern-like input for WHERE/OPTIONAL/UNION clauses.
  */
-export type PatternLike = string | SparqlValue
+export type PatternLike = string | SparqlExpr | SparqlTerm
 
 /**
  * Variables to select in query results.
@@ -180,7 +183,7 @@ export class QueryBuilder {
   /**
    * Start a DESCRIBE query.
    */
-  static describe(resources: (string | SparqlValue)[]): QueryBuilder {
+  static describe(resources: PatternLike[]): QueryBuilder {
     return new QueryBuilder({
       ...initialState,
       type: 'DESCRIBE',
@@ -415,7 +418,7 @@ export class QueryBuilder {
    * @param varName - Variable name (validated)
    * @param vals - Values to match against (should be SparqlValue objects)
    */
-  values(varName: VariableName, vals: SparqlValue[]): QueryBuilder {
+  values(varName: VariableName, vals: SparqlTerm[]): QueryBuilder {
     const name = toVarToken(varName)
     const valuesMap = new Map(this.state.values || [])
     valuesMap.set(name, vals)
@@ -429,8 +432,8 @@ export class QueryBuilder {
   /**
    * Wrap this query as a subquery for nesting.
    */
-  asSubquery(): SparqlValue {
-    return raw(`{ ${this.build().value} }`)
+  asSubquery(): PatternValue {
+    return rawPattern(`{ ${this.build().value} }`)
   }
 
   // --------------------------------------------------------------------------
@@ -440,7 +443,7 @@ export class QueryBuilder {
   /**
    * Build the final SPARQL query string.
    */
-  build(): SparqlValue {
+  build(): PatternValue {
     const parts: string[] = []
 
     // PREFIX declarations
@@ -581,7 +584,7 @@ export class QueryBuilder {
       parts.push(`OFFSET ${this.state.offset}`)
     }
 
-    return raw(parts.join('\n'))
+    return rawPattern(parts.join('\n'))
   }
 
   /**

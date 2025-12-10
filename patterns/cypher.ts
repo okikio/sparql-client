@@ -15,7 +15,7 @@
  * @module
  */
 
-import { raw, toPredicateName, type SparqlValue } from '../sparql.ts'
+import { rawPattern, toPredicateName, type SparqlTerm, type PatternValue, } from '../sparql.ts'
 import { Node } from './objects.ts'
 
 /**
@@ -77,8 +77,8 @@ import { Node } from './objects.ts'
  */
 export function cypher(
   strings: TemplateStringsArray,
-  ...values: Array<Node | SparqlValue>
-): SparqlValue {
+  ...values: Array<Node | SparqlTerm>
+): PatternValue {
   let result = strings[0]
   const nodes: Node[] = []
 
@@ -118,5 +118,5 @@ export function cypher(
     triples.push(`${fromVar} ${predicate} ${toVar} .`)
   }
 
-  return raw(`${triples.join('\n')}`)
+  return rawPattern(`${triples.join('\n')}`)
 }

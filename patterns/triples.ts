@@ -11,9 +11,9 @@
  * @module
  */
 
-import { isSparqlValue, toVarToken } from '../sparql.ts'
-import { raw, type VariableName, type SparqlValue, toPredicateName, toRawString } from '../sparql.ts'
-import { exprTermString, termString, type ExpressionPrimitive } from '../utils.ts'
+import { isSparqlValue, toVarToken, type SparqlExpr, type SparqlTerm } from '../sparql.ts'
+import { raw, toPredicateName, toRawString, type SparqlValue, } from '../sparql.ts'
+import { termString, type ExpressionPrimitive } from '../utils.ts'
 
 // ============================================================================
 // Triple Component Types
@@ -25,7 +25,7 @@ import { exprTermString, termString, type ExpressionPrimitive } from '../utils.t
  * Can be a variable (?person), an IRI (<http://...>), or a blank node.
  * Most often you'll use variables to match multiple resources.
  */
-export type TripleSubject = VariableName | SparqlValue
+export type TripleSubject = string | SparqlTerm
 
 /**
  * Predicate of a triple pattern.
@@ -33,7 +33,7 @@ export type TripleSubject = VariableName | SparqlValue
  * Can be a prefixed name (foaf:name), full IRI, or variable. Predicates
  * describe relationships or properties.
  */
-export type TriplePredicate = string | SparqlValue
+export type TriplePredicate = string | SparqlTerm
 
 /**
  * Values that are allowed in the object position of a triple, per SPARQL.
@@ -48,8 +48,7 @@ export type TriplePredicate = string | SparqlValue
  * lists `[ ... ]` via additional SparqlValue kinds.)
  */
 export type TripleObject =
-  | VariableName
-  | SparqlValue  // but only certain `kind`s, enforced at runtime
+  | SparqlTerm  // but only certain `kind`s, enforced at runtime
   | ExpressionPrimitive
 
 /**
@@ -110,7 +109,7 @@ export function triple(
   subject: TripleSubject,
   predicate: TriplePredicate,
   object: TripleObject,
-): SparqlValue {
+): SparqlExpr {
   const s = tripleSubjectString(subject)
   const p = toPredicateName(toRawString(predicate))
   const o = tripleObjectString(object)
@@ -184,7 +183,7 @@ export type PredicateObjectMap = Record<
 export function triples(
   subject: TripleSubject,
   predicateObjects: PredicateObjectList | PredicateObjectMap,
-): SparqlValue {
+): SparqlExpr {
   const subjectTerm = tripleSubjectString(subject)
 
   // 4 spaces; 2 (block) + 2 (extra)
@@ -274,10 +273,10 @@ export function triples(
  * ```
  */
 export function quotedTriple(
-  subject: string | SparqlValue,
-  predicate: string | SparqlValue,
-  object: SparqlValue | ExpressionPrimitive
-): SparqlValue {
+  subject: TripleSubject,
+  predicate: TriplePredicate,
+  object: TripleObject,
+): SparqlExpr {
   const s = tripleSubjectString(subject)
   const p = toPredicateName(toRawString(predicate))
   const o = tripleObjectString(object)

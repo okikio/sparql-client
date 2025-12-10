@@ -23,7 +23,12 @@ import {
   raw,
   variable,
   SPARQL_VALUE_BRAND,
+  SPARQL_PATTERN_BRAND,
   type SparqlValue,
+  type SparqlTerm,
+  type PatternValue,
+  rawTerm,
+  rawPattern,
 } from '../sparql.ts'
 import { exprTermString } from '../utils.ts'
 
@@ -185,9 +190,11 @@ export interface NodePropertyMap {
  *   )
  * ```
  */
-export class Node implements SparqlValue {
-  readonly [SPARQL_VALUE_BRAND] = true
-  readonly subjectTerm: SparqlValue
+export class Node implements PatternValue {
+  readonly [SPARQL_VALUE_BRAND] = true as const
+  readonly [SPARQL_PATTERN_BRAND] = true as const
+  
+  readonly subjectTerm: SparqlTerm
   private readonly varName: string
   private readonly typesTerm: TriplePredicate[] = []
   private readonly properties: NodePropertyMap = {}
@@ -230,7 +237,7 @@ export class Node implements SparqlValue {
    * Use this when you need to reference the node as an object in another triple.
    * For example, when connecting two nodes with a relationship.
    */
-  term(): SparqlValue {
+  term(): SparqlTerm {
     return this.subjectTerm
   }
 
@@ -295,7 +302,7 @@ export class Node implements SparqlValue {
    * node('product').prop('schema:publisher', node('publisher', 'schema:Organization'))
    * ```
    */
-  prop(predicate: string | SparqlValue, value: TripleObject | TripleObject[]): this {
+  prop(predicate: TriplePredicate, value: PropertyValue): this {
     const key = typeof predicate === 'string' ? predicate : predicate.value
     const existing = this.properties[key]
     
@@ -332,7 +339,7 @@ export class Node implements SparqlValue {
    * })
    * ```
    */
-  props(map: Record<string, TripleObject | TripleObject[]>): this {
+  props(map: NodePropertyMap): this {
     for (const [key, value] of Object.entries(map)) {
       this.prop(key, value)
     }
@@ -358,7 +365,7 @@ export class Node implements SparqlValue {
     // Add rdf:type triples
     if (this.typesTerm.length > 0) {
       const typeObjs: TripleObject[] = this.typesTerm.map((t) =>
-        typeof t === 'string' ? raw(t) : t.value,
+        typeof t === 'string' ? rawTerm(t) : t.value,
       )
 
       const existing =
@@ -428,10 +435,10 @@ export class Node implements SparqlValue {
    * 
    * Call this to get the complete pattern including all nested nodes.
    */
-  pattern(): SparqlValue {
+  pattern(): PatternValue {
     const visited = new Set<Node>()
     const text = this.buildPatternInternal(visited)
-    return raw(text)
+    return rawPattern(text)
   }
 
   /**
@@ -578,8 +585,10 @@ export interface RelationshipPropertyMap {
  *   .where(friend2Rel)
  * ```
  */
-export class Relationship implements SparqlValue {
-  readonly [SPARQL_VALUE_BRAND] = true
+export class Relationship implements PatternValue {
+  readonly [SPARQL_VALUE_BRAND] = true as const
+  readonly [SPARQL_PATTERN_BRAND] = true as const
+
   private readonly fromNode?: Node
   private readonly toNode?: Node
   private readonly fromTerm: TripleSubject
@@ -595,7 +604,7 @@ export class Relationship implements SparqlValue {
   constructor(
     from: Node | TripleSubject,
     predicate: TriplePredicate,
-    to: Node | TripleSubject,
+    to: Node | string | SparqlTerm,
   ) {
     if (from instanceof Node) {
       this.fromNode = from
@@ -634,7 +643,7 @@ export class Relationship implements SparqlValue {
    * rel('person', 'knows', 'friend').prop('timestamp', dateTime(new Date()))
    * ```
    */
-  prop(predicate: string | SparqlValue, value: TripleObject | TripleObject[]): this {
+  prop(predicate: TriplePredicate, value: PropertyValue): this {
     const key = typeof predicate === 'string' ? predicate : predicate.value
     const existing = this.properties[key]
     
@@ -648,6 +657,19 @@ export class Relationship implements SparqlValue {
       }
     } else {
       this.properties[key] = Array.isArray(value) ? [existing, ...value] : [existing, value]
+    }
+    return this
+  }
+
+  /**
+   * Add multiple properties at once.
+   * 
+   * Convenient when you have several properties to set. Just pass an object
+   * where keys are predicates and values are objects.
+   */
+  props(map: RelationshipPropertyMap): this {
+    for (const [key, value] of Object.entries(map)) {
+      this.prop(key, value)
     }
     return this
   }
@@ -679,20 +701,20 @@ export class Relationship implements SparqlValue {
 
     // Reify with properties
     const edgeId = this.getEdgeId()
-    const poMap: RelationshipPropertyMap = {
+    const poMap: PredicateObjectMap = {
       // `a` = `rdf:type`
-      'a': raw('rdf:Statement'),
+      'a': rawTerm('rdf:Statement'),
       'rdf:subject': this.fromTerm,
       'rdf:predicate': typeof this.predicate === 'string' 
-        ? raw(this.predicate) 
+        ? rawTerm(this.predicate) 
         : this.predicate,
       'rdf:object': this.toTerm,
       ...this.properties,
     }
 
-    const edgeTriples = triples(raw(edgeId), poMap)
+    const edgeTriples = triples(rawTerm(edgeId), poMap)
 
-    return raw(`${base.value}\n  ${edgeTriples.value}`)
+    return rawPattern(`${base.value}\n  ${edgeTriples.value}`)
   }
 
   get value(): string {

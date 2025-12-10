@@ -6,8 +6,6 @@ import {
   node,
   select,
   variable,
-  regex,
-  v,
   type ExecutionConfig,
 } from '../mod.ts'
 

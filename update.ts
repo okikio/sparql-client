@@ -34,7 +34,7 @@
  * @module
  */
 
-import { raw, sparql, SPARQL_VALUE_BRAND, toGraphRef, toGraphRefAll, toVarOrIriRef, type SparqlValue } from './sparql.ts'
+import { raw, sparql, SPARQL_EXPR_BRAND, SPARQL_VALUE_BRAND, toGraphRef, toGraphRefAll, toVarOrIriRef, type SparqlValue } from './sparql.ts'
 import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
 
 // ============================================================================
@@ -289,7 +289,7 @@ export class UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'LOAD', data: { [SPARQL_VALUE_BRAND]: true, value: toGraphRef(url) }, graph: graph ? toVarOrIriRef(graph) : graph, silent }
+        { type: 'LOAD', data: { [SPARQL_VALUE_BRAND]: true, [SPARQL_EXPR_BRAND]: true, value: toGraphRef(url) }, graph: graph ? toVarOrIriRef(graph) : graph, silent }
       ]
     })
   }
