@@ -17,18 +17,19 @@
  */
 
 import {
-  normalizeVariableName,
+  toVarToken,
+  toPredicateName,
+  toRawString,
   raw,
   variable,
   SPARQL_VALUE_BRAND,
   type SparqlValue,
 } from '../sparql.ts'
+import { exprTermString } from '../utils.ts'
 
 import { 
   triples,
   triple,
-  tripleSubjectString,
-  triplePredicateString,
   type TripleSubject,
   type TriplePredicate,
   type TripleObject,
@@ -199,11 +200,10 @@ export class Node implements SparqlValue {
   get has(): this { return this }
 
   constructor(subject: TripleSubject, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap) {
-    const subjectString = tripleSubjectString(subject)
-    const variableName = normalizeVariableName(subjectString.trim())
+    const subjectString = toVarToken(subject)
     
-    this.varName = variableName
-    this.subjectTerm = variable(variableName)
+    this.varName = subjectString
+    this.subjectTerm = variable(subjectString)
 
     if (type) {
       if (Array.isArray(type)) {
@@ -601,16 +601,14 @@ export class Relationship implements SparqlValue {
       this.fromNode = from
       this.fromTerm = from.term()
     } else {
-      const fromString = tripleSubjectString(from)
-      this.fromTerm = variable(normalizeVariableName(fromString.trim()))
+      this.fromTerm = variable(toVarToken(from))
     }
 
     if (to instanceof Node) {
       this.toNode = to
       this.toTerm = to.term()
     } else {
-      const toString = tripleSubjectString(to)
-      this.toTerm = variable(normalizeVariableName(toString.trim()))
+      this.toTerm = variable(toVarToken(to))
     }
 
     this.predicate = predicate
@@ -661,7 +659,7 @@ export class Relationship implements SparqlValue {
    * blank node identifier. Same relationship always gets the same ID.
    */
   private getEdgeId(): string {
-    const hash = simpleHash(`${tripleSubjectString(this.fromTerm)}|${triplePredicateString(this.predicate)}|${tripleSubjectString(this.toTerm)}`)
+    const hash = simpleHash(`${toVarToken(this.fromTerm)}|${toPredicateName(toRawString(this.predicate))}|${exprTermString(this.toTerm)}`)
     return `_:edge_${hash}`
   }
 
@@ -694,7 +692,7 @@ export class Relationship implements SparqlValue {
 
     const edgeTriples = triples(edgeId, poMap)
 
-    return raw(`${base.value}\n${edgeTriples.value}`)
+    return raw(`${base.value}\n  ${edgeTriples.value}`)
   }
 
   get value(): string {

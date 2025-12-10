@@ -15,7 +15,7 @@
  * @module
  */
 
-import { raw, type SparqlValue } from '../sparql.ts'
+import { raw, toPredicateName, type SparqlValue } from '../sparql.ts'
 import { Node } from './objects.ts'
 
 /**
@@ -109,13 +109,13 @@ export function cypher(
   let match
   while ((match = edgePattern.exec(result)) !== null) {
     const fromIdx = parseInt(match[1])
-    const predicate = match[2]
+    const predicate = toPredicateName(match[2])
     const toIdx = parseInt(match[3])
 
     const fromVar = nodes[fromIdx].getVarName()
     const toVar = nodes[toIdx].getVarName()
 
-    triples.push(`?${fromVar} ${predicate} ?${toVar} .`)
+    triples.push(`${fromVar} ${predicate} ${toVar} .`)
   }
 
   return raw(`${triples.join('\n')}`)

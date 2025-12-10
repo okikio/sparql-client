@@ -3,6 +3,7 @@
 import sparql, {
   raw,
   uri,
+  valuesList,
   type SparqlValue,
 } from './sparql.ts'
 import {
@@ -768,7 +769,7 @@ export async function resolveLabels(
 
     const query = sparql`
       SELECT ?uri ${raw(labelVarList)} WHERE {
-        VALUES ?uri { ${batch.map((u) => uri(u))} }
+        VALUES ?uri { ${valuesList(batch.map((u) => uri(u)))} }
         ${raw(optionalPatterns)}
       }
     `
@@ -876,7 +877,7 @@ export async function fetchProperties(
 
     const query = sparql`
       SELECT ?uri ${raw(propertyVarList)} WHERE {
-        VALUES ?uri { ${batch.map((u) => uri(u))} }
+        VALUES ?uri { ${valuesList(batch.map((u) => uri(u)))} }
         ${raw(optionalPatterns)}
       }
     `

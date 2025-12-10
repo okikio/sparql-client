@@ -34,7 +34,7 @@
  * @module
  */
 
-import { raw, sparql, SPARQL_VALUE_BRAND, type SparqlValue } from './sparql.ts'
+import { raw, sparql, SPARQL_VALUE_BRAND, toGraphRef, toGraphRefAll, toVarOrIriRef, type SparqlValue } from './sparql.ts'
 import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
 
 // ============================================================================
@@ -145,7 +145,7 @@ export class UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'INSERT_DATA', data, graph }
+        { type: 'INSERT_DATA', data, graph: graph ? toVarOrIriRef(graph) : graph }
       ]
     })
   }
@@ -177,7 +177,7 @@ export class UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'DELETE_DATA', data, graph }
+        { type: 'DELETE_DATA', data, graph: graph ? toVarOrIriRef(graph) : graph  }
       ]
     })
   }
@@ -289,7 +289,7 @@ export class UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'LOAD', data: { [SPARQL_VALUE_BRAND]: true, value: `<${url}>` }, graph, silent }
+        { type: 'LOAD', data: { [SPARQL_VALUE_BRAND]: true, value: toGraphRef(url) }, graph: graph ? toVarOrIriRef(graph) : graph, silent }
       ]
     })
   }
@@ -323,7 +323,7 @@ export class UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'CLEAR', graph, silent }
+        { type: 'CLEAR', graph: toGraphRefAll(graph), silent }
       ]
     })
   }
@@ -352,7 +352,7 @@ export class UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'DROP', graph, silent }
+        { type: 'DROP', graph: toGraphRefAll(graph), silent }
       ]
     })
   }
@@ -378,10 +378,18 @@ export class UpdateBuilder {
    * ```
    */
   create(graph: string, silent = false): UpdateBuilder {
+    const trimmed = graph.trim()
+    const upper = trimmed.toUpperCase()
+
+    const graphRef = toGraphRef(graph);      
+    if (upper === 'NAMED' || upper === 'ALL') {
+      throw new Error("Graph Ref in create() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+    
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'CREATE', graph, silent }
+        { type: 'CREATE', graph: graphRef, silent }
       ]
     })
   }
@@ -429,10 +437,26 @@ export class UpdateBuilder {
    * ```
    */
   copy(source: string, dest: string, silent = false): UpdateBuilder {
+    const src = source.trim()
+    const srcUpper = src.toUpperCase()
+
+    const destination = dest.trim()
+    const destUpper = destination.toUpperCase()
+     
+    if (srcUpper === 'NAMED' || srcUpper === 'ALL') {
+      throw new Error("Source graph ref in add() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+     
+    if (destUpper === 'NAMED' || destUpper === 'ALL') {
+      throw new Error("Destination graph ref in add() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+
+    const srcGraphRef = toGraphRef(source); 
+    const destGraphRef = toGraphRef(dest); 
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'COPY', source, dest, silent }
+        { type: 'COPY', source: srcGraphRef, dest: destGraphRef, silent }
       ]
     })
   }
@@ -480,10 +504,26 @@ export class UpdateBuilder {
    * ```
    */
   move(source: string, dest: string, silent = false): UpdateBuilder {
+    const src = source.trim()
+    const srcUpper = src.toUpperCase()
+
+    const destination = dest.trim()
+    const destUpper = destination.toUpperCase()
+     
+    if (srcUpper === 'NAMED' || srcUpper === 'ALL') {
+      throw new Error("Source graph ref in move() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+     
+    if (destUpper === 'NAMED' || destUpper === 'ALL') {
+      throw new Error("Destination graph ref in move() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+
+    const srcGraphRef = toGraphRef(source); 
+    const destGraphRef = toGraphRef(dest); 
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'MOVE', source, dest, silent }
+        { type: 'MOVE', source: srcGraphRef, dest: destGraphRef, silent }
       ]
     })
   }
@@ -533,10 +573,27 @@ export class UpdateBuilder {
    * ```
    */
   add(source: string, dest: string, silent = false): UpdateBuilder {
+    const src = source.trim()
+    const srcUpper = src.toUpperCase()
+
+    const destination = dest.trim()
+    const destUpper = destination.toUpperCase()
+     
+    if (srcUpper === 'NAMED' || srcUpper === 'ALL') {
+      throw new Error("Source graph ref in copy() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+     
+    if (destUpper === 'NAMED' || destUpper === 'ALL') {
+      throw new Error("Destination graph ref in copy() doesn't support either 'NAMED' nor 'ALL' in create statements")
+    }
+
+    const srcGraphRef = toGraphRef(source); 
+    const destGraphRef = toGraphRef(dest); 
+
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'ADD', source, dest, silent }
+        { type: 'ADD', source: srcGraphRef, dest: destGraphRef, silent }
       ]
     })
   }
@@ -567,13 +624,13 @@ export class UpdateBuilder {
 
       switch (op.type) {
         case 'INSERT_DATA': {
-          const graphClause = op.graph ? `GRAPH <${op.graph}> ` : ''
+          const graphClause = op.graph ? `GRAPH ${op.graph} ` : ''
           operations.push(`INSERT DATA { ${graphClause}${op.data!.value} }`)
           break
         }
 
         case 'DELETE_DATA': {
-          const graphClause = op.graph ? `GRAPH <${op.graph}> ` : ''
+          const graphClause = op.graph ? `GRAPH ${op.graph} ` : ''
           operations.push(`DELETE DATA { ${graphClause}${op.data!.value} }`)
           break
         }
@@ -599,45 +656,45 @@ export class UpdateBuilder {
         }
 
         case 'LOAD': {
-          const into = op.graph ? ` INTO GRAPH <${op.graph}>` : ''
+          const into = op.graph ? ` INTO GRAPH ${op.graph}` : ''
           operations.push(`LOAD ${silent}${op.data!.value}${into}`)
           break
         }
 
         case 'CLEAR': {
-          const target = op.graph === 'DEFAULT' ? 'DEFAULT' : `GRAPH <${op.graph}>`
+          const target = op.graph === 'DEFAULT' ? 'DEFAULT' : `GRAPH ${op.graph}`
           operations.push(`CLEAR ${silent}${target}`)
           break
         }
 
         case 'DROP': {
-          const target = op.graph === 'DEFAULT' ? 'DEFAULT' : `GRAPH <${op.graph}>`
+          const target = op.graph === 'DEFAULT' ? 'DEFAULT' : `GRAPH ${op.graph}`
           operations.push(`DROP ${silent}${target}`)
           break
         }
 
         case 'CREATE': {
-          operations.push(`CREATE ${silent}GRAPH <${op.graph}>`)
+          operations.push(`CREATE ${silent}GRAPH ${op.graph}`)
           break
         }
 
         case 'COPY': {
-          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `<${op.source}>`
-          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `<${op.dest}>`
+          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `<${op.source}`
+          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `<${op.dest}`
           operations.push(`COPY ${silent}${sourceRef} TO ${destRef}`)
           break
         }
 
         case 'MOVE': {
-          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `<${op.source}>`
-          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `<${op.dest}>`
+          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `${op.source}`
+          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `${op.dest}`
           operations.push(`MOVE ${silent}${sourceRef} TO ${destRef}`)
           break
         }
 
         case 'ADD': {
-          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `<${op.source}>`
-          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `<${op.dest}>`
+          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `${op.source}`
+          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `${op.dest}`
           operations.push(`ADD ${silent}${sourceRef} TO ${destRef}`)
           break
         }

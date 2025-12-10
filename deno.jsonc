@@ -6,6 +6,7 @@
     ".": "./mod.ts",
     "./sparql": "./sparql.ts",
     "./utils": "./utils.ts",
+    "./namespaces": "./namespaces.ts",
     "./executor": "./executor.ts",
     "./builder": "./builder.ts",
     "./update": "./update.ts",

@@ -25,16 +25,18 @@
 
 import {
   raw,
-  normalizeVariableName,
-  validateVariableName,
   validatePrefixName,
   validateIRI,
   toRawString,
   isSparqlValue,
+  toVarToken,
+  toVarOrIriRef,
+  toGraphRef,
   type SparqlValue,
   type VariableName,
 } from './sparql.ts'
 import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
+import { bind, filter, optional } from './utils.ts'
 
 // ============================================================================
 // Core Query Types
@@ -87,52 +89,15 @@ function processProjectionItem(item: PatternLike): string {
   const str = item.trim()
   
   // Already looks like a variable
-  const name = normalizeVariableName(str)
-  validateVariableName(name)
-  return `?${name}`
+  return toVarToken(str)
 }
 
 /**
- * Process an ORDER BY variable.
+ * Process an DESCRIBE statement.
  */
-function processOrderByVariable(varName: string): string {
-  const str = varName.trim()
-
-  // Already looks like a variable
-  const name = normalizeVariableName(str)
-  validateVariableName(name)
-  return `?${name}`
-}
-
-// ============================================================================
-// FILTER, OPTIONAL, BIND helpers
-// ============================================================================
-
-/**
- * Wrap an expression in a FILTER clause.
- */
-export function filter(expression: SparqlValue): SparqlValue {
-  return raw(`FILTER(${expression.value})`)
-}
-
-/**
- * Wrap a pattern in an OPTIONAL block.
- */
-export function optional(pattern: SparqlValue): SparqlValue {
-  return raw(`OPTIONAL { ${pattern.value} }`)
-}
-
-/**
- * Create a BIND expression.
- */
-export function bind(expression: SparqlValue, varName?: string): SparqlValue {
-  if (!varName) {
-    return raw(`BIND(${expression.value})`)
-  }
-  
-  const normalized = normalizeVariableName(varName)
-  validateVariableName(normalized)
-  return raw(`BIND(${expression.value} AS ?${normalized})`)
+function processDescribeItem(item: PatternLike): string {
+  if (isSparqlValue(item)) return item.value
+  return toVarOrIriRef(item) // <- grammar helper
 }
 
 // ============================================================================
@@ -233,12 +198,11 @@ export class QueryBuilder {
    * @param graphIRI - Full IRI of the graph (validated)
    */
   from(graphIRI: string | SparqlValue): QueryBuilder {
-    const iri = toRawString(graphIRI)
-    validateIRI(iri)
+    const graphRef = toGraphRef(graphIRI)
     
     return new QueryBuilder({
       ...this.state,
-      from: [...(this.state.from || []), iri],
+      from: [...(this.state.from || []), graphRef],
     })
   }
 
@@ -248,12 +212,11 @@ export class QueryBuilder {
    * @param graphIRI - Full IRI of the named graph (validated)
    */
   fromNamed(graphIRI: string | SparqlValue): QueryBuilder {
-    const iri = toRawString(graphIRI)
-    validateIRI(iri)
+    const graphRef = toGraphRef(graphIRI)
     
     return new QueryBuilder({
       ...this.state,
-      fromNamed: [...(this.state.fromNamed || []), iri],
+      fromNamed: [...(this.state.fromNamed || []), graphRef],
     })
   }
 
@@ -340,7 +303,7 @@ export class QueryBuilder {
    */
   bind(expression: SparqlValue, asVariable?: VariableName): QueryBuilder {
     const bindValue = asVariable
-      ? bind(expression, normalizeVariableName(asVariable))
+      ? bind(expression, asVariable)
       : bind(expression)
 
     return new QueryBuilder({
@@ -365,11 +328,7 @@ export class QueryBuilder {
    * @param variables - Variable names to group by (validated)
    */
   groupBy(...variables: VariableName[]): QueryBuilder {
-    const normalized = variables.map(v => {
-      const name = normalizeVariableName(v)
-      validateVariableName(name)
-      return `?${name}`
-    })
+    const normalized = variables.map(v => toVarToken(v))
     
     return new QueryBuilder({
       ...this.state,
@@ -394,9 +353,7 @@ export class QueryBuilder {
    * @param direction - Sort direction (ASC or DESC)
    */
   orderBy(variable: VariableName, direction?: SortDirection): QueryBuilder {
-    const varStr = processOrderByVariable(
-      isSparqlValue(variable) ? variable.value : variable
-    )
+    const varStr = toVarToken(variable)
     
     return new QueryBuilder({
       ...this.state,
@@ -459,9 +416,7 @@ export class QueryBuilder {
    * @param vals - Values to match against (should be SparqlValue objects)
    */
   values(varName: VariableName, vals: SparqlValue[]): QueryBuilder {
-    const name = normalizeVariableName(varName)
-    validateVariableName(name)
-    
+    const name = toVarToken(varName)
     const valuesMap = new Map(this.state.values || [])
     valuesMap.set(name, vals)
     
@@ -520,23 +475,23 @@ export class QueryBuilder {
     } else if (this.state.type === 'DESCRIBE') {
       const projection = Array.isArray(this.state.projection)
         ? (this.state.projection as PatternLike[])
-            .map(x => processProjectionItem(x))
+            .map(x => processDescribeItem(x))
             .join(' ')
-        : processProjectionItem(this.state.projection as PatternLike)
+        : processDescribeItem(this.state.projection as PatternLike)
       parts.push(`DESCRIBE ${projection}`)
     }
 
     // FROM clauses (IRIs already validated)
     if (this.state.from) {
       for (const graph of this.state.from) {
-        parts.push(`FROM <${graph}>`)
+        parts.push(`FROM ${graph}`)
       }
     }
 
     // FROM NAMED clauses (IRIs already validated)
     if (this.state.fromNamed) {
       for (const graph of this.state.fromNamed) {
-        parts.push(`FROM NAMED <${graph}>`)
+        parts.push(`FROM NAMED ${graph}`)
       }
     }
 
@@ -555,7 +510,7 @@ export class QueryBuilder {
       if (this.state.values) {
         for (const [varName, vals] of this.state.values.entries()) {
           const valueStrs = vals.map(v => v.value).join(' ')
-          parts.push(`  VALUES ?${varName} { ${valueStrs} }`)
+          parts.push(`  VALUES ${varName} { ${valueStrs} }`)
         }
       }
 

@@ -115,6 +115,273 @@ export function isSparqlValue(value: unknown): value is SparqlValue {
     (value as SparqlValue)[SPARQL_VALUE_BRAND] === true
   )
 }
+/**
+ * Extract the raw string from a SparqlValue or return the string as-is.
+ * 
+ * Use this when you need the underlying string value without any conversion.
+ * This is for SYNTAX elements that should pass through unchanged.
+ */
+export function toRawString(value: string | SparqlValue): string {
+  return isSparqlValue(value) ? value.value : value
+}
+
+// ============================================================================
+// Grammar helpers (Var / IRI / VarOrIriRef / GraphRef / GraphRefAll)
+// ============================================================================
+
+/**
+ * Check if a string is already a SPARQL variable token (`?name` or `$name`).
+ *
+ * This corresponds to the VAR1 / VAR2 productions in the SPARQL grammar.
+ */
+export function isVariableToken(value: string): boolean {
+  const trimmed = value.trim()
+  // ASCII-friendly subset of VARNAME; you already restrict variable names
+  // via validateVariableName, so this just checks the leading sigil.
+  return /^[?$][A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)
+}
+
+/**
+ * Normalise to a canonical `?var` token.
+ *
+ * Accepts:
+ * - `"name"`
+ * - `"?name"`
+ * - `"$name"`
+ * - `SparqlValue` that wraps a variable token
+ *
+ * Enforces your existing variable naming rules via validateVariableName().
+ */
+export function toVarToken(name: VariableName): string {
+  const normalized = normalizeVariableName(name)
+  validateVariableName(normalized)
+  return `?${normalized}`
+}
+
+/**
+ * Check whether a string already looks like an IRIref token: `<http://...>`.
+ *
+ * This is the lexical `<IRIref>` form from the grammar.
+ */
+export function isIRIRefToken(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed.startsWith('<') && trimmed.endsWith('>') && trimmed.length > 2
+}
+
+/**
+ * Normalise something that should behave like an IRI or prefixed name.
+ *
+ * This is the common primitive for:
+ * - `iri` (when the user passes a bare IRI)
+ * - `PrefixedName`
+ * - The `iri` branch of `VarOrIriRef` and `GraphRef`
+ *
+ * Behaviour:
+ * - If it's already `<...>`, we validate the inner IRI and return as-is.
+ * - Else we first try treating it as an absolute IRI (validateIRI).
+ * - If that fails, we treat it as a prefixed name and validate that.
+ *
+ * This gives you a clean lexical token suitable for query text.
+ */
+export function toIriLikeToken(value: string): string {
+  const trimmed = value.trim()
+
+  // Already <IRI> → validate inner and return.
+  if (isIRIRefToken(trimmed)) {
+    const inner = trimmed.slice(1, -1)
+    validateIRI(inner)
+    return trimmed
+  }
+
+  // Try as absolute IRI first (scheme:...)
+  try {
+    validateIRI(trimmed)
+    return `<${trimmed}>`
+  } catch {
+    // Not a valid absolute IRI → fall through to prefixed
+  }
+
+  // Treat as prefixed name `prefix:local`
+  validatePrefixedName(trimmed)
+  return trimmed
+}
+
+/**
+ * SPARQL 1.1 `VarOrIriRef`:
+ *
+ *   VarOrIriRef ::= Var | iri
+ *
+ * This is the thing used in:
+ *   GRAPH VarOrIriRef { ... }
+ *   SERVICE VarOrIriRef { ... }  (depending on implementation)
+ *
+ * Semantics:
+ * - If you pass a SparqlValue, we assume it's already a correct token and
+ *   just return `.value`.
+ * - If you pass a string:
+ *   - `?name` / `$name` → normalised to `?name`
+ *   - `name` with no colon → treated as variable name → `?name`
+ *   - anything else → treated as IRI/prefixed name via toIriLikeToken()
+ */
+export function toVarOrIriRef(input: string | SparqlValue): string {
+  if (isSparqlValue(input)) {
+    // Caller is responsible for providing a syntactically correct token.
+    return input.value
+  }
+
+  const trimmed = input.trim()
+
+  // Explicit variable tokens (?name / $name)
+  if (isVariableToken(trimmed)) {
+    return toVarToken(trimmed)
+  }
+
+  // No colon at all → ambiguous; we follow your existing conventions and
+  // treat this as a variable name rather than an IRI or prefixed name.
+  if (!trimmed.includes(':')) {
+    return toVarToken(trimmed)
+  }
+
+  // With a colon → interpret as IRI / prefixed via existing validators.
+  return toIriLikeToken(trimmed)
+}
+
+/**
+ * SPARQL 1.1 Update `GraphRef`:
+ *
+ *   GraphRef ::= iri
+ *
+ * This is used in DATA, WITH, USING, etc. Unlike GRAPH patterns in queries,
+ * GraphRef does *not* allow variables – only IRIs.
+ *
+ * We therefore:
+ * - Reject obvious variable tokens (`?name` / `$name`)
+ * - Normalise to `<IRI>` or `prefix:local`
+ */
+export function toGraphRef(input: string | SparqlValue): string {
+  if (isSparqlValue(input)) {
+    // Assume the caller built a correct IRI/prefixed token.
+    return input.value
+  }
+
+  const trimmed = input.trim()
+
+  if (isVariableToken(trimmed)) {
+    throw new Error(
+      `GraphRef must be an IRI, not a variable: ${trimmed}`,
+    )
+  }
+
+  return toIriLikeToken(trimmed)
+}
+
+/**
+ * SPARQL 1.1 Update `GraphRefAll`:
+ *
+ *   GraphRefAll ::= GraphRef | 'DEFAULT' | 'NAMED' | 'ALL'
+ *
+ * Used in operations like:
+ *   CLEAR DEFAULT
+ *   DROP NAMED
+ *   DROP ALL
+ *   DROP GRAPH <iri>
+ *
+ * This helper:
+ * - Accepts 'default' | 'named' | 'all' in any case and normalises them.
+ * - Otherwise, falls back to a strict GraphRef (IRI) via toGraphRef().
+ */
+export type GraphRefAllKeyword = 'DEFAULT' | 'NAMED' | 'ALL'
+
+export function toGraphRefAll(input: string | SparqlValue): string {
+  if (isSparqlValue(input)) {
+    return input.value
+  }
+
+  const trimmed = input.trim()
+  const upper = trimmed.toUpperCase()
+
+  if (upper === 'DEFAULT' || upper === 'NAMED' || upper === 'ALL') {
+    return upper
+  }
+
+  return toGraphRef(trimmed)
+}
+
+/**
+ * Parsed representation of a VarOrIriRef.
+ *
+ * This is useful when you need to *inspect* what you got back from user
+ * input or higher-level code, rather than just drop it into the query string.
+ */
+export type ParsedVarOrIriRef =
+  | {
+      kind: 'var'
+      /** Name without the leading '?' */
+      name: string
+      /** Canonical variable token (`?name`) */
+      token: string
+    }
+  | {
+      kind: 'iri'
+      /** The IRI *without* angle brackets */
+      iri: string
+      /** Lexical token, usually `<iri>` */
+      token: string
+    }
+  | {
+      kind: 'prefixed'
+      prefix: string
+      local: string
+      /** Lexical token like `prefix:local` */
+      token: string
+    }
+
+/**
+ * Parse a VarOrIriRef into a structured representation.
+ *
+ * Under the hood this first normalises via toVarOrIriRef(), so you get
+ * the same semantics as the rest of the builder.
+ */
+export function parseVarOrIriRef(
+  input: string | SparqlValue,
+): ParsedVarOrIriRef {
+  const token = toVarOrIriRef(input)
+
+  if (isVariableToken(token)) {
+    return {
+      kind: 'var',
+      name: token.slice(1),
+      token,
+    }
+  }
+
+  if (isIRIRefToken(token)) {
+    return {
+      kind: 'iri',
+      iri: token.slice(1, -1),
+      token,
+    }
+  }
+
+  const idx = token.indexOf(':')
+
+  if (idx > 0) {
+    return {
+      kind: 'prefixed',
+      prefix: token.slice(0, idx),
+      local: token.slice(idx + 1),
+      token,
+    }
+  }
+
+  // Fallback – in practice toVarOrIriRef() shouldn't produce this,
+  // but we keep a safe default that still lets you use the token.
+  return {
+    kind: 'iri',
+    iri: token,
+    token,
+  }
+}
 
 /**
  * Wrap a raw SPARQL snippet as a `SparqlValue`.
@@ -141,16 +408,6 @@ export function raw(value: string): SparqlValue {
     [SPARQL_VALUE_BRAND]: true,
     value,
   }
-}
-
-/**
- * Extract the raw string from a SparqlValue or return the string as-is.
- * 
- * Use this when you need the underlying string value without any conversion.
- * This is for SYNTAX elements that should pass through unchanged.
- */
-export function toRawString(value: string | SparqlValue): string {
-  return isSparqlValue(value) ? value.value : value
 }
 
 // ============================================================================

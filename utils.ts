@@ -29,6 +29,12 @@ import {
   variable,
   toPredicateName,
   toRawString,
+  toVarOrIriRef,
+  toVarToken,
+  PrefixName,
+  validatePrefixName,
+  validateIRI,
+  isIRIRefToken,
   SPARQL_VALUE_BRAND,
   type VariableName,
   type SparqlValue,
@@ -62,11 +68,9 @@ export function values(
   varName: VariableName,
   items: SparqlInterpolatable[]
 ): SparqlValue {
-  const _var = normalizeVariableName(varName)
-  validateVariableName(_var)
-
+  const _var = toVarToken(varName)
   const converted = items.map((item) => convertValue(item)).join(' ')
-  return raw(`VALUES ?${_var} { ${converted} }`)
+  return raw(`VALUES ${_var} { ${converted} }`)
 }
 
 /**
@@ -142,9 +146,8 @@ export function optional(pattern: SparqlValue): SparqlValue {
 export function bind(expression: SparqlValue, varName?: VariableName): SparqlValue {
   if (!varName) return raw(`BIND(${expression.value})`);
 
-  const _varName = normalizeVariableName(varName)
-  validateVariableName(_varName)
-  return raw(`BIND(${expression.value} AS ?${_varName})`)
+  const normalized = toVarToken(varName)
+  return raw(`BIND(${expression.value} AS ${normalized})`)
 }
 
 /**
@@ -741,9 +744,12 @@ export function isLiteral(
 export function and(
   ...conditions: SparqlValue[]
 ): SparqlValue {
-  if (conditions.length === 0) return raw('true')
-  if (conditions.length === 1) return conditions[0]
-  return raw(conditions.map((c) => c.value).join(' && '))
+  const filtered = conditions.filter(Boolean)
+
+  if (filtered.length === 0) throw new Error('and() requires at least one condition')
+  if (filtered.length === 1) return filtered[0]
+
+  return raw(filtered.map((c) => `(${c.value})`).join(' && '))
 }
 
 /**
@@ -764,9 +770,12 @@ export function and(
 export function or(
   ...conditions: SparqlValue[]
 ): SparqlValue {
-  if (conditions.length === 0) return raw('false')
-  if (conditions.length === 1) return conditions[0]
-  return raw(conditions.map((c) => c.value).join(' || '))
+  const filtered = conditions.filter(Boolean)
+
+  if (filtered.length === 0) throw new Error('or() requires at least one condition')
+  if (filtered.length === 1) return filtered[0]
+
+  return raw(conditions.map((c) => `(${c.value})`).join(' || '))
 }
 
 /**
@@ -1117,10 +1126,9 @@ function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPr
     [SPARQL_VALUE_BRAND]: true,
     value: baseValue,
     as(variable: string): SparqlValue {
-      const varName = normalizeVariableName(variable)
-      validateVariableName(varName)
+      const varName = toVarToken(variable)
       // SPARQL 1.1 requires (Expression AS ?var) in SELECT
-      return raw(`(${baseValue} AS ?${varName})`)
+      return raw(`(${baseValue} AS ${varName})`)
     }
   }
 
@@ -1248,43 +1256,76 @@ export function groupConcat(
 // GRAPH Patterns
 // ============================================================================
 
+export function toGraphRefName(name: string): string {
+  // Variable: ?g
+  if (name.startsWith('?')) return name
+
+  // Already an IRI ref: <http://...>
+  if (name.startsWith('<') && name.endsWith('>')) return name
+
+  // Full IRI with scheme: http://, https://, etc.
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(name)) {
+    return `<${name}>`
+  }
+
+  // Otherwise treat as prefixed name or bare identifier
+  // (assumes appropriate PREFIX is declared)
+  return name
+}
+
+// ============================================================================
+// GRAPH Patterns
+// ============================================================================
+
 /**
  * Create a GRAPH pattern for querying named graphs.
- * 
- * GRAPH patterns restrict triples to a specific named graph. The graph can be
- * a variable (to match across graphs) or a specific IRI. This is essential
- * for datasets that store different information in separate graphs.
- * 
+ *
+ * Under the hood this uses the VarOrIriRef grammar:
+ *
+ *   GRAPH VarOrIriRef { ... }
+ *
+ * That means the graph identifier can be:
+ * - A variable: `"g"`, `"?g"`, or `$g` → normalised to `?g`
+ * - An IRI: `"http://example.org/data"` → `<http://example.org/data>`
+ * - A prefixed name: `"ex:Graph"`
+ *
+ * It will *not* accept GraphRefAll keywords like DEFAULT/NAMED/ALL here,
+ * because those belong to the update grammar (`GraphRefAll`), not to
+ * GRAPH graph patterns in queries.
+ *
  * @param graphIri Graph IRI or variable
  * @param pattern Pattern to match within the graph
  * @returns GRAPH pattern
- * 
+ *
  * @example Query specific graph
  * ```ts
  * graph('http://example.org/data', triple('?s', '?p', '?o'))
  * // GRAPH <http://example.org/data> { ?s ?p ?o . }
  * ```
- * 
+ *
  * @example Query across named graphs
  * ```ts
  * select(['?g', '?person', '?name'])
  *   .where(graph('?g', triple('?person', 'foaf:name', '?name')))
- * // Finds all names across all graphs, telling you which graph each came from
+ * // GRAPH ?g { ?person foaf:name ?name . }
  * ```
- * 
+ *
  * @example Combine with FROM NAMED
  * ```ts
  * select(['?person', '?name'])
  *   .fromNamed('http://example.org/graph1')
  *   .where(graph('?g', triple('?person', 'foaf:name', '?name')))
- * // Only searches in the specified named graph
+ * // FROM NAMED <http://example.org/graph1>
+ * // WHERE {
+ * //   GRAPH ?g { ?person foaf:name ?name . }
+ * // }
  * ```
  */
 export function graph(
   graphIri: string | SparqlValue,
-  pattern: SparqlValue
+  pattern: SparqlValue,
 ): SparqlValue {
-  const graphRef = toPredicateName(toRawString(graphIri))
+  const graphRef = toVarOrIriRef(graphIri)
   return raw(`GRAPH ${graphRef} { ${pattern.value} }`)
 }
 
@@ -1558,7 +1599,7 @@ export function service(
   pattern: SparqlValue,
   silent = false
 ): SparqlValue {
-  const endpointRef = toPredicateName(toRawString(endpoint))
+  const endpointRef = toVarOrIriRef(endpoint)
   const silentModifier = silent ? 'SILENT ' : ''
   return raw(`SERVICE ${silentModifier}${endpointRef} { ${pattern.value} }`)
 }
@@ -1573,7 +1614,7 @@ export function service(
  * Prefixes let you write short names instead of full IRIs. They're declared
  * at the top of queries and expand to full IRIs everywhere they're used.
  * 
- * @param name Prefix name
+ * @param prefix Prefix name
  * @param iri Full IRI for the namespace
  * 
  * @example Define common prefixes
@@ -1607,9 +1648,31 @@ export function service(
  * const fullQuery = raw(`${prefixBlock}\n\n${query.build().value}`)
  * ```
  */
-export function definePrefix(name: string, iri: string): SparqlValue {
-  const endpoint = toPredicateName(iri)
-  return raw(`PREFIX ${name}: ${endpoint}`)
+export function definePrefix(prefix: PrefixName, iri: string): SparqlValue {
+  validatePrefixName(prefix)
+
+  let endpoint: string | null = null;
+  const trimmed = iri.trim()
+
+  // Already <IRI> → validate inner and return.
+  if (isIRIRefToken(trimmed)) {
+    const inner = trimmed.slice(1, -1)
+    validateIRI(inner)
+    endpoint = trimmed
+  }
+
+  // Try as absolute IRI first (scheme:...)
+  try {
+    validateIRI(trimmed)
+    endpoint = `<${trimmed}>`
+  } catch {
+    // Not a valid absolute IRI → fall through to prefixed
+  }
+
+  if (!endpoint)
+    throw new Error(`Prefix endpoint for \`PREFIX ${prefix}\: ${endpoint}\` in definePrefix() must be an IRI.`)
+
+  return raw(`PREFIX ${prefix}: ${endpoint}`)
 }
 
 // ============================================================================

@@ -11,7 +11,8 @@
  * @module
  */
 
-import { raw, type VariableName, type SparqlValue } from '../sparql.ts'
+import { toVarToken } from '../sparql.ts'
+import { raw, type VariableName, type SparqlValue, toPredicateName, toRawString } from '../sparql.ts'
 import { exprTermString, type ExpressionPrimitive } from '../utils.ts'
 
 // ============================================================================
@@ -42,23 +43,6 @@ export type TriplePredicate = string | SparqlValue
  */
 export type TripleObject = VariableName | SparqlValue | ExpressionPrimitive
 
-/**
- * Convert subject to string form.
- * 
- * Handles both raw strings and SparqlValue objects.
- */
-export function tripleSubjectString(subject: TripleSubject): string {
-  if (typeof subject === 'string') return subject
-  return subject.value
-}
-
-/**
- * Convert predicate to string form.
- */
-export function triplePredicateString(predicate: TriplePredicate): string {
-  if (typeof predicate === 'string') return predicate
-  return predicate.value
-}
 
 // ============================================================================
 // Triple Construction
@@ -97,8 +81,8 @@ export function triple(
   predicate: TriplePredicate,
   object: TripleObject,
 ): SparqlValue {
-  const s = tripleSubjectString(subject)
-  const p = triplePredicateString(predicate)
+  const s = toVarToken(subject)
+  const p = toPredicateName(toRawString(predicate))
   const o = exprTermString(object)
 
   return raw(`${s} ${p} ${o} .`)
@@ -171,7 +155,7 @@ export function triples(
   subject: TripleSubject,
   predicateObjects: PredicateObjectList | PredicateObjectMap,
 ): SparqlValue {
-  const subjectTerm = tripleSubjectString(subject)
+  const subjectTerm = toVarToken(subject)
 
   // 4 spaces; 2 (block) + 2 (extra)
   const CONTINUATION_INDENT = '    ';
@@ -191,7 +175,7 @@ export function triples(
 
   // Build semicolon-separated list
   const lines: string[] = list.map(([p, o], idx) => {
-    const pred = triplePredicateString(p)
+    const pred = toPredicateName(toRawString(p))
     const obj = exprTermString(o)
     const suffix = idx < list.length - 1 ? ' ;' : ' .'
 
@@ -215,7 +199,6 @@ export function triples(
 
   return raw(`${firstLine}\n${restLines}`)
 }
-
 
 // ============================================================================
 // SPARQL* (RDF-star)
@@ -265,8 +248,8 @@ export function quotedTriple(
   predicate: string | SparqlValue,
   object: SparqlValue | ExpressionPrimitive
 ): SparqlValue {
-  const s = typeof subject === 'string' ? subject : subject.value
-  const p = typeof predicate === 'string' ? predicate : predicate.value
+  const s = toVarToken(subject)
+  const p = toPredicateName(toRawString(predicate))
   const o = exprTermString(object)
   
   return raw(`<< ${s} ${p} ${o} >>`)
