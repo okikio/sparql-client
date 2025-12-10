@@ -690,7 +690,7 @@ export class Relationship implements SparqlValue {
       ...this.properties,
     }
 
-    const edgeTriples = triples(edgeId, poMap)
+    const edgeTriples = triples(raw(edgeId), poMap)
 
     return raw(`${base.value}\n  ${edgeTriples.value}`)
   }

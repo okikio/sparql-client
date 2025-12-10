@@ -11,9 +11,9 @@
  * @module
  */
 
-import { toVarToken } from '../sparql.ts'
+import { isSparqlValue, toVarToken } from '../sparql.ts'
 import { raw, type VariableName, type SparqlValue, toPredicateName, toRawString } from '../sparql.ts'
-import { exprTermString, type ExpressionPrimitive } from '../utils.ts'
+import { exprTermString, termString, type ExpressionPrimitive } from '../utils.ts'
 
 // ============================================================================
 // Triple Component Types
@@ -36,13 +36,43 @@ export type TripleSubject = VariableName | SparqlValue
 export type TriplePredicate = string | SparqlValue
 
 /**
- * Object of a triple pattern.
+ * Values that are allowed in the object position of a triple, per SPARQL.
+ *
+ * Object can be:
+ * - a variable
+ * - an IRI or prefixed name
+ * - a literal
+ * - a blank node
  * 
- * Can be any RDF term - variables, IRIs, literals, or blank nodes. This is
- * what the subject is related to or what value a property has.
+ * (We can later extend this to collections `( ... )` and blank-node property
+ * lists `[ ... ]` via additional SparqlValue kinds.)
  */
-export type TripleObject = VariableName | SparqlValue | ExpressionPrimitive
+export type TripleObject =
+  | VariableName
+  | SparqlValue  // but only certain `kind`s, enforced at runtime
+  | ExpressionPrimitive
 
+/**
+ * Convert subject to string form.
+ * 
+ * Handles both raw strings and SparqlValue objects.
+ */
+export function tripleSubjectString(subject: TripleSubject): string {
+  // If it's already a SparqlValue (iri, bnode, literal, raw, etc.)
+  if (isSparqlValue(subject)) {
+    return subject.value
+  }
+
+  // Otherwise, it’s a variable name like "person" or "?person"
+  return toVarToken(subject)
+}
+
+/**
+ * Convert predicate to string form.
+ */
+export function tripleObjectString(object: TripleObject): string {
+  return termString(object, 'object')
+}
 
 // ============================================================================
 // Triple Construction
@@ -81,9 +111,9 @@ export function triple(
   predicate: TriplePredicate,
   object: TripleObject,
 ): SparqlValue {
-  const s = toVarToken(subject)
+  const s = tripleSubjectString(subject)
   const p = toPredicateName(toRawString(predicate))
-  const o = exprTermString(object)
+  const o = tripleObjectString(object)
 
   return raw(`${s} ${p} ${o} .`)
 }
@@ -155,7 +185,7 @@ export function triples(
   subject: TripleSubject,
   predicateObjects: PredicateObjectList | PredicateObjectMap,
 ): SparqlValue {
-  const subjectTerm = toVarToken(subject)
+  const subjectTerm = tripleSubjectString(subject)
 
   // 4 spaces; 2 (block) + 2 (extra)
   const CONTINUATION_INDENT = '    ';
@@ -176,7 +206,7 @@ export function triples(
   // Build semicolon-separated list
   const lines: string[] = list.map(([p, o], idx) => {
     const pred = toPredicateName(toRawString(p))
-    const obj = exprTermString(o)
+    const obj = tripleObjectString(o)
     const suffix = idx < list.length - 1 ? ' ;' : ' .'
 
     // Continuation lines should be indented one level *beyond* the line
@@ -248,9 +278,9 @@ export function quotedTriple(
   predicate: string | SparqlValue,
   object: SparqlValue | ExpressionPrimitive
 ): SparqlValue {
-  const s = toVarToken(subject)
+  const s = tripleSubjectString(subject)
   const p = toPredicateName(toRawString(predicate))
-  const o = exprTermString(object)
+  const o = tripleObjectString(object)
   
   return raw(`<< ${s} ${p} ${o} >>`)
 }

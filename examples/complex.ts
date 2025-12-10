@@ -29,6 +29,8 @@ import {
 import {
   FOAF,
   RDFS,
+  SCHEMA,
+  getNamespaceIRI
 } from '../namespaces.ts'
 
 const config: ExecutionConfig = {
@@ -45,7 +47,7 @@ async function findFriendsOfFriends() {
 
   // Person A
   const personA = node('personA', 'foaf:Person')
-    .with.prop('foaf:name', str('Alice'))
+    .with.prop('foaf:name', 'Alice')
 
   // Person B (direct friend)
   const personB = node('personB', 'foaf:Person')
@@ -62,6 +64,7 @@ async function findFriendsOfFriends() {
   try {
     const result = await select(['?friendName', '?friendOfFriendName'])
       .prefix('foaf', FOAF._namespace)
+      .prefix('ex', getNamespaceIRI(SCHEMA))
       .where(personA)
       .where(personB)
       .where(personC)
@@ -93,6 +96,7 @@ async function findPeopleWithOptionalEmail() {
   try {
     const result = await select(['?name', '?email'])
       .prefix('foaf', FOAF._namespace)
+      .prefix('ex', getNamespaceIRI(SCHEMA))
       .where(person)
       .optional(emailPattern)
       .orderBy('?name')
@@ -123,9 +127,11 @@ async function countFriendsPerPerson() {
   try {
     const result = await select(['?name', count(variable('friend')).as('friendCount')])
       .prefix('foaf', FOAF._namespace)
+      .prefix('ex', getNamespaceIRI(SCHEMA))
       .where(person)
       .where(friend)
       .where(knows)
+      .groupBy("?name")
       .orderBy('?friendCount', 'DESC')
       .limit(10)
       .execute(config)
@@ -158,6 +164,7 @@ async function findCreatorsAndPublishers() {
       .prefix('narrative', "http://knowledge.graph/ontology/narrative#")
       .prefix('foaf', FOAF._namespace)
       .prefix('rdfs', RDFS._namespace)
+      .prefix('ex', getNamespaceIRI(SCHEMA))
       .union(creator, publisher)
       .orderBy('?name')
       .limit(20)
@@ -193,6 +200,7 @@ async function findHighConfidenceConnections() {
       // In your real code, you'd also wire `ex` via namespaces.ts;
       // for now we'll assume Blazegraph has PREFIX ex: already configured.
       .prefix('foaf', FOAF._namespace)
+      .prefix('ex', getNamespaceIRI(SCHEMA))
       .where(personA)
       .where(personB)
       .where(connection)

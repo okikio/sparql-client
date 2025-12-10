@@ -595,7 +595,7 @@ export function needsLongQuotes(str: string): boolean {
 /**
  * Characters that could enable SPARQL injection.
  */
-export const INJECTION_CHARS = /[<>"'\n\r\t{}]/
+export const INJECTION_CHARS = /[<>"'\n\r\t{}:]/
 
 /**
  * Validate an IRI for use in SPARQL.
@@ -1270,6 +1270,9 @@ export function toPredicateName(key: string): string {
   if (key.includes(':')) {
     return key
   }
+
+  // `a` = `rdf:type` its a common shortcut in SPARQL
+  if (key === "a") return key
 
   // Fallback: assume a default ":" prefix is bound.
   return `:${key}`

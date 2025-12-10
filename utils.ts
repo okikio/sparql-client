@@ -228,6 +228,99 @@ export function exprTermString(
 }
 
 // ============================================================================
+// Term Helpers (GraphNode / VarOrTerm for triples)
+// ============================================================================
+
+/**
+ * Positions where an RDF term (not a full expression) is required.
+ *
+ * For now we focus on triple positions; you can extend this later if
+ * you want to validate GRAPH names etc.
+ */
+export type TermPosition = 'subject' | 'object' | 'graph'
+
+/**
+ * Very small SPARQL-style validator for GraphNode/VarOrTerm lexicals.
+ *
+ * We lean on the fact that `exprTerm()` has already:
+ * - turned primitives into valid literals/IRIs
+ * - left SparqlValue.value as-is when it represents syntax
+ *
+ * So here we just check that the lexical form looks like:
+ * - variable (?x, $x)
+ * - IRI (<...>)
+ * - prefixed name (prefix:local)
+ * - blank node label (_:b1)
+ * - literal ("...", 42, true, "..."@en, "..."^^<...>)
+ * - RDF* quoted triple (<< ... >>)
+ *
+ * Anything that looks like a function call or complex expression
+ * (STR(...), CONCAT(...), BNODE(), etc.) is rejected.
+ */
+export function isGraphNodeLexical(lex: string): boolean {
+  const t = lex.trim()
+  if (!t) return false
+
+  // Variable ?x or $x
+  if (/^[?$][A-Za-z_][\w-]*$/.test(t)) return true
+
+  // IRI reference: <http://example.org/...>
+  if (/^<[^<>"{}|^`\\\s]+>$/.test(t)) return true
+
+  // Blank node label _:b1
+  if (/^_:[A-Za-z][A-Za-z0-9_]*$/.test(t)) return true
+
+  // RDF* quoted triple << ... >>
+  if (/^<<[\s\S]*>>$/.test(t)) return true
+
+  // Boolean literal
+  if (/^(true|false)$/i.test(t)) return true
+
+  // Numeric literal (very simple integer/decimal/double checks)
+  if (/^[+-]?[0-9]+$/.test(t)) return true // integer
+  if (/^[+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$/.test(t)) return true // decimal
+  if (/^[+-]?[0-9]+(\.[0-9]+)?[eE][+-]?[0-9]+$/.test(t)) return true // double
+
+  // String / language-tagged / typed literals: start with " or '
+  if (/^["']/.test(t)) return true
+
+  // Prefixed name prefix:local (approximate but safe enough)
+  if (/^[A-Za-z_][\w.-]*:[\w.-]+$/.test(t)) return true
+
+  return false
+}
+
+/**
+ * Convert a value into a *term* suitable for triple subject/object.
+ *
+ * - Uses the same primitive conversion as expressions (exprTerm)
+ * - Then **validates** that the lexical matches GraphNode/VarOrTerm
+ *
+ * This is what you want for triple objects and any context where
+ * SPARQL forbids arbitrary expressions.
+ *
+ * @throws Error if the value serializes to something that is not
+ *         a valid SPARQL term (e.g. STR(...), CONCAT(...), BNODE()).
+ */
+export function termString(
+  value: SparqlValue | ExpressionPrimitive,
+  position: TermPosition = 'object',
+): string {
+  const lex = exprTermString(value)
+
+  if (!isGraphNodeLexical(lex)) {
+    throw new Error(
+      `Invalid ${position} term "${lex}". Triple ${position}s must be variables, ` +
+      `IRIs, blank node labels, literals, prefixed names, or RDF* quoted triples. ` +
+      `Use BIND(...) / FILTER(...) to compute a value (e.g. STR(), CONCAT(), ` +
+      `BNODE()) and then use the bound variable in the triple.`,
+    )
+  }
+
+  return lex
+}
+
+// ============================================================================
 // String Functions
 // ============================================================================
 
