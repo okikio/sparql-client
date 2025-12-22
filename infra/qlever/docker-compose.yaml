@@ -1,6 +1,7 @@
 services:
   qlever-init:
     image: busybox:latest
+    container_name: qlever-init
     env_file:
       - ./qlever.env
     user: "0:0"
