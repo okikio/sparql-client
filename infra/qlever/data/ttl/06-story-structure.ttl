@@ -1,0 +1,1066 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Story Structure Module
+# StoryWork, StoryExpression, NarrativeUnit, Arcs, Events, Seasons
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/story-structure>
+    a owl:Ontology ;
+    rdfs:label "PopModern Story Structure Module" ;
+    rdfs:comment "Properties and relationships for story works, expressions, and narrative units" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# StoryWork Properties
+#################################################################
+
+narrative:seriesName a owl:DatatypeProperty ;
+    rdfs:label "series name" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the series" .
+
+narrative:sortName a owl:DatatypeProperty ;
+    rdfs:label "sort name" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name for alphabetical sorting (without 'The', etc.)" .
+
+narrative:subtitle a owl:DatatypeProperty ;
+    rdfs:label "subtitle" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Series subtitle" .
+
+narrative:volume a owl:DatatypeProperty ;
+    rdfs:label "volume" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Volume number (for series with multiple volumes)" .
+
+narrative:synopsis a owl:DatatypeProperty ;
+    rdfs:label "synopsis" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Series description/premise" .
+
+narrative:coverImage a owl:DatatypeProperty ;
+    rdfs:label "cover image" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Representative cover image for series" .
+
+#################################################################
+# StoryWork Timeline Properties
+#################################################################
+
+narrative:yearBegan a owl:DatatypeProperty ;
+    rdfs:label "year began" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year series started" .
+
+narrative:yearEnded a owl:DatatypeProperty ;
+    rdfs:label "year ended" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year series ended (if concluded)" .
+
+narrative:publicationStatus a owl:DatatypeProperty ;
+    rdfs:label "publication status" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ongoing, Completed, Cancelled, Hiatus" .
+
+narrative:issueCount a owl:DatatypeProperty ;
+    rdfs:label "issue count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total number of issues published" .
+
+narrative:episodeCount a owl:DatatypeProperty ;
+    rdfs:label "episode count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total number of episodes (for TV/anime)" .
+
+narrative:chapterCount a owl:DatatypeProperty ;
+    rdfs:label "chapter count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total number of chapters (for manga/webtoons)" .
+
+#################################################################
+# StoryWork Classification Properties
+#################################################################
+
+narrative:seriesType a owl:DatatypeProperty ;
+    rdfs:label "series type" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ongoing Series, Limited Series, Mini-Series, One-Shot, Graphic Novel, etc." .
+
+narrative:genre a owl:DatatypeProperty ;
+    rdfs:label "genre" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Genre classification (repeatable)" .
+
+narrative:ageRating a owl:DatatypeProperty ;
+    rdfs:label "age rating" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "All Ages, Teen, Mature Readers, 18+, etc." .
+
+narrative:contentRating a owl:DatatypeProperty ;
+    rdfs:label "content rating" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "MPAA, TV-rating, ESRB, CERO, etc." .
+
+narrative:demographic a owl:DatatypeProperty ;
+    rdfs:label "demographic" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Target demographic: Shonen, Seinen, Shoujo, Josei, Kids, etc." .
+
+narrative:continuity a owl:DatatypeProperty ;
+    rdfs:label "continuity" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Continuity designation (Earth-616, New 52, etc.)" .
+
+#################################################################
+# StoryWork Medium Properties
+#################################################################
+
+narrative:medium a owl:DatatypeProperty ;
+    rdfs:label "medium" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Comic, Manga, Anime, Film, TV Series, Novel, Game, Music Album, etc." .
+
+narrative:format a owl:DatatypeProperty ;
+    rdfs:label "format" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Print, Digital, Web, Broadcast, Streaming, etc." .
+
+narrative:language a owl:DatatypeProperty ;
+    rdfs:label "language" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Original language (ISO 639 code)" .
+
+#################################################################
+# StoryWork Relationships
+#################################################################
+
+narrative:publishedBy a owl:ObjectProperty ;
+    rdfs:label "published by" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:publishes ;
+    rdfs:comment "Publisher of the series" .
+
+narrative:producedBy a owl:ObjectProperty ;
+    rdfs:label "produced by" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:produces ;
+    rdfs:comment "Production company or studio" .
+
+narrative:imprint a owl:ObjectProperty ;
+    rdfs:label "imprint" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Org ;
+    rdfs:comment "Imprint line (Vertigo, MAX, Black Label, etc.)" .
+
+narrative:setInUniverse a owl:ObjectProperty ;
+    rdfs:label "set in universe" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:containsWork ;
+    rdfs:comment "Universe or continuity this work is set in" .
+
+narrative:partOfFranchise a owl:ObjectProperty ;
+    rdfs:label "part of franchise" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Franchise ;
+    owl:inverseOf narrative:includesWork ;
+    rdfs:comment "Franchise this work belongs to" .
+
+narrative:hasExpression a owl:ObjectProperty ;
+    rdfs:label "has expression" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:StoryExpression ;
+    owl:inverseOf narrative:expressionOf ;
+    rdfs:comment "Specific issue/episode/chapter of this work" .
+
+narrative:spinoffOf a owl:ObjectProperty ;
+    rdfs:label "spinoff of" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "Parent series this is a spinoff of" .
+
+narrative:sequelTo a owl:ObjectProperty ;
+    rdfs:label "sequel to" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:hasSequel ;
+    rdfs:comment "Previous work in sequence" .
+
+narrative:prequelTo a owl:ObjectProperty ;
+    rdfs:label "prequel to" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:hasPrequel ;
+    rdfs:comment "Later work in sequence" .
+
+#################################################################
+# StoryExpression Properties
+#################################################################
+
+narrative:issueNumber a owl:DatatypeProperty ;
+    rdfs:label "issue number" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Issue number (can be string for special issues like '0', 'Annual')" .
+
+narrative:episodeNumber a owl:DatatypeProperty ;
+    rdfs:label "episode number" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Episode number" .
+
+narrative:chapterNumber a owl:DatatypeProperty ;
+    rdfs:label "chapter number" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Chapter number" .
+
+narrative:trackNumber a owl:DatatypeProperty ;
+    rdfs:label "track number" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Track number (for music)" .
+
+narrative:issueTitle a owl:DatatypeProperty ;
+    rdfs:label "issue title" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Title of this specific issue/episode/chapter" .
+
+narrative:subtitle a owl:DatatypeProperty ;
+    rdfs:label "subtitle" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Issue subtitle or chapter title" .
+
+narrative:altNumber a owl:DatatypeProperty ;
+    rdfs:label "alternate number" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Alternate numbering (legacy numbering, etc.)" .
+
+narrative:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Issue description/solicitation text" .
+
+narrative:coverImage a owl:DatatypeProperty ;
+    rdfs:label "cover image" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "URL to cover image" .
+
+#################################################################
+# StoryExpression Date Properties
+#################################################################
+
+narrative:coverDate a owl:DatatypeProperty ;
+    rdfs:label "cover date" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Cover date (month/year on cover)" .
+
+narrative:storeDate a owl:DatatypeProperty ;
+    rdfs:label "store date" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Actual release date to stores" .
+
+narrative:digitalReleaseDate a owl:DatatypeProperty ;
+    rdfs:label "digital release date" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Digital release date" .
+
+narrative:airDate a owl:DatatypeProperty ;
+    rdfs:label "air date" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Original broadcast/air date" .
+
+narrative:releaseDate a owl:DatatypeProperty ;
+    rdfs:label "release date" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:date ;
+    rdfs:comment "General release date" .
+
+#################################################################
+# StoryExpression Content Properties
+#################################################################
+
+narrative:pageCount a owl:DatatypeProperty ;
+    rdfs:label "page count" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total number of pages" .
+
+narrative:storyPageCount a owl:DatatypeProperty ;
+    rdfs:label "story page count" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Story pages (excluding ads)" .
+
+narrative:runtime a owl:DatatypeProperty ;
+    rdfs:label "runtime" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Runtime in minutes (for TV/film)" .
+
+narrative:duration a owl:DatatypeProperty ;
+    rdfs:label "duration" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Duration (flexible format, e.g., '2:24:15' for music)" .
+
+narrative:hasBackupStory a owl:DatatypeProperty ;
+    rdfs:label "has backup story" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether issue contains backup/second story" .
+
+#################################################################
+# StoryExpression Format Properties
+#################################################################
+
+narrative:readingDirection a owl:DatatypeProperty ;
+    rdfs:label "reading direction" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Reading direction: left-to-right, right-to-left, vertical-scroll" .
+
+narrative:colorType a owl:DatatypeProperty ;
+    rdfs:label "color type" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Color format: full-color, black-and-white, spot-color, greyscale" .
+
+#################################################################
+# StoryExpression Significance Properties
+#################################################################
+
+narrative:isKeyIssue a owl:DatatypeProperty ;
+    rdfs:label "is key issue" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether considered a key/significant issue" .
+
+narrative:significantEvent a owl:DatatypeProperty ;
+    rdfs:label "significant event" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Major story events (death of X, origin story, etc.)" .
+
+narrative:crossover a owl:DatatypeProperty ;
+    rdfs:label "crossover" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of crossover event (if applicable)" .
+
+narrative:collectedIn a owl:ObjectProperty ;
+    rdfs:label "collected in" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:Collection ;
+    owl:inverseOf narrative:collects ;
+    rdfs:comment "Collection (trade paperback, omnibus) this is collected in" .
+
+#################################################################
+# StoryExpression-Character Relationships
+#################################################################
+
+narrative:features a owl:ObjectProperty ;
+    rdfs:label "features" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:appearsIn ;
+    rdfs:comment "Character featured in this story/issue" .
+
+narrative:firstAppearance a owl:ObjectProperty ;
+    rdfs:label "first appearance" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Characters making first appearance" .
+
+#################################################################
+# StoryExpression Relationships
+#################################################################
+
+narrative:expressionOf a owl:ObjectProperty ;
+    rdfs:label "expression of" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:hasExpression ;
+    rdfs:comment "The StoryWork this is an expression of" .
+
+narrative:hasNarrativeUnit a owl:ObjectProperty ;
+    rdfs:label "has narrative unit" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:NarrativeUnit ;
+    owl:inverseOf narrative:narrativeUnitOf ;
+    rdfs:comment "Narrative units (stories) within this expression" .
+
+narrative:partOfArc a owl:ObjectProperty ;
+    rdfs:label "part of arc" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:Arc ;
+    owl:inverseOf narrative:includesIssue ;
+    rdfs:comment "Story arc this issue is part of" .
+
+narrative:partOfEvent a owl:ObjectProperty ;
+    rdfs:label "part of event" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:Event ;
+    owl:inverseOf narrative:includesIssue ;
+    rdfs:comment "Crossover event this issue is part of" .
+
+narrative:partOfSeason a owl:ObjectProperty ;
+    rdfs:label "part of season" ;
+    rdfs:domain narrative:StoryExpression ;
+    rdfs:range narrative:Season ;
+    owl:inverseOf narrative:includesEpisode ;
+    rdfs:comment "Season this episode is part of" .
+
+#################################################################
+# NarrativeUnit Properties
+#################################################################
+
+narrative:unitType a owl:DatatypeProperty ;
+    rdfs:label "unit type" ;
+    rdfs:domain narrative:NarrativeUnit ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of narrative unit: issue, chapter, episode, film, track, quest" .
+
+#################################################################
+# Arc Properties
+#################################################################
+
+narrative:arcName a owl:DatatypeProperty ;
+    rdfs:label "arc name" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the story arc" .
+
+narrative:arcNumber a owl:DatatypeProperty ;
+    rdfs:label "arc number" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Arc number in series" .
+
+narrative:issueCount a owl:DatatypeProperty ;
+    rdfs:label "issue count" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of issues in arc" .
+
+narrative:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Arc description" .
+
+narrative:arcStartDate a owl:DatatypeProperty ;
+    rdfs:label "arc start date" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date when arc began publication" .
+
+narrative:arcEndDate a owl:DatatypeProperty ;
+    rdfs:label "arc end date" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date when arc concluded publication" .
+
+narrative:includesIssue a owl:ObjectProperty ;
+    rdfs:label "includes issue" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range narrative:StoryExpression ;
+    owl:inverseOf narrative:partOfArc ;
+    rdfs:comment "Issues that are part of this arc" .
+
+narrative:arcOf a owl:ObjectProperty ;
+    rdfs:label "arc of" ;
+    rdfs:domain narrative:Arc ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "Series this arc belongs to" .
+
+#################################################################
+# Event Properties
+#################################################################
+
+narrative:eventName a owl:DatatypeProperty ;
+    rdfs:label "event name" ;
+    rdfs:domain narrative:Event ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the crossover event" .
+
+narrative:yearOccurred a owl:DatatypeProperty ;
+    rdfs:label "year occurred" ;
+    rdfs:domain narrative:Event ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year event took place" .
+
+narrative:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain narrative:Event ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Event description" .
+
+narrative:includesIssue a owl:ObjectProperty ;
+    rdfs:label "includes issue" ;
+    rdfs:domain narrative:Event ;
+    rdfs:range narrative:StoryExpression ;
+    owl:inverseOf narrative:partOfEvent ;
+    rdfs:comment "Issues that are part of this event" .
+
+narrative:affectsSeries a owl:ObjectProperty ;
+    rdfs:label "affects series" ;
+    rdfs:domain narrative:Event ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "Series affected by this event" .
+
+#################################################################
+# Season Properties
+#################################################################
+
+narrative:seasonName a owl:DatatypeProperty ;
+    rdfs:label "season name" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the season" .
+
+narrative:seasonNumber a owl:DatatypeProperty ;
+    rdfs:label "season number" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Season number" .
+
+narrative:episodeCount a owl:DatatypeProperty ;
+    rdfs:label "episode count" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of episodes in season" .
+
+narrative:airDateStart a owl:DatatypeProperty ;
+    rdfs:label "air date start" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Season premiere date" .
+
+narrative:airDateEnd a owl:DatatypeProperty ;
+    rdfs:label "air date end" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Season finale date" .
+
+narrative:includesEpisode a owl:ObjectProperty ;
+    rdfs:label "includes episode" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range narrative:StoryExpression ;
+    owl:inverseOf narrative:partOfSeason ;
+    rdfs:comment "Episodes in this season" .
+
+narrative:seasonOf a owl:ObjectProperty ;
+    rdfs:label "season of" ;
+    rdfs:domain narrative:Season ;
+    rdfs:range narrative:Series ;
+    owl:inverseOf narrative:hasSeason ;
+    rdfs:comment "Series this season belongs to" .
+
+#################################################################
+# Series Properties (for multi-season shows)
+#################################################################
+
+narrative:seriesName a owl:DatatypeProperty ;
+    rdfs:label "series name" ;
+    rdfs:domain narrative:Series ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the TV/anime series" .
+
+narrative:hasSeason a owl:ObjectProperty ;
+    rdfs:label "has season" ;
+    rdfs:domain narrative:Series ;
+    rdfs:range narrative:Season ;
+    owl:inverseOf narrative:seasonOf ;
+    rdfs:comment "Seasons of this series" .
+
+#################################################################
+# Collection Properties
+#################################################################
+
+narrative:collectionTitle a owl:DatatypeProperty ;
+    rdfs:label "collection title" ;
+    rdfs:domain narrative:Collection ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Title of the collection (trade paperback, box set, etc.)" .
+
+narrative:collectionType a owl:DatatypeProperty ;
+    rdfs:label "collection type" ;
+    rdfs:domain narrative:Collection ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Trade Paperback, Hardcover, Omnibus, Box Set, etc." .
+
+narrative:collects a owl:ObjectProperty ;
+    rdfs:label "collects" ;
+    rdfs:domain narrative:Collection ;
+    rdfs:range narrative:StoryExpression ;
+    owl:inverseOf narrative:collectedIn ;
+    rdfs:comment "Issues/episodes collected in this collection" .
+
+#################################################################
+# Page Properties (for page-level tracking)
+#################################################################
+
+narrative:pageNumber a owl:DatatypeProperty ;
+    rdfs:label "page number" ;
+    rdfs:domain narrative:Page ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Page number within issue" .
+
+narrative:pageType a owl:DatatypeProperty ;
+    rdfs:label "page type" ;
+    rdfs:domain narrative:Page ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Story, Cover, Ad, Editorial, Letters, Pinup, etc." .
+
+narrative:imageUrl a owl:DatatypeProperty ;
+    rdfs:label "image URL" ;
+    rdfs:domain narrative:Page ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "URL to page image" .
+
+narrative:pageOf a owl:ObjectProperty ;
+    rdfs:label "page of" ;
+    rdfs:domain narrative:Page ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Issue this page belongs to" .
+
+#################################################################
+# Interactive Experiences (games, visual novels, VR, etc.)
+#################################################################
+
+narrative:InteractiveExperience
+  a owl:Class ;
+  rdfs:label "Interactive Experience" ;
+  rdfs:comment """
+  A specific interactive realization of a story, such as a video game,
+  visual novel, interactive film, VR experience, or interactive episode.
+  This is a specialization of StoryExpression for interactive media.
+  """ ;
+  rdfs:subClassOf narrative:StoryExpression
+.
+
+narrative:Platform
+  a owl:Class ;
+  rdfs:label "Platform" ;
+  rdfs:comment """
+  Hardware or software environment where an InteractiveExperience can be played
+  or accessed (e.g., PC, PS5, Nintendo Switch, iOS, Android, Web, VR headset).
+  """ 
+.
+
+### Datatype properties for InteractiveExperience ################################
+
+narrative:interactionMode
+  a owl:DatatypeProperty ;
+  rdfs:label "interaction mode" ;
+  rdfs:comment """
+  High-level play mode of the interactive experience, e.g.:
+  'single-player', 'local-coop', 'online-coop', 'mmo', 'pvp', 'party-game'.
+  """ ;
+  rdfs:domain narrative:InteractiveExperience ;
+  rdfs:range xsd:string
+.
+
+narrative:supportedInputType
+  a owl:DatatypeProperty ;
+  rdfs:label "supported input type" ;
+  rdfs:comment """
+  Input modalities supported by this interactive experience, e.g.:
+  'controller', 'keyboard-mouse', 'touch', 'motion', 'vr-controller'.
+  May be repeated multiple times for a single experience.
+  """ ;
+  rdfs:domain narrative:InteractiveExperience ;
+  rdfs:range xsd:string
+.
+
+narrative:onlineRequirement
+  a owl:DatatypeProperty ;
+  rdfs:label "online requirement" ;
+  rdfs:comment """
+  Requirement for network connectivity, e.g.:
+  'offline', 'optional-online', 'online-required'.
+  """ ;
+  rdfs:domain narrative:InteractiveExperience ;
+  rdfs:range xsd:string
+.
+
+narrative:averageSessionLengthMinutes
+  a owl:DatatypeProperty ;
+  rdfs:label "average session length (minutes)" ;
+  rdfs:comment """
+  Typical length of a single play session, in minutes.
+  Useful for discovery ('short cozy game' vs 'long epic').
+  """ ;
+  rdfs:domain narrative:InteractiveExperience ;
+  rdfs:range xsd:integer
+.
+
+narrative:branchingStructure
+  a owl:DatatypeProperty ;
+  rdfs:label "branching structure" ;
+  rdfs:comment """
+  Overall structure of the interactive narrative, e.g.:
+  'linear', 'branching', 'sandbox', 'roguelike-run'.
+  """ ;
+  rdfs:domain narrative:InteractiveExperience ;
+  rdfs:range xsd:string
+.
+
+### Object properties for InteractiveExperience ##################################
+
+narrative:supportsPlatform
+  a owl:ObjectProperty ;
+  rdfs:label "supports platform" ;
+  rdfs:comment """
+  Indicates that an InteractiveExperience is available on a given Platform
+  (e.g., PC, PS5, Nintendo Switch, iOS).
+  """ ;
+  rdfs:domain narrative:InteractiveExperience ;
+  rdfs:range narrative:Platform
+.
+
+#################################################################
+# Audio / Music / Podcast refinements (optional, light)
+#################################################################
+
+narrative:AudioExpression
+  a owl:Class ;
+  rdfs:label "Audio Expression" ;
+  rdfs:comment """
+  A StoryExpression that primarily consists of audio content,
+  such as an album, soundtrack, single, EP, or podcast series.
+  """ ;
+  rdfs:subClassOf narrative:StoryExpression
+.
+
+narrative:AudioUnit
+  a owl:Class ;
+  rdfs:label "Audio Unit" ;
+  rdfs:comment """
+  A NarrativeUnit that represents a track or audio episode
+  (e.g., music track, podcast episode).
+  """ ;
+  rdfs:subClassOf narrative:NarrativeUnit
+.
+
+narrative:expressionForm
+  a owl:DatatypeProperty ;
+  rdfs:label "expression form" ;
+  rdfs:comment """
+  Refinement of a StoryExpression's form, e.g.:
+  'album', 'single', 'ep', 'soundtrack', 'compilation', 'podcast-series',
+  'tv-season', 'film', etc.
+  """ ;
+  rdfs:domain narrative:StoryExpression ;
+  rdfs:range xsd:string
+.
+
+#################################################################
+# Live Events (concerts, conventions, signings, esports, etc.)
+#################################################################
+
+narrative:LiveEvent
+  a owl:Class ;
+  rdfs:label "Live Event" ;
+  rdfs:comment """
+  A real-world event where fans consume, celebrate, or interact with
+  pop culture in time and space: concerts, conventions, signings, premieres,
+  screenings, festivals, esports tournaments, fan meets, etc.
+  """ 
+.
+
+narrative:Concert
+  a owl:Class ;
+  rdfs:label "Concert" ;
+  rdfs:comment "A LiveEvent focused on live music performance." ;
+  rdfs:subClassOf narrative:LiveEvent
+.
+
+narrative:Convention
+  a owl:Class ;
+  rdfs:label "Convention" ;
+  rdfs:comment "A LiveEvent such as a comic, pop culture, or gaming convention." ;
+  rdfs:subClassOf narrative:LiveEvent
+.
+
+narrative:SigningEvent
+  a owl:Class ;
+  rdfs:label "Signing Event" ;
+  rdfs:comment "A LiveEvent where creators, performers, or guests sign items for fans." ;
+  rdfs:subClassOf narrative:LiveEvent
+.
+
+narrative:PremiereEvent
+  a owl:Class ;
+  rdfs:label "Premiere Event" ;
+  rdfs:comment "A LiveEvent for the premiere or first screening of a film, episode, or game." ;
+  rdfs:subClassOf narrative:LiveEvent
+.
+
+narrative:EsportsTournament
+  a owl:Class ;
+  rdfs:label "Esports Tournament" ;
+  rdfs:comment "A LiveEvent representing an esports or competitive gaming tournament." ;
+  rdfs:subClassOf narrative:LiveEvent
+.
+
+narrative:TourOrSeries
+  a owl:Class ;
+  rdfs:label "Tour or Event Series" ;
+  rdfs:comment """
+  A grouping of LiveEvents that are part of a tour, festival series,
+  convention series, or esports league season.
+  """ 
+.
+
+### Datatype properties for LiveEvent ###########################################
+
+narrative:liveEventName
+  a owl:DatatypeProperty ;
+  rdfs:label "live event name" ;
+  rdfs:comment "Human-readable name of the live event (e.g., 'NYCC 2025', 'World Tour 2026 – Toronto')." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:string
+.
+
+narrative:liveEventType
+  a owl:DatatypeProperty ;
+  rdfs:label "live event type" ;
+  rdfs:comment """
+  High-level event type for filtering and analytics, e.g.:
+  'concert', 'convention', 'signing', 'premiere', 'screening',
+  'festival', 'esports-tournament', 'fan-meet'.
+  """ ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:string
+.
+
+narrative:startDateTime
+  a owl:DatatypeProperty ;
+  rdfs:label "start date/time" ;
+  rdfs:comment "Start date and time of the live event (ISO 8601)." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:dateTime
+.
+
+narrative:endDateTime
+  a owl:DatatypeProperty ;
+  rdfs:label "end date/time" ;
+  rdfs:comment "End date and time of the live event (ISO 8601)." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:dateTime
+.
+
+narrative:venueName
+  a owl:DatatypeProperty ;
+  rdfs:label "venue name" ;
+  rdfs:comment "Name of the venue where the live event takes place." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:string
+.
+
+narrative:eventCity
+  a owl:DatatypeProperty ;
+  rdfs:label "event city" ;
+  rdfs:comment "City where the live event takes place." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:string
+.
+
+narrative:eventCountry
+  a owl:DatatypeProperty ;
+  rdfs:label "event country" ;
+  rdfs:comment "Country where the live event takes place (e.g., 'CA', 'US', 'JP')." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:string
+.
+
+narrative:venueCapacity
+  a owl:DatatypeProperty ;
+  rdfs:label "venue capacity" ;
+  rdfs:comment "Approximate capacity of the venue where the event is held." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:integer
+.
+
+narrative:estimatedAttendance
+  a owl:DatatypeProperty ;
+  rdfs:label "estimated attendance" ;
+  rdfs:comment "Estimated number of attendees for the live event." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:integer
+.
+
+narrative:soldOut
+  a owl:DatatypeProperty ;
+  rdfs:label "sold out" ;
+  rdfs:comment "Boolean flag indicating whether the event was sold out." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range xsd:boolean
+.
+
+### Object properties linking LiveEvent to works/franchises #####################
+
+narrative:belongsToEventSeries
+  a owl:ObjectProperty ;
+  rdfs:label "belongs to event series" ;
+  rdfs:comment "Links a LiveEvent to a TourOrSeries it is part of." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range narrative:TourOrSeries
+.
+
+narrative:promotesWork
+  a owl:ObjectProperty ;
+  rdfs:label "promotes work" ;
+  rdfs:comment """
+  Indicates that a LiveEvent is primarily focused on promoting or
+  celebrating a particular StoryWork or StoryExpression
+  (e.g., a movie premiere, a game launch event).
+  """ ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range narrative:StoryWork
+.
+
+narrative:focusesOnFranchise
+  a owl:ObjectProperty ;
+  rdfs:label "focuses on franchise" ;
+  rdfs:comment "Indicates that a LiveEvent is centered on a particular Franchise or Universe." ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range narrative:Franchise
+.
+
+#################################################################
+# Adaptation and cross-media relationships between StoryWorks
+#################################################################
+
+### Generic adaptation ##########################################################
+
+narrative:adaptationOf
+  a owl:ObjectProperty ;
+  rdfs:label "adaptation of" ;
+  rdfs:comment """
+  Indicates that a StoryWork is an adaptation of another StoryWork.
+  Examples: a film adapted from a comic series, an anime adapted from a manga,
+  a game adapted from a novel.
+  The subject is the adapted work; the object is the original work.
+  """ ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.
+
+narrative:hasAdaptation
+  a owl:ObjectProperty ;
+  rdfs:label "has adaptation" ;
+  rdfs:comment """
+  Inverse of adaptationOf. Indicates that a StoryWork has one or more
+  adaptations in other media or forms.
+  """ ;
+  owl:inverseOf narrative:adaptationOf ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.
+
+### Common specialization: novelization, remake, reboot, spin-off ###############
+
+narrative:novelizationOf
+  a owl:ObjectProperty ;
+  rdfs:label "novelization of" ;
+  rdfs:comment """
+  Indicates that a StoryWork is a novelization of another StoryWork
+  (often a film, game, or series).
+  The subject is the novelization; the object is the original work.
+  """ ;
+  rdfs:subPropertyOf narrative:adaptationOf ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.
+
+narrative:remakeOf
+  a owl:ObjectProperty ;
+  rdfs:label "remake of" ;
+  rdfs:comment """
+  Indicates that a StoryWork is a remake of another StoryWork, often
+  in the same medium (e.g., film-to-film, game-to-game).
+  """ ;
+  rdfs:subPropertyOf narrative:adaptationOf ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.
+
+narrative:rebootOf
+  a owl:ObjectProperty ;
+  rdfs:label "reboot of" ;
+  rdfs:comment """
+  Indicates that a StoryWork is a reboot of another StoryWork or franchise,
+  typically resetting continuity while reusing characters or core ideas.
+  """ ;
+  rdfs:subPropertyOf narrative:adaptationOf ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.
+
+narrative:spinOffOf
+  a owl:ObjectProperty ;
+  rdfs:label "spin-off of" ;
+  rdfs:comment """
+  Indicates that a StoryWork is a spin-off from another StoryWork,
+  usually focusing on side characters, a particular team, or a different
+  part of the same universe.
+  """ ;
+  rdfs:subPropertyOf narrative:adaptationOf ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.
+
+### Crossovers and mutual relationships #########################################
+
+narrative:crossoverWith
+  a owl:ObjectProperty , owl:SymmetricProperty ;
+  rdfs:label "crossover with" ;
+  rdfs:comment """
+  Indicates that two StoryWorks participate in a crossover story
+  (e.g., an event that uses casts from multiple series).
+  This property is symmetric.
+  """ ;
+  rdfs:domain narrative:StoryWork ;
+  rdfs:range narrative:StoryWork
+.

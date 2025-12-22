@@ -1,0 +1,256 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+@prefix tcg: <http://popmodern.xyz/ontology/tcg#> .
+
+#################################################################
+# PopModern TCG Module
+# Extension for Trading Card Games (Magic: The Gathering, Pokemon, etc.)
+#################################################################
+
+<http://popmodern.xyz/ontology/tcg>
+    a owl:Ontology ;
+    rdfs:label "PopModern TCG Module" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+# --- Core Classes ---
+tcg:CardOracle a owl:Class ;
+    rdfs:subClassOf narrative:Product ;
+    rdfs:label "Card Oracle" ;
+    rdfs:comment "The abstract concept of a card (e.g. 'Black Lotus', 'Charizard')." .
+
+tcg:CardPrinting a owl:Class ;
+    rdfs:subClassOf narrative:Manifestation ;
+    rdfs:label "Card Printing" ;
+    rdfs:comment "A specific physical instance of a card in a set." .
+
+tcg:CardSet a owl:Class ;
+    rdfs:subClassOf narrative:Collection ;
+    rdfs:label "Card Set" ;
+    rdfs:comment "A release set containing card printings." .
+
+tcg:CardFace a owl:Class ;
+    rdfs:label "Card Face" ;
+    rdfs:comment "A single face of a multi-faced card." .
+
+# --- Pokemon Specific Classes ---
+tcg:PokemonCardOracle a owl:Class ;
+    rdfs:subClassOf tcg:CardOracle ;
+    rdfs:label "Pokemon Card Oracle" .
+
+tcg:PokemonCardPrinting a owl:Class ;
+    rdfs:subClassOf tcg:CardPrinting ;
+    rdfs:label "Pokemon Card Printing" .
+
+tcg:PokemonSet a owl:Class ;
+    rdfs:subClassOf tcg:CardSet ;
+    rdfs:label "Pokemon Set" .
+
+tcg:Attack a owl:Class ;
+    rdfs:label "Attack" ;
+    rdfs:comment "An attack on a Pokemon card." .
+
+tcg:Ability a owl:Class ;
+    rdfs:label "Ability" ;
+    rdfs:comment "An ability on a Pokemon card." .
+
+tcg:Weakness a owl:Class ;
+    rdfs:label "Weakness" .
+
+tcg:Resistance a owl:Class ;
+    rdfs:label "Resistance" .
+
+tcg:EnergyType a owl:Class ;
+    rdfs:label "Energy Type" .
+
+# --- Relationships ---
+tcg:printingOf a owl:ObjectProperty ;
+    rdfs:domain tcg:CardPrinting ;
+    rdfs:range tcg:CardOracle ;
+    owl:inverseOf tcg:hasPrinting ;
+    rdfs:label "printing of" .
+
+tcg:hasPrinting a owl:ObjectProperty ;
+    rdfs:domain tcg:CardOracle ;
+    rdfs:range tcg:CardPrinting .
+
+tcg:inSet a owl:ObjectProperty ;
+    rdfs:domain tcg:CardPrinting ;
+    rdfs:range tcg:CardSet ;
+    rdfs:label "in set" .
+
+# --- Pokémon TCG Extensions ---
+
+tcg:PokemonCardOracle a owl:Class ;
+    rdfs:subClassOf tcg:CardOracle ;
+    rdfs:label "Pokémon Card Oracle" .
+
+tcg:PokemonCardPrinting a owl:Class ;
+    rdfs:subClassOf tcg:CardPrinting ;
+    rdfs:label "Pokémon Card Printing" .
+
+tcg:PokemonSet a owl:Class ;
+    rdfs:subClassOf tcg:CardSet ;
+    rdfs:label "Pokémon Set" .
+
+tcg:Attack a owl:Class ;
+    rdfs:label "Attack" .
+
+tcg:Ability a owl:Class ;
+    rdfs:label "Ability" .
+
+tcg:Weakness a owl:Class ;
+    rdfs:label "Weakness" .
+
+tcg:Resistance a owl:Class ;
+    rdfs:label "Resistance" .
+
+tcg:EnergyType a owl:Class ;
+    rdfs:label "Energy Type" .
+
+# Properties
+tcg:nationalPokedexNumber a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:integer ;
+    rdfs:label "National Pokédex Number" .
+
+tcg:hp a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:integer ;
+    rdfs:label "HP" .
+
+tcg:supertype a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "Supertype" .
+
+tcg:subtype a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "Subtype" .
+
+tcg:hasEnergyType a owl:ObjectProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range tcg:EnergyType ;
+    rdfs:label "has energy type" .
+
+tcg:evolvesFrom a owl:ObjectProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range tcg:PokemonCardOracle ;
+    rdfs:label "evolves from" .
+
+tcg:hasAttack a owl:ObjectProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range tcg:Attack ;
+    rdfs:label "has attack" .
+
+tcg:cost a owl:DatatypeProperty ;
+    rdfs:domain tcg:Attack ;
+    rdfs:range xsd:string ;
+    rdfs:label "cost" .
+
+tcg:damage a owl:DatatypeProperty ;
+    rdfs:domain tcg:Attack ;
+    rdfs:range xsd:string ;
+    rdfs:label "damage" .
+
+tcg:retreatCost a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:integer ;
+    rdfs:label "retreat cost" .
+
+tcg:regulationMark a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardPrinting ;
+    rdfs:range xsd:string ;
+    rdfs:label "regulation mark" .
+
+tcg:TypeFire a tcg:EnergyType ; rdfs:label "Fire" .
+tcg:TypeWater a tcg:EnergyType ; rdfs:label "Water" .
+tcg:TypeGrass a tcg:EnergyType ; rdfs:label "Grass" .
+tcg:TypeLightning a tcg:EnergyType ; rdfs:label "Lightning" .
+tcg:TypePsychic a tcg:EnergyType ; rdfs:label "Psychic" .
+tcg:TypeFighting a tcg:EnergyType ; rdfs:label "Fighting" .
+tcg:TypeDarkness a tcg:EnergyType ; rdfs:label "Darkness" .
+tcg:TypeMetal a tcg:EnergyType ; rdfs:label "Metal" .
+tcg:TypeFairy a tcg:EnergyType ; rdfs:label "Fairy" .
+tcg:TypeDragon a tcg:EnergyType ; rdfs:label "Dragon" .
+tcg:TypeColorless a tcg:EnergyType ; rdfs:label "Colorless" .
+
+tcg:hasFace a owl:ObjectProperty ;
+    rdfs:domain tcg:CardOracle ;
+    rdfs:range tcg:CardFace ;
+    rdfs:label "has face" .
+
+# --- Pokemon Specific Properties ---
+tcg:hp a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:int ;
+    rdfs:label "HP" .
+
+tcg:supertype a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "Supertype" .
+
+tcg:subtype a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "Subtype" .
+
+tcg:hasEnergyType a owl:ObjectProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range tcg:EnergyType ;
+    rdfs:label "has energy type" .
+
+tcg:evolvesFrom a owl:ObjectProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range tcg:PokemonCardOracle ;
+    rdfs:label "evolves from" .
+
+tcg:hasAttack a owl:ObjectProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range tcg:Attack ;
+    rdfs:label "has attack" .
+
+tcg:cost a owl:DatatypeProperty ;
+    rdfs:domain tcg:Attack ;
+    rdfs:range xsd:string ;
+    rdfs:label "cost" .
+
+tcg:damage a owl:DatatypeProperty ;
+    rdfs:domain tcg:Attack ;
+    rdfs:range xsd:string ;
+    rdfs:label "damage" .
+
+tcg:legalIn a owl:DatatypeProperty ;
+    rdfs:domain tcg:CardOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "legal in" .
+
+tcg:nationalPokedexNumber a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:int ;
+    rdfs:label "National Pokedex Number" .
+
+tcg:retreatCost a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardOracle ;
+    rdfs:range xsd:int ;
+    rdfs:label "Retreat Cost" .
+
+tcg:regulationMark a owl:DatatypeProperty ;
+    rdfs:domain tcg:PokemonCardPrinting ;
+    rdfs:range xsd:string ;
+    rdfs:label "Regulation Mark" .
+
+# --- MTG Specific Properties (kept for compatibility) ---
+tcg:cmc a owl:DatatypeProperty ;
+    rdfs:domain tcg:CardOracle ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "converted mana cost" .
+
+tcg:colorIdentity a owl:DatatypeProperty ;
+    rdfs:domain tcg:CardOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "color identity" .

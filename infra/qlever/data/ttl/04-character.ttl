@@ -1,0 +1,353 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Character Module
+# Properties and relationships for fictional characters
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/character>
+    a owl:Ontology ;
+    rdfs:label "PopModern Character Module" ;
+    rdfs:comment "Properties and relationships for fictional characters across all media" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Character Identity Properties
+#################################################################
+
+narrative:characterName a owl:DatatypeProperty ;
+    rdfs:label "character name" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Primary character name" .
+
+narrative:realName a owl:DatatypeProperty ;
+    rdfs:label "real name" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Secret identity or civilian name" .
+
+narrative:aliases a owl:DatatypeProperty ;
+    rdfs:label "aliases" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Alternate names, codenames, nicknames (repeatable)" .
+
+narrative:mantleName a owl:DatatypeProperty ;
+    rdfs:label "mantle name" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Heroic or villainous identity mantle (Robin, Flash, Captain America)" .
+
+narrative:bio a owl:DatatypeProperty ;
+    rdfs:label "bio" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character biography and description" .
+
+narrative:image a owl:DatatypeProperty ;
+    rdfs:label "image" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Primary character image or portrait URL" .
+
+#################################################################
+# Character Classification Properties
+#################################################################
+
+narrative:characterType a owl:DatatypeProperty ;
+    rdfs:label "character type" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Hero, Villain, Anti-Hero, Supporting, Civilian, etc." .
+
+narrative:species a owl:DatatypeProperty ;
+    rdfs:label "species" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character species (Human, Kryptonian, Mutant, Android, Demon, etc.)" .
+
+narrative:gender a owl:DatatypeProperty ;
+    rdfs:label "gender" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Gender identity" .
+
+narrative:occupation a owl:DatatypeProperty ;
+    rdfs:label "occupation" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character's job or role (repeatable)" .
+
+narrative:affiliation a owl:DatatypeProperty ;
+    rdfs:label "affiliation" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Groups, teams, or organizations affiliated with (repeatable)" .
+
+#################################################################
+# Character Powers & Abilities
+#################################################################
+
+narrative:powers a owl:DatatypeProperty ;
+    rdfs:label "powers" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Superpowers or special abilities (repeatable)" .
+
+narrative:abilities a owl:DatatypeProperty ;
+    rdfs:label "abilities" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Skills and talents (repeatable)" .
+
+narrative:weapons a owl:DatatypeProperty ;
+    rdfs:label "weapons" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Signature weapons or equipment (repeatable)" .
+
+narrative:powerLevel a owl:DatatypeProperty ;
+    rdfs:label "power level" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Street-level, Planetary, Cosmic, etc." .
+
+#################################################################
+# Character Physical Properties
+#################################################################
+
+narrative:height a owl:DatatypeProperty ;
+    rdfs:label "height" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character height" .
+
+narrative:weight a owl:DatatypeProperty ;
+    rdfs:label "weight" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character weight" .
+
+narrative:eyeColor a owl:DatatypeProperty ;
+    rdfs:label "eye color" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Eye color" .
+
+narrative:hairColor a owl:DatatypeProperty ;
+    rdfs:label "hair color" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Hair color" .
+
+narrative:physicalDescription a owl:DatatypeProperty ;
+    rdfs:label "physical description" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "General physical description" .
+
+#################################################################
+# Character Origin Properties
+#################################################################
+
+narrative:origin a owl:DatatypeProperty ;
+    rdfs:label "origin" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Origin story summary" .
+
+narrative:birthPlace a owl:DatatypeProperty ;
+    rdfs:label "birth place" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Place of birth or origin" .
+
+narrative:firstAppearanceDate a owl:DatatypeProperty ;
+    rdfs:label "first appearance date" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Publication date of first appearance" .
+
+narrative:deathStatus a owl:DatatypeProperty ;
+    rdfs:label "death status" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Alive, Deceased, Resurrected, Unknown" .
+
+#################################################################
+# Character Personality & Traits
+#################################################################
+
+narrative:personality a owl:DatatypeProperty ;
+    rdfs:label "personality" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Personality traits and characteristics" .
+
+narrative:alignment a owl:DatatypeProperty ;
+    rdfs:label "alignment" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Moral alignment (Good, Evil, Neutral, Chaotic Good, etc.)" .
+
+narrative:motivations a owl:DatatypeProperty ;
+    rdfs:label "motivations" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Character motivations and goals" .
+
+#################################################################
+# Character-Universe Relationships
+#################################################################
+
+narrative:existsInUniverse a owl:ObjectProperty ;
+    rdfs:label "exists in universe" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:containsCharacter ;
+    rdfs:comment "Universe or continuity this character exists in" .
+
+narrative:belongsToFranchise a owl:ObjectProperty ;
+    rdfs:label "belongs to franchise" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Franchise ;
+    owl:inverseOf narrative:includesCharacter ;
+    rdfs:comment "Franchise this character belongs to" .
+
+#################################################################
+# Character-Creator Relationships
+#################################################################
+
+narrative:createdBy a owl:ObjectProperty ;
+    rdfs:label "created by" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Person ;
+    owl:inverseOf narrative:created ;
+    rdfs:comment "Person (writer/artist) who created this character" .
+
+narrative:designedBy a owl:ObjectProperty ;
+    rdfs:label "designed by" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Artist who designed the character's visual appearance" .
+
+#################################################################
+# Character-Team Relationships
+#################################################################
+
+narrative:characterMemberOf a owl:ObjectProperty ;
+    rdfs:label "character member of" ;
+    rdfs:subPropertyOf narrative:memberOf ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Group ;
+    owl:inverseOf narrative:hasCharacterMember ;
+    rdfs:comment "Team or group this character belongs to" .
+
+narrative:characterLeaderOf a owl:ObjectProperty ;
+    rdfs:label "character leader of" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Group ;
+    owl:inverseOf narrative:ledBy ;
+    rdfs:comment "Team or group this character leads" .
+
+narrative:characterFounderOf a owl:ObjectProperty ;
+    rdfs:label "character founder of" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Group ;
+    owl:inverseOf narrative:foundedByCharacter ;
+    rdfs:comment "Team or group this character founded" .
+
+#################################################################
+# Character Variant Relationships
+#################################################################
+
+narrative:variantOf a owl:ObjectProperty ;
+    rdfs:label "variant of" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:hasVariant ;
+    rdfs:comment "This character is a variant/alternate version of another character" .
+
+narrative:hasVariant a owl:ObjectProperty ;
+    rdfs:label "has variant" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:variantOf ;
+    rdfs:comment "Character has alternate universe variants" .
+
+narrative:primaryVersion a owl:ObjectProperty ;
+    rdfs:label "primary version" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Canonical or primary version of this character (typically main continuity)" .
+
+narrative:alternateVersion a owl:ObjectProperty ;
+    rdfs:label "alternate version" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Alternate version of character (different universe, timeline, etc.)" .
+
+#################################################################
+# Character Appearance Tracking
+#################################################################
+
+narrative:appearsIn a owl:ObjectProperty ;
+    rdfs:label "appears in" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:StoryExpression ;
+    owl:inverseOf narrative:features ;
+    rdfs:comment "Story/issue this character appears in" .
+
+narrative:prominentIn a owl:ObjectProperty ;
+    rdfs:label "prominent in" ;
+    rdfs:subPropertyOf narrative:appearsIn ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Story where character plays a major/starring role (not just cameo)" .
+
+narrative:firstAppearance a owl:ObjectProperty ;
+    rdfs:label "first appearance" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Issue/episode of character's first appearance" .
+
+narrative:deathIssue a owl:ObjectProperty ;
+    rdfs:label "death issue" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Issue where character died" .
+
+narrative:resurrectionIssue a owl:ObjectProperty ;
+    rdfs:label "resurrection issue" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Issue where character was resurrected" .
+
+#################################################################
+# Character Mantle Relationships
+#################################################################
+
+narrative:inheritedMantleFrom a owl:ObjectProperty ;
+    rdfs:label "inherited mantle from" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:passedMantleTo ;
+    rdfs:comment "Character who previously held this mantle" .
+
+narrative:passedMantleTo a owl:ObjectProperty ;
+    rdfs:label "passed mantle to" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:inheritedMantleFrom ;
+    rdfs:comment "Character who inherited this mantle" .
+
+narrative:currentlyHolds a owl:DatatypeProperty ;
+    rdfs:label "currently holds" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether character currently holds the mantle (true/false)" .

@@ -1,0 +1,265 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Person Module
+# Properties and relationships for real people (creators, performers)
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/person>
+    a owl:Ontology ;
+    rdfs:label "PopModern Person Module" ;
+    rdfs:comment "Properties and relationships for creators, performers, and industry professionals" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Person Identity Properties
+#################################################################
+
+narrative:birthName a owl:DatatypeProperty ;
+    rdfs:label "birth name" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Full legal birth name" .
+
+narrative:knownAs a owl:DatatypeProperty ;
+    rdfs:label "known as" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Common name or professional name" .
+
+narrative:alias a owl:DatatypeProperty ;
+    rdfs:label "alias" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Pen names, pseudonyms, stage names (repeatable)" .
+
+narrative:bio a owl:DatatypeProperty ;
+    rdfs:label "biography" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Biographical summary" .
+
+narrative:image a owl:DatatypeProperty ;
+    rdfs:label "image" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Profile photo or portrait URL" .
+
+#################################################################
+# Person Biographical Properties
+#################################################################
+
+narrative:birthDate a owl:DatatypeProperty ;
+    rdfs:label "birth date" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of birth" .
+
+narrative:deathDate a owl:DatatypeProperty ;
+    rdfs:label "death date" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of death (if deceased)" .
+
+narrative:birthPlace a owl:DatatypeProperty ;
+    rdfs:label "birth place" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "City, state/province, country of birth" .
+
+narrative:nationality a owl:DatatypeProperty ;
+    rdfs:label "nationality" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Country of citizenship (ISO 3166 code)" .
+
+narrative:gender a owl:DatatypeProperty ;
+    rdfs:label "gender" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Gender identity" .
+
+narrative:ethnicity a owl:DatatypeProperty ;
+    rdfs:label "ethnicity" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ethnic background" .
+
+#################################################################
+# Person Professional Properties
+#################################################################
+
+narrative:primaryRole a owl:ObjectProperty ;
+    rdfs:label "primary role" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:Role ;
+    rdfs:comment "Primary creative role (writer, artist, director, etc.)" .
+
+narrative:activeYears a owl:DatatypeProperty ;
+    rdfs:label "active years" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Years active in industry (e.g., '1985-present')" .
+
+narrative:activeFrom a owl:DatatypeProperty ;
+    rdfs:label "active from" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year started in industry" .
+
+narrative:activeTo a owl:DatatypeProperty ;
+    rdfs:label "active to" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Year ended/retired (if applicable)" .
+
+narrative:awards a owl:DatatypeProperty ;
+    rdfs:label "awards" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Awards and honors received (repeatable)" .
+
+narrative:education a owl:DatatypeProperty ;
+    rdfs:label "education" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Educational background" .
+
+narrative:influences a owl:DatatypeProperty ;
+    rdfs:label "influences" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Artistic or creative influences (repeatable)" .
+
+#################################################################
+# Role-Specific Properties
+#################################################################
+
+### Writer Properties
+narrative:writingStyle a owl:DatatypeProperty ;
+    rdfs:label "writing style" ;
+    rdfs:domain narrative:Writer ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Writing style or specialty" .
+
+narrative:notableStories a owl:DatatypeProperty ;
+    rdfs:label "notable stories" ;
+    rdfs:domain narrative:Writer ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Famous stories written (repeatable)" .
+
+### Artist Properties
+narrative:artStyle a owl:DatatypeProperty ;
+    rdfs:label "art style" ;
+    rdfs:domain narrative:Artist ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Art style or technique" .
+
+narrative:primaryMedium a owl:DatatypeProperty ;
+    rdfs:label "primary medium" ;
+    rdfs:domain narrative:Artist ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Traditional, Digital, Mixed Media, etc." .
+
+### Performer Properties
+narrative:performanceStyle a owl:DatatypeProperty ;
+    rdfs:label "performance style" ;
+    rdfs:domain narrative:Performer ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Acting or performance style" .
+
+narrative:voiceRange a owl:DatatypeProperty ;
+    rdfs:label "voice range" ;
+    rdfs:domain narrative:VoiceActor ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Vocal range or type" .
+
+#################################################################
+# Person Contact & Social Properties
+#################################################################
+
+narrative:website a owl:DatatypeProperty ;
+    rdfs:label "website" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Official website URL" .
+
+narrative:socialMedia a owl:DatatypeProperty ;
+    rdfs:label "social media" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Social media profiles (repeatable)" .
+
+narrative:email a owl:DatatypeProperty ;
+    rdfs:label "email" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Contact email" .
+
+narrative:twitter a owl:DatatypeProperty ;
+    rdfs:label "twitter" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Twitter/X handle" .
+
+narrative:instagram a owl:DatatypeProperty ;
+    rdfs:label "instagram" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Instagram handle" .
+
+narrative:portfolio a owl:DatatypeProperty ;
+    rdfs:label "portfolio" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Portfolio website or gallery URL" .
+
+#################################################################
+# Person-Organization Relationships
+#################################################################
+
+narrative:worksFor a owl:ObjectProperty ;
+    rdfs:label "works for" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:employs ;
+    rdfs:comment "Employment relationship" .
+
+narrative:memberOf a owl:ObjectProperty ;
+    rdfs:label "member of" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:hasMember ;
+    rdfs:comment "Membership in organization or studio" .
+
+narrative:founded a owl:ObjectProperty ;
+    rdfs:label "founded" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:foundedBy ;
+    rdfs:comment "Organization founded by this person" .
+
+#################################################################
+# Person-Character Relationships
+#################################################################
+
+narrative:created a owl:ObjectProperty ;
+    rdfs:label "created" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:createdBy ;
+    rdfs:comment "Character created by this person" .
+
+#################################################################
+# Person-Work Relationships
+#################################################################
+
+narrative:contributed a owl:ObjectProperty ;
+    rdfs:label "contributed" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "General contribution to a work (use CreditRelationship for detailed credits)" .

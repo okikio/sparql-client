@@ -1,0 +1,29 @@
+@prefix : <http://popmodern.xyz/ontology/narrative#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<http://popmodern.xyz/ontology/narrative/timestamps>
+    a owl:Ontology ;
+    rdfs:label "PopModern Narrative Ontology — Timestamps" ;
+    rdfs:comment "Timestamp predicates used for incremental exports and provenance." ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+narrative:lastModifiedAt
+    a owl:DatatypeProperty ;
+    rdfs:label "last modified at" ;
+    rdfs:comment "Canonical change timestamp for this entity in the knowledge graph. Used by export pipelines for incremental updates." ;
+    rdfs:range xsd:dateTime .
+
+narrative:sourceModifiedAt
+    a owl:DatatypeProperty ;
+    rdfs:label "source modified at" ;
+    rdfs:comment "Optional: original upstream change timestamp (if provided by the source system)." ;
+    rdfs:range xsd:dateTime .
+
+narrative:ingestedAt
+    a owl:DatatypeProperty ;
+    rdfs:label "ingested at" ;
+    rdfs:comment "Optional: timestamp when the importer/exporter ingested or derived this entity." ;
+    rdfs:range xsd:dateTime .

@@ -1,0 +1,358 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Organization Module
+# Properties and relationships for publishers, studios, distributors, retailers
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/organization>
+    a owl:Ontology ;
+    rdfs:label "PopModern Organization Module" ;
+    rdfs:comment "Properties and relationships for companies, publishers, studios, distributors" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Organization Subclasses
+#################################################################
+
+narrative:Publisher a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Publisher" ;
+    rdfs:comment "Publisher of books, comics, manga, or other printed works" .
+
+narrative:Imprint a owl:Class ;
+    rdfs:subClassOf narrative:Publisher ;
+    rdfs:label "Imprint" ;
+    rdfs:comment "Publishing imprint or label (e.g., Vertigo, MAX, Black Label)" .
+
+narrative:Studio a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Studio" ;
+    rdfs:comment "Animation studio, film studio, or game studio" .
+
+narrative:ProductionCompany a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Production Company" ;
+    rdfs:comment "Film or TV production company" .
+
+narrative:Distributor a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Distributor" ;
+    rdfs:comment "Distribution company" .
+
+narrative:Printer a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Printer" ;
+    rdfs:comment "Printing company" .
+
+narrative:LCS a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Local Comic Shop" ;
+    rdfs:comment "Local comic shop / retail store" .
+
+narrative:StreamingService a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Streaming Service" ;
+    rdfs:comment "Digital streaming platform" .
+
+narrative:RecordLabel a owl:Class ;
+    rdfs:subClassOf narrative:Org ;
+    rdfs:label "Record Label" ;
+    rdfs:comment "Music record label" .
+
+narrative:GamePublisher a owl:Class ;
+    rdfs:subClassOf narrative:Publisher ;
+    rdfs:label "Game Publisher" ;
+    rdfs:comment "Video game publisher" .
+
+#################################################################
+# Organization Identity Properties
+#################################################################
+
+narrative:orgName a owl:DatatypeProperty ;
+    rdfs:label "organization name" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Primary organization name" .
+
+narrative:legalName a owl:DatatypeProperty ;
+    rdfs:label "legal name" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Legal registered name of organization" .
+
+narrative:shortName a owl:DatatypeProperty ;
+    rdfs:label "short name" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Abbreviated name (e.g., 'DC' for 'DC Comics')" .
+
+narrative:orgType a owl:DatatypeProperty ;
+    rdfs:label "organization type" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Publisher, Studio, Distributor, Retailer, etc." .
+
+narrative:bio a owl:DatatypeProperty ;
+    rdfs:label "organization bio" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Organization description and history" .
+
+narrative:logo a owl:DatatypeProperty ;
+    rdfs:label "logo" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Organization logo URL" .
+
+#################################################################
+# Organization Timeline Properties
+#################################################################
+
+narrative:foundedDate a owl:DatatypeProperty ;
+    rdfs:label "founded date" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date organization was founded" .
+
+narrative:dissolvedDate a owl:DatatypeProperty ;
+    rdfs:label "dissolved date" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date organization ceased operations" .
+
+narrative:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Defunct, Acquired, Merged, etc." .
+
+#################################################################
+# Organization Location Properties
+#################################################################
+
+narrative:headquarters a owl:DatatypeProperty ;
+    rdfs:label "headquarters" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Location of headquarters" .
+
+narrative:country a owl:DatatypeProperty ;
+    rdfs:label "country" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Country of operation (ISO 3166 code)" .
+
+narrative:countryOfOrigin a owl:DatatypeProperty ;
+    rdfs:label "country of origin" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Country where organization originated (ISO 3166 code)" .
+
+narrative:city a owl:DatatypeProperty ;
+    rdfs:label "city" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "City location" .
+
+narrative:state a owl:DatatypeProperty ;
+    rdfs:label "state" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "State or province" .
+
+narrative:address a owl:DatatypeProperty ;
+    rdfs:label "address" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical address" .
+
+#################################################################
+# Organization Business Properties
+#################################################################
+
+narrative:industry a owl:DatatypeProperty ;
+    rdfs:label "industry" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Industry sector (Comics, Animation, Film, Gaming, Music, etc.)" .
+
+narrative:revenue a owl:DatatypeProperty ;
+    rdfs:label "revenue" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Annual revenue" .
+
+narrative:employeeCount a owl:DatatypeProperty ;
+    rdfs:label "employee count" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of employees" .
+
+narrative:stockSymbol a owl:DatatypeProperty ;
+    rdfs:label "stock symbol" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Stock ticker symbol (if publicly traded)" .
+
+#################################################################
+# Organization Contact Properties
+#################################################################
+
+narrative:website a owl:DatatypeProperty ;
+    rdfs:label "website" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Official website URL" .
+
+narrative:email a owl:DatatypeProperty ;
+    rdfs:label "email" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Contact email" .
+
+narrative:phone a owl:DatatypeProperty ;
+    rdfs:label "phone" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Contact phone number" .
+
+narrative:socialMedia a owl:DatatypeProperty ;
+    rdfs:label "social media" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Social media profiles (repeatable)" .
+
+#################################################################
+# Organization Hierarchy Relationships
+#################################################################
+
+narrative:parentOrg a owl:ObjectProperty ;
+    rdfs:label "parent organization" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:subsidiary ;
+    rdfs:comment "Parent company (e.g., DC is owned by Warner Bros)" .
+
+narrative:subsidiary a owl:ObjectProperty ;
+    rdfs:label "subsidiary" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:parentOrg ;
+    rdfs:comment "Subsidiary organizations" .
+
+narrative:division a owl:ObjectProperty ;
+    rdfs:label "division" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Org ;
+    rdfs:comment "Division or department of organization" .
+
+#################################################################
+# Organization-Person Relationships
+#################################################################
+
+narrative:employs a owl:ObjectProperty ;
+    rdfs:label "employs" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Person ;
+    owl:inverseOf narrative:worksFor ;
+    rdfs:comment "Employment relationship" .
+
+narrative:hasMember a owl:ObjectProperty ;
+    rdfs:label "has member" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Person ;
+    owl:inverseOf narrative:memberOf ;
+    rdfs:comment "Membership in organization" .
+
+narrative:foundedBy a owl:ObjectProperty ;
+    rdfs:label "founded by" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Person ;
+    owl:inverseOf narrative:founded ;
+    rdfs:comment "Person who founded this organization" .
+
+narrative:ceo a owl:ObjectProperty ;
+    rdfs:label "CEO" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Chief Executive Officer" .
+
+narrative:president a owl:ObjectProperty ;
+    rdfs:label "president" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "President of organization" .
+
+narrative:editorInChief a owl:ObjectProperty ;
+    rdfs:label "editor in chief" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Editor-in-chief or editorial director" .
+
+#################################################################
+# Organization-Work Relationships
+#################################################################
+
+narrative:publishes a owl:ObjectProperty ;
+    rdfs:label "publishes" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:publishedBy ;
+    rdfs:comment "Works published by this organization" .
+
+narrative:produces a owl:ObjectProperty ;
+    rdfs:label "produces" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:producedBy ;
+    rdfs:comment "Works produced by this organization" .
+
+narrative:distributes a owl:ObjectProperty ;
+    rdfs:label "distributes" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Product ;
+    owl:inverseOf narrative:distributedBy ;
+    rdfs:comment "Products distributed by this organization" .
+
+#################################################################
+# Publisher-Specific Properties
+#################################################################
+
+narrative:publisherType a owl:DatatypeProperty ;
+    rdfs:label "publisher type" ;
+    rdfs:domain narrative:Publisher ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Major, Independent, Self-Published, etc." .
+
+narrative:publishingFocus a owl:DatatypeProperty ;
+    rdfs:label "publishing focus" ;
+    rdfs:domain narrative:Publisher ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Genre or content focus (Superhero, Horror, Manga, Literary, etc.)" .
+
+#################################################################
+# LCS-Specific Properties
+#################################################################
+
+narrative:storeHours a owl:DatatypeProperty ;
+    rdfs:label "store hours" ;
+    rdfs:domain narrative:LCS ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Operating hours" .
+
+narrative:specializations a owl:DatatypeProperty ;
+    rdfs:label "specializations" ;
+    rdfs:domain narrative:LCS ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Store specializations (vintage comics, manga, gaming, etc.)" .
+
+narrative:diamondAccountNumber a owl:DatatypeProperty ;
+    rdfs:label "Diamond account number" ;
+    rdfs:domain narrative:LCS ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Diamond distributor account number" .

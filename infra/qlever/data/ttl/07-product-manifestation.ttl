@@ -1,0 +1,886 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Product and Manifestation Module
+# Product → Manifestation → Item hierarchy for physical/digital goods
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/product-manifestation>
+    a owl:Ontology ;
+    rdfs:label "PopModern Product Module" ;
+    rdfs:comment "Properties for products, manifestations, and items" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Product→Manifestation→Item Relationships
+#################################################################
+
+narrative:hasProduct a owl:ObjectProperty ;
+    rdfs:label "has product" ;
+    rdfs:domain narrative:NarrativeUnit ;
+    rdfs:range narrative:Product ;
+    owl:inverseOf narrative:productOf ;
+    rdfs:comment "Product realization of this narrative unit" .
+
+narrative:productOf a owl:ObjectProperty ;
+    rdfs:label "product of" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range narrative:NarrativeUnit ;
+    owl:inverseOf narrative:hasProduct ;
+    rdfs:comment "Narrative unit this product realizes" .
+
+narrative:hasManifestation a owl:ObjectProperty ;
+    rdfs:label "has manifestation" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range narrative:Manifestation ;
+    owl:inverseOf narrative:manifestationOf ;
+    rdfs:comment "Specific printing or release of this product" .
+
+narrative:manifestationOf a owl:ObjectProperty ;
+    rdfs:label "manifestation of" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range narrative:Product ;
+    owl:inverseOf narrative:hasManifestation ;
+    rdfs:comment "Product this is a manifestation of" .
+
+narrative:hasItem a owl:ObjectProperty ;
+    rdfs:label "has item" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range narrative:Item ;
+    owl:inverseOf narrative:itemOf ;
+    rdfs:comment "Individual copy of this manifestation" .
+
+narrative:itemOf a owl:ObjectProperty ;
+    rdfs:label "item of" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range narrative:Manifestation ;
+    owl:inverseOf narrative:hasItem ;
+    rdfs:comment "Manifestation this item is a copy of" .
+
+#################################################################
+# Product Properties
+#################################################################
+
+narrative:productTitle a owl:DatatypeProperty ;
+    rdfs:label "product title" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Product title" .
+
+narrative:productType a owl:DatatypeProperty ;
+    rdfs:label "product type" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Single Issue, Trade Paperback, Hardcover, Digital, Blu-ray, etc." .
+
+narrative:format a owl:DatatypeProperty ;
+    rdfs:label "format" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical, Digital, Streaming, etc." .
+
+narrative:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Product description" .
+
+narrative:coverImage a owl:DatatypeProperty ;
+    rdfs:label "cover image" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Product cover/thumbnail image URL" .
+
+#################################################################
+# Product Publishing Relationships
+#################################################################
+
+narrative:publishedBy a owl:ObjectProperty ;
+    rdfs:label "published by" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range narrative:Org ;
+    rdfs:comment "Publisher of this product" .
+
+narrative:distributedBy a owl:ObjectProperty ;
+    rdfs:label "distributed by" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:distributes ;
+    rdfs:comment "Distributor of this product" .
+
+narrative:printedBy a owl:ObjectProperty ;
+    rdfs:label "printed by" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range narrative:Org ;
+    rdfs:comment "Printer of this product" .
+
+#################################################################
+# Manifestation Properties
+#################################################################
+
+narrative:manifestationType a owl:DatatypeProperty ;
+    rdfs:label "manifestation type" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "First Printing, Second Printing, Variant Cover, Director's Cut, etc." .
+
+narrative:variantType a owl:DatatypeProperty ;
+    rdfs:label "variant type" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Standard, Variant Cover, Incentive, Sketch, Black & White, etc." .
+
+narrative:printRun a owl:DatatypeProperty ;
+    rdfs:label "print run" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of copies printed" .
+
+narrative:printingNumber a owl:DatatypeProperty ;
+    rdfs:label "printing number" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Which printing (1st, 2nd, 3rd, etc.)" .
+
+narrative:releaseDate a owl:DatatypeProperty ;
+    rdfs:label "release date" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Release date of this manifestation" .
+
+narrative:coverImage a owl:DatatypeProperty ;
+    rdfs:label "cover image" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Cover image for this specific manifestation" .
+
+#################################################################
+# Manifestation Physical Properties
+#################################################################
+
+narrative:dimensions a owl:DatatypeProperty ;
+    rdfs:label "dimensions" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical dimensions (e.g., '6.625 x 10.187 inches')" .
+
+narrative:weight a owl:DatatypeProperty ;
+    rdfs:label "weight" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Weight of physical item" .
+
+narrative:binding a owl:DatatypeProperty ;
+    rdfs:label "binding" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Paperback, Hardcover, Saddle-stitched, Perfect-bound, etc." .
+
+narrative:paperQuality a owl:DatatypeProperty ;
+    rdfs:label "paper quality" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Newsprint, Glossy, Matte, Archival, etc." .
+
+narrative:coverStock a owl:DatatypeProperty ;
+    rdfs:label "cover stock" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Cover material and finish (glossy cardstock, matte, foil, etc.)" .
+
+narrative:printingProcess a owl:DatatypeProperty ;
+    rdfs:label "printing process" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Printing method: Offset, Digital, Letterpress, etc." .
+
+narrative:printDate a owl:DatatypeProperty ;
+    rdfs:label "print date" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date this printing was produced" .
+
+narrative:reprinted a owl:DatatypeProperty ;
+    rdfs:label "reprinted" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether this is a reprint" .
+
+narrative:reprintOf a owl:ObjectProperty ;
+    rdfs:label "reprint of" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range narrative:Manifestation ;
+    rdfs:comment "Original manifestation this is a reprint of" .
+
+narrative:specialFeatures a owl:DatatypeProperty ;
+    rdfs:label "special features" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Sketch pages, interviews, behind-the-scenes extras included" .
+
+narrative:restricted a owl:DatatypeProperty ;
+    rdfs:label "restricted" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Convention exclusive, limited distribution, retailer exclusive, etc." .
+
+narrative:coverArtist a owl:ObjectProperty ;
+    rdfs:label "cover artist" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Artist who created the cover for this manifestation" .
+
+#################################################################
+# Manifestation Digital Properties
+#################################################################
+
+narrative:fileFormat a owl:DatatypeProperty ;
+    rdfs:label "file format" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "PDF, CBZ, CBR, EPUB, MP4, etc." .
+
+narrative:fileSize a owl:DatatypeProperty ;
+    rdfs:label "file size" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:long ;
+    rdfs:comment "File size in bytes" .
+
+narrative:resolution a owl:DatatypeProperty ;
+    rdfs:label "resolution" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Resolution or quality (1080p, 4K, HD, etc.)" .
+
+narrative:drm a owl:DatatypeProperty ;
+    rdfs:label "DRM" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether digital manifestation has DRM" .
+
+#################################################################
+# Manifestation Identifiers
+#################################################################
+
+narrative:isbn a owl:DatatypeProperty ;
+    rdfs:label "ISBN" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "International Standard Book Number" .
+
+narrative:upc a owl:DatatypeProperty ;
+    rdfs:label "UPC" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Universal Product Code (barcode)" .
+
+narrative:ean a owl:DatatypeProperty ;
+    rdfs:label "EAN" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "European Article Number" .
+
+narrative:asin a owl:DatatypeProperty ;
+    rdfs:label "ASIN" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Amazon Standard Identification Number" .
+
+#################################################################
+# Manifestation Pricing
+#################################################################
+
+narrative:msrp a owl:DatatypeProperty ;
+    rdfs:label "MSRP" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Manufacturer's Suggested Retail Price (original cover price)" .
+
+narrative:currentPrice a owl:DatatypeProperty ;
+    rdfs:label "current price" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Current retail price" .
+
+narrative:currency a owl:DatatypeProperty ;
+    rdfs:label "currency" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Currency code (USD, EUR, JPY, etc.)" .
+
+#################################################################
+# Item Properties (Individual Copies)
+#################################################################
+
+narrative:itemIdentifier a owl:DatatypeProperty ;
+    rdfs:label "item identifier" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Unique identifier for this specific copy" .
+
+narrative:barcode a owl:DatatypeProperty ;
+    rdfs:label "barcode" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Library barcode or collection tracking number" .
+
+narrative:serialNumber a owl:DatatypeProperty ;
+    rdfs:label "serial number" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Serial number (for limited/numbered editions)" .
+
+narrative:editionNumber a owl:DatatypeProperty ;
+    rdfs:label "edition number" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Edition number (e.g., '24/500' for limited editions)" .
+
+#################################################################
+# Item Ownership Properties
+#################################################################
+
+narrative:owner a owl:ObjectProperty ;
+    rdfs:label "owner" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Owner of this specific copy" .
+
+narrative:location a owl:DatatypeProperty ;
+    rdfs:label "location" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical location (shelf, box, row, etc.)" .
+
+narrative:storageType a owl:DatatypeProperty ;
+    rdfs:label "storage type" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "How stored (long box, short box, bag+board, slab, etc.)" .
+
+#################################################################
+# Item Condition Properties
+#################################################################
+
+narrative:condition a owl:DatatypeProperty ;
+    rdfs:label "condition" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Condition description (CGC scale: Poor, Good, Fine, VF, NM, Mint)" .
+
+narrative:cgcGraded a owl:DatatypeProperty ;
+    rdfs:label "CGC graded" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether item is professionally graded by CGC/CBCS" .
+
+narrative:cgcGrade a owl:DatatypeProperty ;
+    rdfs:label "CGC grade" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Numeric grade (0.5 to 10.0) if CGC graded" .
+
+narrative:certificationNumber a owl:DatatypeProperty ;
+    rdfs:label "certification number" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "CGC/CBCS certification number" .
+
+narrative:defects a owl:DatatypeProperty ;
+    rdfs:label "defects" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Specific defects (spine stress, corner crease, water damage, etc.)" .
+
+narrative:restoration a owl:DatatypeProperty ;
+    rdfs:label "restoration" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Details of any restoration work performed" .
+
+#################################################################
+# Item Signature & Provenance
+#################################################################
+
+narrative:signed a owl:DatatypeProperty ;
+    rdfs:label "signed" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether the item is signed" .
+
+narrative:signedBy a owl:ObjectProperty ;
+    rdfs:label "signed by" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Person(s) who signed this copy" .
+
+narrative:signatureLocation a owl:DatatypeProperty ;
+    rdfs:label "signature location" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Where signature appears (cover, interior, etc.)" .
+
+narrative:authenticated a owl:DatatypeProperty ;
+    rdfs:label "authenticated" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether signature is authenticated" .
+
+narrative:authenticator a owl:DatatypeProperty ;
+    rdfs:label "authenticator" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Organization that authenticated signature (CGC, CBCS, etc.)" .
+
+narrative:provenance a owl:DatatypeProperty ;
+    rdfs:label "provenance" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ownership history and provenance" .
+
+#################################################################
+# Item Acquisition & Valuation
+#################################################################
+
+narrative:acquisitionDate a owl:DatatypeProperty ;
+    rdfs:label "acquisition date" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date item was acquired" .
+
+narrative:acquisitionPrice a owl:DatatypeProperty ;
+    rdfs:label "acquisition price" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Purchase price when acquired" .
+
+narrative:acquisitionSource a owl:DatatypeProperty ;
+    rdfs:label "acquisition source" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Where item was acquired (store, auction, trade, gift, etc.)" .
+
+narrative:currentValue a owl:DatatypeProperty ;
+    rdfs:label "current value" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Current estimated market value of this specific copy" .
+
+narrative:currentMarketPrice a owl:DatatypeProperty ;
+    rdfs:label "current market price" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Current market price for this condition/grade" .
+
+narrative:valuationDate a owl:DatatypeProperty ;
+    rdfs:label "valuation date" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of most recent valuation" .
+
+narrative:insuredValue a owl:DatatypeProperty ;
+    rdfs:label "insured value" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Insured value for this item" .
+
+#################################################################
+# Item Library/Circulation Properties
+#################################################################
+
+narrative:circulationStatus a owl:DatatypeProperty ;
+    rdfs:label "circulation status" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Available, Checked Out, Reference Only, Lost, Damaged, etc." .
+
+narrative:checkedOutTo a owl:ObjectProperty ;
+    rdfs:label "checked out to" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Person who currently has item checked out" .
+
+narrative:dueDate a owl:DatatypeProperty ;
+    rdfs:label "due date" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Due date for return if checked out" .
+
+narrative:checkoutDate a owl:DatatypeProperty ;
+    rdfs:label "checkout date" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date item was checked out" .
+
+narrative:renewalCount a owl:DatatypeProperty ;
+    rdfs:label "renewal count" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of times item has been renewed" .
+
+#################################################################
+# Item Notes & Metadata
+#################################################################
+
+narrative:itemNotes a owl:DatatypeProperty ;
+    rdfs:label "item notes" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Free-form notes about this specific copy" .
+
+narrative:personalRating a owl:DatatypeProperty ;
+    rdfs:label "personal rating" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Owner's personal rating of this item" .
+
+narrative:readStatus a owl:DatatypeProperty ;
+    rdfs:label "read status" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Unread, Reading, Read, Re-reading, etc." .
+
+narrative:wishlist a owl:DatatypeProperty ;
+    rdfs:label "wishlist" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether item is on wishlist (for tracking wanted items)" .
+
+narrative:forSale a owl:DatatypeProperty ;
+    rdfs:label "for sale" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether owner is willing to sell" .
+
+narrative:askingPrice a owl:DatatypeProperty ;
+    rdfs:label "asking price" ;
+    rdfs:domain narrative:Item ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Price owner is asking if for sale" .
+
+
+#################################################################
+# Product refinements for toys, figures, merch, board games, TCG
+#################################################################
+
+### High-level product categorization ###########################################
+
+narrative:productCategory
+  a owl:DatatypeProperty ;
+  rdfs:label "product category" ;
+  rdfs:comment """
+  High-level category of the product, e.g.:
+  'comic', 'manga', 'webtoon', 'figure', 'statue', 'model-kit', 'plush',
+  'poster', 'art-print', 'apparel', 'accessory', 'board-game', 'tcg',
+  'video-game', 'soundtrack', 'album', 'film-release', etc.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+### Toy / collectible-specific metadata ########################################
+
+narrative:toyCategory
+  a owl:DatatypeProperty ;
+  rdfs:label "toy category" ;
+  rdfs:comment """
+  More specific type of toy or collectible, e.g.:
+  'action-figure', 'chibi-figure', 'nendoroid', 'figma', 'statue',
+  'bust', 'prop-replica', 'plush', 'model-kit'.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+narrative:scale
+  a owl:DatatypeProperty ;
+  rdfs:label "scale" ;
+  rdfs:comment """
+  Scale of the item relative to real life, e.g.:
+  '1:4', '1:6', '1:12', '1:18', 'life-size'.
+  Stored as a string to preserve arbitrary notations.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+narrative:minRecommendedAge
+  a owl:DatatypeProperty ;
+  rdfs:label "minimum recommended age" ;
+  rdfs:comment "Minimum recommended age for use/play, in years." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:integer
+.
+
+narrative:maxRecommendedAge
+  a owl:DatatypeProperty ;
+  rdfs:label "maximum recommended age" ;
+  rdfs:comment "Optional maximum recommended age for use/play, in years." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:integer
+.
+
+narrative:safetyStandard
+  a owl:DatatypeProperty ;
+  rdfs:label "safety standard" ;
+  rdfs:comment """
+  Safety standards or certifications applicable to the product, e.g.:
+  'ASTM', 'CE', 'JP-ST', 'EN71', etc.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+narrative:chokingHazardWarning
+  a owl:DatatypeProperty ;
+  rdfs:label "choking hazard warning" ;
+  rdfs:comment "Boolean flag indicating whether the product carries a choking hazard warning." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:boolean
+.
+
+narrative:articulationPoints
+  a owl:DatatypeProperty ;
+  rdfs:label "articulation points" ;
+  rdfs:comment "Number of articulation points (joints) on an articulated figure/toy." ;
+  rdfs:domain narrative:Manifestation ;
+  rdfs:range xsd:integer
+.
+
+narrative:includesAccessories
+  a owl:DatatypeProperty ;
+  rdfs:label "includes accessories" ;
+  rdfs:comment """
+  Description of accessories included with the manifestation, e.g.:
+  'alternate-head', 'alternate-hands', 'weapons', 'stand', 'effect-parts'.
+  May be repeated multiple times for a single manifestation.
+  """ ;
+  rdfs:domain narrative:Manifestation ;
+  rdfs:range xsd:string
+.
+
+#################################################################
+# Board games / tabletop / TCG-specific metadata
+#################################################################
+
+narrative:gameCategory
+  a owl:DatatypeProperty ;
+  rdfs:label "game category" ;
+  rdfs:comment """
+  Category of a tabletop or physical game, e.g.:
+  'board-game', 'tcg-booster', 'tcg-starter-deck', 'lcg-pack',
+  'rpg-core-book', 'rpg-supplement', 'miniatures-game', 'party-game'.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+narrative:minPlayers
+  a owl:DatatypeProperty ;
+  rdfs:label "minimum players" ;
+  rdfs:comment "Minimum number of players recommended for the game." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:integer
+.
+
+narrative:maxPlayers
+  a owl:DatatypeProperty ;
+  rdfs:label "maximum players" ;
+  rdfs:comment "Maximum number of players recommended for the game." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:integer
+.
+
+narrative:averagePlayTimeMinutes
+  a owl:DatatypeProperty ;
+  rdfs:label "average play time (minutes)" ;
+  rdfs:comment "Typical play time for a single session, in minutes." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:integer
+.
+
+narrative:gameComplexity
+  a owl:DatatypeProperty ;
+  rdfs:label "game complexity" ;
+  rdfs:comment """
+  Subjective complexity rating of the game, e.g.:
+  'light', 'medium', 'heavy', or a numeric score mapped to such tiers.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+narrative:cooperative
+  a owl:DatatypeProperty ;
+  rdfs:label "cooperative" ;
+  rdfs:comment "Boolean flag indicating whether the game supports fully cooperative play." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:boolean
+.
+
+narrative:teamBased
+  a owl:DatatypeProperty ;
+  rdfs:label "team-based" ;
+  rdfs:comment "Boolean flag indicating whether the game supports or requires team-based play." ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:boolean
+.
+
+#################################################################
+# Video game / digital interactive product refinements
+#################################################################
+
+narrative:editionType
+  a owl:DatatypeProperty ;
+  rdfs:label "edition type" ;
+  rdfs:comment """
+  Edition or packaging type of a product, e.g.:
+  'standard', 'deluxe', 'collector', 'goty', 'limited', 'steelbook'.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range xsd:string
+.
+
+narrative:platformCode
+  a owl:DatatypeProperty ;
+  rdfs:label "platform code" ;
+  rdfs:comment """
+  Platform identifier for a particular Manifestation or Product, e.g.:
+  'pc', 'steam', 'ps5', 'xbox-series', 'switch', 'ios', 'android'.
+  This is complementary to the Platform class used for InteractiveExperience.
+  """ ;
+  rdfs:domain narrative:Manifestation ;
+  rdfs:range xsd:string
+.
+
+narrative:regionCode
+  a owl:DatatypeProperty ;
+  rdfs:label "region code" ;
+  rdfs:comment """
+  Region code for a Manifestation, e.g.:
+  'NA', 'EU', 'JP', or region-based SKU codes.
+  """ ;
+  rdfs:domain narrative:Manifestation ;
+  rdfs:range xsd:string
+.
+
+narrative:requiresBaseProduct
+  a owl:ObjectProperty ;
+  rdfs:label "requires base product" ;
+  rdfs:comment """
+  Indicates that a Product (e.g., DLC, expansion, season pass)
+  requires another base Product in order to be used.
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range narrative:Product
+.
+
+#################################################################
+# COMET Distribution Properties (Comics Distributor System)
+#################################################################
+
+narrative:focDate a owl:DatatypeProperty ;
+    rdfs:label "FOC date" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Final Order Cutoff date for retailer orders" .
+
+narrative:imageUpdateDate a owl:DatatypeProperty ;
+    rdfs:label "image update date" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date when cover image was last updated in distribution system" .
+
+narrative:contentType a owl:DatatypeProperty ;
+    rdfs:label "content type" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Content type classification: Original, Collected, Digital First, Reprint, etc." .
+
+### Logistics & Shipping Properties
+
+narrative:unitWeight a owl:DatatypeProperty ;
+    rdfs:label "unit weight" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Weight of a single unit (in ounces or grams as per system)" .
+
+narrative:caseWeight a owl:DatatypeProperty ;
+    rdfs:label "case weight" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Weight of a full shipping case/carton" .
+
+narrative:caseLength a owl:DatatypeProperty ;
+    rdfs:label "case length" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Length dimension of shipping case" .
+
+narrative:caseWidth a owl:DatatypeProperty ;
+    rdfs:label "case width" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Width dimension of shipping case" .
+
+narrative:caseHeight a owl:DatatypeProperty ;
+    rdfs:label "case height" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Height dimension of shipping case" .
+
+### Returns Policy Properties
+
+narrative:returnable a owl:DatatypeProperty ;
+    rdfs:label "returnable" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether the product is returnable to distributor" .
+
+narrative:returnType a owl:DatatypeProperty ;
+    rdfs:label "return type" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Return method: Affidavit, Strippable, Full Return, etc." .
+
+narrative:returnQualifier a owl:DatatypeProperty ;
+    rdfs:label "return qualifier" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Additional return policy qualifier or conditions" .
+
+narrative:returnPercent a owl:DatatypeProperty ;
+    rdfs:label "return percent" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Percentage of order eligible for return" .
+
+#################################################################
+# Linking manifestations/products to Live Events (exclusives)
+#################################################################
+
+narrative:exclusiveAtEvent
+  a owl:ObjectProperty ;
+  rdfs:label "exclusive at event" ;
+  rdfs:comment """
+  Indicates that a Manifestation is exclusive to a particular LiveEvent,
+  such as a convention-exclusive variant or tour-only merch item.
+  """ ;
+  rdfs:domain narrative:Manifestation ;
+  rdfs:range narrative:LiveEvent
+.
+
+narrative:soldAtEvent
+  a owl:ObjectProperty ;
+  rdfs:label "sold at event" ;
+  rdfs:comment """
+  Indicates that a Manifestation or Product is (or was) sold at a
+  particular LiveEvent (not necessarily exclusive).
+  """ ;
+  rdfs:domain narrative:Product ;
+  rdfs:range narrative:LiveEvent
+.

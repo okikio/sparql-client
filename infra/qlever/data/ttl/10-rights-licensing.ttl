@@ -1,0 +1,464 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Rights and Licensing Module
+# Intellectual property rights, ownership, and licensing agreements
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/rights-licensing>
+    a owl:Ontology ;
+    rdfs:label "PopModern Rights and Licensing Module" ;
+    rdfs:comment "Properties and relationships for IP rights, ownership, and licensing" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Rights Classes
+#################################################################
+
+narrative:Right a owl:Class ;
+    rdfs:label "Right" ;
+    rdfs:comment "Intellectual property right for a character, work, or franchise" .
+
+narrative:CopyrightRight a owl:Class ;
+    rdfs:subClassOf narrative:Right ;
+    rdfs:label "Copyright Right" ;
+    rdfs:comment "Copyright ownership" .
+
+narrative:TrademarkRight a owl:Class ;
+    rdfs:subClassOf narrative:Right ;
+    rdfs:label "Trademark Right" ;
+    rdfs:comment "Trademark ownership" .
+
+narrative:MerchandisingRight a owl:Class ;
+    rdfs:subClassOf narrative:Right ;
+    rdfs:label "Merchandising Right" ;
+    rdfs:comment "Rights to create merchandise" .
+
+narrative:AdaptationRight a owl:Class ;
+    rdfs:subClassOf narrative:Right ;
+    rdfs:label "Adaptation Right" ;
+    rdfs:comment "Rights to adapt work to other media" .
+
+narrative:DistributionRight a owl:Class ;
+    rdfs:subClassOf narrative:Right ;
+    rdfs:label "Distribution Right" ;
+    rdfs:comment "Rights to distribute work" .
+
+narrative:DigitalRight a owl:Class ;
+    rdfs:subClassOf narrative:Right ;
+    rdfs:label "Digital Right" ;
+    rdfs:comment "Digital distribution and reproduction rights" .
+
+#################################################################
+# Rights Properties
+#################################################################
+
+narrative:rightType a owl:DatatypeProperty ;
+    rdfs:label "right type" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Copyright, Trademark, Merchandising, Adaptation, Distribution, etc." .
+
+narrative:rightDescription a owl:DatatypeProperty ;
+    rdfs:label "right description" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of the specific rights granted" .
+
+narrative:ownershipType a owl:DatatypeProperty ;
+    rdfs:label "ownership type" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Full, Partial, Work-for-Hire, Creator-Owned, Joint, etc." .
+
+narrative:ownershipPercentage a owl:DatatypeProperty ;
+    rdfs:label "ownership percentage" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Percentage ownership (0.0-1.0)" .
+
+narrative:territory a owl:DatatypeProperty ;
+    rdfs:label "territory" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Geographic territory (ISO 3166 codes, repeatable)" .
+
+narrative:rightsStartDate a owl:DatatypeProperty ;
+    rdfs:label "rights start date" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When rights became effective" .
+
+narrative:rightsExpirationDate a owl:DatatypeProperty ;
+    rdfs:label "rights expiration date" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When rights expire (null = perpetual)" .
+
+narrative:reversionDate a owl:DatatypeProperty ;
+    rdfs:label "reversion date" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date when rights revert to creator" .
+
+narrative:exclusivity a owl:DatatypeProperty ;
+    rdfs:label "exclusivity" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether rights are exclusive" .
+
+narrative:transferable a owl:DatatypeProperty ;
+    rdfs:label "transferable" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether rights can be transferred" .
+
+#################################################################
+# Rights Subject Relationships
+#################################################################
+
+narrative:rightsSubject a owl:ObjectProperty ;
+    rdfs:label "rights subject" ;
+    rdfs:domain narrative:Right ;
+    rdfs:comment "What this right covers (Character, Work, Franchise, etc.)" .
+
+narrative:rightsToCharacter a owl:ObjectProperty ;
+    rdfs:label "rights to character" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Character these rights apply to" .
+
+narrative:rightsToWork a owl:ObjectProperty ;
+    rdfs:label "rights to work" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "Work these rights apply to" .
+
+narrative:rightsToFranchise a owl:ObjectProperty ;
+    rdfs:label "rights to franchise" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range narrative:Franchise ;
+    rdfs:comment "Franchise these rights apply to" .
+
+#################################################################
+# Rights Holder Relationships
+#################################################################
+
+narrative:rightsHolder a owl:ObjectProperty ;
+    rdfs:label "rights holder" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Who holds this right (Person or Organization)" .
+
+narrative:holdsRightsTo a owl:ObjectProperty ;
+    rdfs:label "holds rights to" ;
+    rdfs:domain [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:range narrative:Right ;
+    owl:inverseOf narrative:rightsHolder ;
+    rdfs:comment "Rights held by this person or organization" .
+
+narrative:creatorOwns a owl:ObjectProperty ;
+    rdfs:label "creator owns" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:Right ;
+    rdfs:comment "Creator-owned rights" .
+
+narrative:publisherOwns a owl:ObjectProperty ;
+    rdfs:label "publisher owns" ;
+    rdfs:domain narrative:Org ;
+    rdfs:range narrative:Right ;
+    rdfs:comment "Publisher-owned rights" .
+
+#################################################################
+# License Classes
+#################################################################
+
+narrative:License a owl:Class ;
+    rdfs:label "License" ;
+    rdfs:comment "License agreement for using intellectual property" .
+
+narrative:ExclusiveLicense a owl:Class ;
+    rdfs:subClassOf narrative:License ;
+    rdfs:label "Exclusive License" ;
+    rdfs:comment "Exclusive licensing agreement" .
+
+narrative:NonExclusiveLicense a owl:Class ;
+    rdfs:subClassOf narrative:License ;
+    rdfs:label "Non-Exclusive License" ;
+    rdfs:comment "Non-exclusive licensing agreement" .
+
+narrative:SubLicense a owl:Class ;
+    rdfs:subClassOf narrative:License ;
+    rdfs:label "Sub-License" ;
+    rdfs:comment "Sub-licensing agreement" .
+
+#################################################################
+# License Properties
+#################################################################
+
+narrative:licenseType a owl:DatatypeProperty ;
+    rdfs:label "license type" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Exclusive, Non-Exclusive, Sub-License, Territorial, etc." .
+
+narrative:licenseDescription a owl:DatatypeProperty ;
+    rdfs:label "license description" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of the license terms" .
+
+narrative:licenseScope a owl:DatatypeProperty ;
+    rdfs:label "license scope" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Scope of licensed rights (Print, Digital, Merchandise, Film, TV, etc.)" .
+
+narrative:royaltyPercentage a owl:DatatypeProperty ;
+    rdfs:label "royalty percentage" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Royalty percentage (0.0-1.0)" .
+
+narrative:royaltyRate a owl:DatatypeProperty ;
+    rdfs:label "royalty rate" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Flat royalty rate per unit" .
+
+narrative:minimumGuarantee a owl:DatatypeProperty ;
+    rdfs:label "minimum guarantee" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Minimum guaranteed payment" .
+
+narrative:advancePayment a owl:DatatypeProperty ;
+    rdfs:label "advance payment" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Advance payment against royalties" .
+
+narrative:territory a owl:DatatypeProperty ;
+    rdfs:label "territory" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Geographic territory covered by license" .
+
+narrative:language a owl:DatatypeProperty ;
+    rdfs:label "language" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Language(s) covered by license" .
+
+narrative:licenseStartDate a owl:DatatypeProperty ;
+    rdfs:label "license start date" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When license becomes effective" .
+
+narrative:licenseExpirationDate a owl:DatatypeProperty ;
+    rdfs:label "license expiration date" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When license expires" .
+
+narrative:renewalOption a owl:DatatypeProperty ;
+    rdfs:label "renewal option" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether license can be renewed" .
+
+narrative:renewalTerms a owl:DatatypeProperty ;
+    rdfs:label "renewal terms" ;
+    rdfs:domain narrative:License ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Terms for renewal" .
+
+#################################################################
+# License Relationships
+#################################################################
+
+narrative:licenseOf a owl:ObjectProperty ;
+    rdfs:label "license of" ;
+    rdfs:domain narrative:License ;
+    rdfs:range narrative:Right ;
+    rdfs:comment "Which right is being licensed" .
+
+narrative:licensor a owl:ObjectProperty ;
+    rdfs:label "licensor" ;
+    rdfs:domain narrative:License ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Who is granting the license" .
+
+narrative:licensee a owl:ObjectProperty ;
+    rdfs:label "licensee" ;
+    rdfs:domain narrative:License ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Who is receiving the license" .
+
+narrative:hasLicense a owl:ObjectProperty ;
+    rdfs:label "has license" ;
+    rdfs:domain narrative:Right ;
+    rdfs:range narrative:License ;
+    owl:inverseOf narrative:licenseOf ;
+    rdfs:comment "License granted for this right" .
+
+#################################################################
+# Royalty Tracking
+#################################################################
+
+narrative:RoyaltyPayment a owl:Class ;
+    rdfs:label "Royalty Payment" ;
+    rdfs:comment "Individual royalty payment record" .
+
+narrative:paymentAmount a owl:DatatypeProperty ;
+    rdfs:label "payment amount" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Amount paid" .
+
+narrative:paymentDate a owl:DatatypeProperty ;
+    rdfs:label "payment date" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of payment" .
+
+narrative:paymentPeriodStart a owl:DatatypeProperty ;
+    rdfs:label "payment period start" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Start of period this payment covers" .
+
+narrative:paymentPeriodEnd a owl:DatatypeProperty ;
+    rdfs:label "payment period end" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range xsd:date ;
+    rdfs:comment "End of period this payment covers" .
+
+narrative:unitsSold a owl:DatatypeProperty ;
+    rdfs:label "units sold" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of units sold in period" .
+
+narrative:paymentForLicense a owl:ObjectProperty ;
+    rdfs:label "payment for license" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range narrative:License ;
+    rdfs:comment "License this payment is for" .
+
+narrative:paymentTo a owl:ObjectProperty ;
+    rdfs:label "payment to" ;
+    rdfs:domain narrative:RoyaltyPayment ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Recipient of payment" .
+
+#################################################################
+# Rights Disputes & Legal
+#################################################################
+
+narrative:RightsDispute a owl:Class ;
+    rdfs:label "Rights Dispute" ;
+    rdfs:comment "Legal dispute over rights ownership" .
+
+narrative:disputeType a owl:DatatypeProperty ;
+    rdfs:label "dispute type" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ownership, Infringement, Breach of Contract, etc." .
+
+narrative:disputeStatus a owl:DatatypeProperty ;
+    rdfs:label "dispute status" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Pending, Settled, Court Ruling, Arbitration, etc." .
+
+narrative:disputeDescription a owl:DatatypeProperty ;
+    rdfs:label "dispute description" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of the dispute" .
+
+narrative:filedDate a owl:DatatypeProperty ;
+    rdfs:label "filed date" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date dispute was filed" .
+
+narrative:resolvedDate a owl:DatatypeProperty ;
+    rdfs:label "resolved date" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date dispute was resolved" .
+
+narrative:disputeOverRight a owl:ObjectProperty ;
+    rdfs:label "dispute over right" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range narrative:Right ;
+    rdfs:comment "Right being disputed" .
+
+narrative:claimant a owl:ObjectProperty ;
+    rdfs:label "claimant" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Party making the claim" .
+
+narrative:defendant a owl:ObjectProperty ;
+    rdfs:label "defendant" ;
+    rdfs:domain narrative:RightsDispute ;
+    rdfs:range [ owl:unionOf (narrative:Person narrative:Org) ] ;
+    rdfs:comment "Party defending against claim" .
+
+#################################################################
+# Work-for-Hire & Creator Agreements
+#################################################################
+
+narrative:CreatorAgreement a owl:Class ;
+    rdfs:label "Creator Agreement" ;
+    rdfs:comment "Agreement between creator and publisher" .
+
+narrative:agreementType a owl:DatatypeProperty ;
+    rdfs:label "agreement type" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Work-for-Hire, Creator-Owned, Joint Ownership, etc." .
+
+narrative:pageRate a owl:DatatypeProperty ;
+    rdfs:label "page rate" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Payment per page of work" .
+
+narrative:flatFee a owl:DatatypeProperty ;
+    rdfs:label "flat fee" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Flat fee for work" .
+
+narrative:reversionClause a owl:DatatypeProperty ;
+    rdfs:label "reversion clause" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Terms under which rights revert to creator" .
+
+narrative:agreementForWork a owl:ObjectProperty ;
+    rdfs:label "agreement for work" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "Work covered by this agreement" .
+
+narrative:creatorParty a owl:ObjectProperty ;
+    rdfs:label "creator party" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Creator in the agreement" .
+
+narrative:publisherParty a owl:ObjectProperty ;
+    rdfs:label "publisher party" ;
+    rdfs:domain narrative:CreatorAgreement ;
+    rdfs:range narrative:Org ;
+    rdfs:comment "Publisher in the agreement" .

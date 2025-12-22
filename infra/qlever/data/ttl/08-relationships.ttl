@@ -1,0 +1,689 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Relationships Module
+# Reified relationships between characters, people, and works
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/relationships>
+    a owl:Ontology ;
+    rdfs:label "PopModern Relationships Module" ;
+    rdfs:comment "Relationship classes for credits, portrayals, and character interactions" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Credit Relationships (Person → Work)
+#################################################################
+
+narrative:CreditRelationship a owl:Class ;
+    rdfs:subClassOf narrative:Relationship ;
+    rdfs:label "Credit Relationship" ;
+    rdfs:comment "Credit for creative contribution to a work" .
+
+narrative:hasCreditRelationship a owl:ObjectProperty ;
+    rdfs:label "has credit relationship" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:CreditRelationship ;
+    rdfs:comment "Person's credit relationship to a work" .
+
+narrative:creditsWork a owl:ObjectProperty ;
+    rdfs:label "credits work" ;
+    rdfs:domain narrative:CreditRelationship ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Work being credited" .
+
+narrative:creditRole a owl:ObjectProperty ;
+    rdfs:label "credit role" ;
+    rdfs:domain narrative:CreditRelationship ;
+    rdfs:range narrative:Role ;
+    rdfs:comment "Role performed (Writer, Penciller, Inker, etc.)" .
+
+narrative:creditYears a owl:DatatypeProperty ;
+    rdfs:label "credit years" ;
+    rdfs:domain narrative:CreditRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Years of contribution (e.g., '1962-1972')" .
+
+narrative:contractType a owl:DatatypeProperty ;
+    rdfs:label "contract type" ;
+    rdfs:domain narrative:CreditRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Work-for-hire, Creator-owned, etc." .
+
+narrative:uncredited a owl:DatatypeProperty ;
+    rdfs:label "uncredited" ;
+    rdfs:domain narrative:CreditRelationship ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether contribution was uncredited" .
+
+narrative:creditNote a owl:DatatypeProperty ;
+    rdfs:label "credit note" ;
+    rdfs:domain narrative:CreditRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Additional credit notes or context" .
+
+#################################################################
+# Portrayal Relationships (Person → Character)
+#################################################################
+
+narrative:PortrayalRelationship a owl:Class ;
+    rdfs:subClassOf narrative:Relationship ;
+    rdfs:label "Portrayal Relationship" ;
+    rdfs:comment "Actor or voice actor portraying a character" .
+
+narrative:hasPortrayalRelationship a owl:ObjectProperty ;
+    rdfs:label "has portrayal relationship" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:PortrayalRelationship ;
+    rdfs:comment "Person's portrayal of a character" .
+
+narrative:portraysCharacter a owl:ObjectProperty ;
+    rdfs:label "portrays character" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Character being portrayed" .
+
+narrative:portrayalMedium a owl:DatatypeProperty ;
+    rdfs:label "portrayal medium" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Film, TV, Animation, Video Game, etc." .
+
+narrative:portrayalStart a owl:DatatypeProperty ;
+    rdfs:label "portrayal start" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When portrayal began" .
+
+narrative:portrayalEnd a owl:DatatypeProperty ;
+    rdfs:label "portrayal end" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When portrayal ended (null = ongoing)" .
+
+narrative:billing a owl:DatatypeProperty ;
+    rdfs:label "billing" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Billing position or credit order" .
+
+narrative:castingType a owl:DatatypeProperty ;
+    rdfs:label "casting type" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Lead, Supporting, Cameo, Voice-only, etc." .
+
+narrative:awardNominations a owl:DatatypeProperty ;
+    rdfs:label "award nominations" ;
+    rdfs:domain narrative:PortrayalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Awards won or nominated for this role" .
+
+#################################################################
+# Worked With Relationships (Person ↔ Person Collaboration)
+#################################################################
+
+narrative:WorkedWithRelationship a owl:Class ;
+    rdfs:subClassOf narrative:Relationship ;
+    rdfs:label "Worked With Relationship" ;
+    rdfs:comment "Professional collaboration between two people (e.g., writer-artist teams, recurring collaborators)" .
+
+narrative:hasWorkedWithRelationship a owl:ObjectProperty ;
+    rdfs:label "has worked with relationship" ;
+    rdfs:domain narrative:Person ;
+    rdfs:range narrative:WorkedWithRelationship ;
+    rdfs:comment "Person's collaboration relationship with another person" .
+
+narrative:involvesPerson a owl:ObjectProperty ;
+    rdfs:label "involves person" ;
+    rdfs:domain narrative:WorkedWithRelationship ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Other person in this collaboration" .
+
+narrative:projectCount a owl:DatatypeProperty ;
+    rdfs:label "project count" ;
+    rdfs:domain narrative:WorkedWithRelationship ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of projects collaborated on together" .
+
+narrative:collabStart a owl:DatatypeProperty ;
+    rdfs:label "collaboration start" ;
+    rdfs:domain narrative:WorkedWithRelationship ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When collaboration began" .
+
+narrative:collabEnd a owl:DatatypeProperty ;
+    rdfs:label "collaboration end" ;
+    rdfs:domain narrative:WorkedWithRelationship ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When collaboration ended (null = ongoing)" .
+
+narrative:collabNotes a owl:DatatypeProperty ;
+    rdfs:label "collaboration notes" ;
+    rdfs:domain narrative:WorkedWithRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Additional context about the collaboration" .
+
+#################################################################
+# Character Relationships (Character ↔ Character)
+#################################################################
+
+narrative:CharacterRelationship a owl:Class ;
+    rdfs:subClassOf narrative:Relationship ;
+    rdfs:label "Character Relationship" ;
+    rdfs:comment "Relationship between two characters" .
+
+narrative:hasCharacterRelationship a owl:ObjectProperty ;
+    rdfs:label "has character relationship" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range narrative:CharacterRelationship ;
+    rdfs:comment "Character's relationship to another character" .
+
+narrative:involvesCharacter a owl:ObjectProperty ;
+    rdfs:label "involves character" ;
+    rdfs:domain narrative:CharacterRelationship ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Other character(s) in this relationship" .
+
+narrative:relationshipType a owl:DatatypeProperty ;
+    rdfs:label "relationship type" ;
+    rdfs:domain narrative:CharacterRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of relationship" .
+
+narrative:relationshipStatus a owl:DatatypeProperty ;
+    rdfs:label "relationship status" ;
+    rdfs:domain narrative:CharacterRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Current, Former, Complicated, etc." .
+
+narrative:relationshipStart a owl:DatatypeProperty ;
+    rdfs:label "relationship start" ;
+    rdfs:domain narrative:CharacterRelationship ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When relationship began (in-universe)" .
+
+narrative:relationshipEnd a owl:DatatypeProperty ;
+    rdfs:label "relationship end" ;
+    rdfs:domain narrative:CharacterRelationship ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When relationship ended (in-universe)" .
+
+narrative:relationshipNotes a owl:DatatypeProperty ;
+    rdfs:label "relationship notes" ;
+    rdfs:domain narrative:CharacterRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Additional context or notes" .
+
+#################################################################
+# Family Relationships
+#################################################################
+
+narrative:FamilyRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Family Relationship" ;
+    rdfs:comment "Family connection between characters" .
+
+narrative:ParentChild a owl:Class ;
+    rdfs:subClassOf narrative:FamilyRelationship ;
+    rdfs:label "Parent-Child" ;
+    rdfs:comment "Parent-child relationship" .
+
+narrative:Siblings a owl:Class ;
+    rdfs:subClassOf narrative:FamilyRelationship ;
+    rdfs:label "Siblings" ;
+    rdfs:comment "Sibling relationship" .
+
+narrative:MarriedCouple a owl:Class ;
+    rdfs:subClassOf narrative:FamilyRelationship ;
+    rdfs:label "Married Couple" ;
+    rdfs:comment "Married or partnered relationship" .
+
+narrative:ExtendedFamily a owl:Class ;
+    rdfs:subClassOf narrative:FamilyRelationship ;
+    rdfs:label "Extended Family" ;
+    rdfs:comment "Extended family (grandparent, aunt, uncle, cousin, etc.)" .
+
+narrative:biologicalRelation a owl:DatatypeProperty ;
+    rdfs:label "biological relation" ;
+    rdfs:domain narrative:FamilyRelationship ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether biological or adoptive/found family" .
+
+narrative:familyRole a owl:DatatypeProperty ;
+    rdfs:label "family role" ;
+    rdfs:domain narrative:FamilyRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Parent, Child, Sibling, Spouse, Grandparent, etc." .
+
+#################################################################
+# Romantic Relationships
+#################################################################
+
+narrative:RomanticRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Romantic Relationship" ;
+    rdfs:comment "Romantic involvement between characters" .
+
+narrative:LoveInterest a owl:Class ;
+    rdfs:subClassOf narrative:RomanticRelationship ;
+    rdfs:label "Love Interest" ;
+    rdfs:comment "One-sided or reciprocated romantic interest" .
+
+narrative:romanticStatus a owl:DatatypeProperty ;
+    rdfs:label "romantic status" ;
+    rdfs:domain narrative:RomanticRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Dating, Married, Former, Unrequited, Complicated, etc." .
+
+narrative:endgame a owl:DatatypeProperty ;
+    rdfs:label "endgame" ;
+    rdfs:domain narrative:RomanticRelationship ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether this is the canonical/endgame pairing" .
+
+#################################################################
+# Friendship Relationships
+#################################################################
+
+narrative:FriendshipRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Friendship Relationship" ;
+    rdfs:comment "Friendship between characters" .
+
+narrative:BestFriends a owl:Class ;
+    rdfs:subClassOf narrative:FriendshipRelationship ;
+    rdfs:label "Best Friends" ;
+    rdfs:comment "Best friend relationship" .
+
+narrative:Sidekick a owl:Class ;
+    rdfs:subClassOf narrative:FriendshipRelationship ;
+    rdfs:label "Sidekick" ;
+    rdfs:comment "Sidekick or junior partner relationship" .
+
+narrative:friendshipDepth a owl:DatatypeProperty ;
+    rdfs:label "friendship depth" ;
+    rdfs:domain narrative:FriendshipRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Casual, Close, Best Friends, etc." .
+
+#################################################################
+# Alliance Relationships
+#################################################################
+
+narrative:AllianceRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Alliance Relationship" ;
+    rdfs:comment "Alliance or partnership between characters" .
+
+narrative:Teammates a owl:Class ;
+    rdfs:subClassOf narrative:AllianceRelationship ;
+    rdfs:label "Teammates" ;
+    rdfs:comment "Members of the same team" .
+
+narrative:PoliticalAllies a owl:Class ;
+    rdfs:subClassOf narrative:AllianceRelationship ;
+    rdfs:label "Political Allies" ;
+    rdfs:comment "Political alliance or partnership" .
+
+narrative:allianceType a owl:DatatypeProperty ;
+    rdfs:label "alliance type" ;
+    rdfs:domain narrative:AllianceRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Permanent, Temporary, Uneasy, etc." .
+
+#################################################################
+# Rivalry Relationships
+#################################################################
+
+narrative:RivalryRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Rivalry Relationship" ;
+    rdfs:comment "Rivalry between characters" .
+
+narrative:Rivals a owl:Class ;
+    rdfs:subClassOf narrative:RivalryRelationship ;
+    rdfs:label "Rivals" ;
+    rdfs:comment "Competitive rivals" .
+
+narrative:Nemesis a owl:Class ;
+    rdfs:subClassOf narrative:RivalryRelationship ;
+    rdfs:label "Nemesis" ;
+    rdfs:comment "Arch-nemesis or arch-enemy" .
+
+narrative:rivalryIntensity a owl:DatatypeProperty ;
+    rdfs:label "rivalry intensity" ;
+    rdfs:domain narrative:RivalryRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Friendly Competition, Intense Rivalry, Arch-enemies, etc." .
+
+narrative:causedBy a owl:DatatypeProperty ;
+    rdfs:label "caused by" ;
+    rdfs:domain narrative:RivalryRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "What caused the rivalry" .
+
+#################################################################
+# Enemy Relationships
+#################################################################
+
+narrative:EnemyRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Enemy Relationship" ;
+    rdfs:comment "Hostile or antagonistic relationship" .
+
+narrative:ArchEnemy a owl:Class ;
+    rdfs:subClassOf narrative:EnemyRelationship ;
+    rdfs:label "Arch-Enemy" ;
+    rdfs:comment "Primary antagonist or arch-enemy" .
+
+narrative:hostilityLevel a owl:DatatypeProperty ;
+    rdfs:label "hostility level" ;
+    rdfs:domain narrative:EnemyRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Dislike, Hatred, Mortal Enemies, etc." .
+
+#################################################################
+# Mentor Relationships
+#################################################################
+
+narrative:MentorRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Mentor Relationship" ;
+    rdfs:comment "Mentor-student relationship" .
+
+narrative:mentorRole a owl:DatatypeProperty ;
+    rdfs:label "mentor role" ;
+    rdfs:domain narrative:MentorRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Teacher, Master, Guide, Coach, etc." .
+
+narrative:studentRole a owl:DatatypeProperty ;
+    rdfs:label "student role" ;
+    rdfs:domain narrative:MentorRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Student, Apprentice, Protégé, etc." .
+
+#################################################################
+# Clone/Duplicate Relationships
+#################################################################
+
+narrative:CloneRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Clone Relationship" ;
+    rdfs:comment "Clone or duplicate relationship" .
+
+narrative:cloneType a owl:DatatypeProperty ;
+    rdfs:label "clone type" ;
+    rdfs:domain narrative:CloneRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Genetic Clone, Magical Duplicate, Evil Twin, etc." .
+
+narrative:originalCharacter a owl:ObjectProperty ;
+    rdfs:label "original character" ;
+    rdfs:domain narrative:CloneRelationship ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Original character that was cloned" .
+
+#################################################################
+# Temporal Relationships
+#################################################################
+
+narrative:TemporalRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Temporal Relationship" ;
+    rdfs:comment "Relationship across time (future/past self, time travel)" .
+
+narrative:FutureSelf a owl:Class ;
+    rdfs:subClassOf narrative:TemporalRelationship ;
+    rdfs:label "Future Self" ;
+    rdfs:comment "Future version of character" .
+
+narrative:PastSelf a owl:Class ;
+    rdfs:subClassOf narrative:TemporalRelationship ;
+    rdfs:label "Past Self" ;
+    rdfs:comment "Past version of character" .
+
+narrative:temporalDirection a owl:DatatypeProperty ;
+    rdfs:label "temporal direction" ;
+    rdfs:domain narrative:TemporalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Future, Past, Alternate Timeline, etc." .
+
+#################################################################
+# Supernatural Relationships
+#################################################################
+
+narrative:SupernaturalRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Supernatural Relationship" ;
+    rdfs:comment "Supernatural or mystical connection" .
+
+narrative:AlternateSelf a owl:Class ;
+    rdfs:subClassOf narrative:SupernaturalRelationship ;
+    rdfs:label "Alternate Self" ;
+    rdfs:comment "Alternate universe version" .
+
+narrative:Reincarnation a owl:Class ;
+    rdfs:subClassOf narrative:SupernaturalRelationship ;
+    rdfs:label "Reincarnation" ;
+    rdfs:comment "Reincarnation relationship" .
+
+narrative:SoulBond a owl:Class ;
+    rdfs:subClassOf narrative:SupernaturalRelationship ;
+    rdfs:label "Soul Bond" ;
+    rdfs:comment "Mystical soul bond or connection" .
+
+narrative:supernaturalType a owl:DatatypeProperty ;
+    rdfs:label "supernatural type" ;
+    rdfs:domain narrative:SupernaturalRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of supernatural connection" .
+
+#################################################################
+# Predecessor Relationships (Mantle)
+#################################################################
+
+narrative:PredecessorRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Predecessor Relationship" ;
+    rdfs:comment "Predecessor-successor relationship for mantles/titles" .
+
+narrative:mantleName a owl:DatatypeProperty ;
+    rdfs:label "mantle name" ;
+    rdfs:domain narrative:PredecessorRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the mantle (Robin, Flash, Captain America, etc.)" .
+
+narrative:transitionType a owl:DatatypeProperty ;
+    rdfs:label "transition type" ;
+    rdfs:domain narrative:PredecessorRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Retirement, Death, Succession, Forced, etc." .
+
+#################################################################
+# Employment Relationships (Character works for Character/Org)
+#################################################################
+
+narrative:EmploymentRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Employment Relationship" ;
+    rdfs:comment "Character employed by another character or organization" .
+
+narrative:employerCharacter a owl:ObjectProperty ;
+    rdfs:label "employer character" ;
+    rdfs:domain narrative:EmploymentRelationship ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Character who is the employer" .
+
+narrative:jobTitle a owl:DatatypeProperty ;
+    rdfs:label "job title" ;
+    rdfs:domain narrative:EmploymentRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Job title or position" .
+
+#################################################################
+# Traumatic Relationships
+#################################################################
+
+narrative:TraumaticRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Traumatic Relationship" ;
+    rdfs:comment "Relationship defined by trauma or tragedy" .
+
+narrative:MurdererVictim a owl:Class ;
+    rdfs:subClassOf narrative:TraumaticRelationship ;
+    rdfs:label "Murderer-Victim" ;
+    rdfs:comment "Character killed another character" .
+
+narrative:traumaType a owl:DatatypeProperty ;
+    rdfs:label "trauma type" ;
+    rdfs:domain narrative:TraumaticRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of traumatic event" .
+
+#################################################################
+# Redemption Relationships
+#################################################################
+
+narrative:RedemptionRelationship a owl:Class ;
+    rdfs:subClassOf narrative:CharacterRelationship ;
+    rdfs:label "Redemption Relationship" ;
+    rdfs:comment "Relationship involving redemption arc" .
+
+narrative:FormerVillain a owl:Class ;
+    rdfs:subClassOf narrative:RedemptionRelationship ;
+    rdfs:label "Former Villain" ;
+    rdfs:comment "Former villain now ally or friend" .
+
+narrative:redemptionStatus a owl:DatatypeProperty ;
+    rdfs:label "redemption status" ;
+    rdfs:domain narrative:RedemptionRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:comment "In Progress, Redeemed, Failed, Complicated, etc." .
+
+#################################################################
+# Team Membership Relationship
+#################################################################
+
+narrative:TeamMembership a owl:Class ;
+    rdfs:subClassOf narrative:Relationship ;
+    rdfs:label "Team Membership" ;
+    rdfs:comment "Character's membership in a team with temporal tracking" .
+
+narrative:member a owl:ObjectProperty ;
+    rdfs:label "member" ;
+    rdfs:domain narrative:TeamMembership ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "Character who is a member" .
+
+narrative:team a owl:ObjectProperty ;
+    rdfs:label "team" ;
+    rdfs:domain narrative:TeamMembership ;
+    rdfs:range narrative:Group ;
+    rdfs:comment "Team the character is a member of" .
+
+narrative:membershipStatus a owl:DatatypeProperty ;
+    rdfs:label "membership status" ;
+    rdfs:domain narrative:TeamMembership ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Former, Reserve, Honorary, etc." .
+
+narrative:joinedDate a owl:DatatypeProperty ;
+    rdfs:label "joined date" ;
+    rdfs:domain narrative:TeamMembership ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When character joined team (in-universe)" .
+
+narrative:leftDate a owl:DatatypeProperty ;
+    rdfs:label "left date" ;
+    rdfs:domain narrative:TeamMembership ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When character left team (in-universe)" .
+
+narrative:leadershipRole a owl:DatatypeProperty ;
+    rdfs:label "leadership role" ;
+    rdfs:domain narrative:TeamMembership ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Leader, Co-Leader, Field Leader, etc." .
+
+
+#################################################################
+# Relationships involving Live Events
+#################################################################
+
+### Who performs or appears at events ###########################################
+
+narrative:performsAtEvent
+  a owl:ObjectProperty ;
+  rdfs:label "performs at event" ;
+  rdfs:comment """
+  Indicates that a Person performs at a LiveEvent, e.g.:
+  musicians at a concert, voice actors performing on stage, etc.
+  """ ;
+  rdfs:domain narrative:Person ;
+  rdfs:range narrative:LiveEvent
+.
+
+narrative:appearsAtEvent
+  a owl:ObjectProperty ;
+  rdfs:label "appears at event" ;
+  rdfs:comment """
+  Indicates that a Person appears at a LiveEvent, e.g.:
+  convention guest, panelist, signing guest.
+  """ ;
+  rdfs:domain narrative:Person ;
+  rdfs:range narrative:LiveEvent
+.
+
+### Organizations hosting or organizing events ##################################
+
+narrative:hostsEvent
+  a owl:ObjectProperty ;
+  rdfs:label "hosts event" ;
+  rdfs:comment """
+  Indicates that an Organization hosts, organizes, or presents
+  a LiveEvent (e.g., convention organizers, tour promoters, venues).
+  """ ;
+  rdfs:domain narrative:Organization ;
+  rdfs:range narrative:LiveEvent
+.
+
+narrative:venueForEvent
+  a owl:ObjectProperty ;
+  rdfs:label "venue for event" ;
+  rdfs:comment """
+  Indicates that an Organization (or specific venue entity) is the venue
+  where a LiveEvent takes place.
+  """ ;
+  rdfs:domain narrative:Organization ;
+  rdfs:range narrative:LiveEvent
+.
+
+### Linking characters/franchises for discovery ################################
+
+narrative:featuresCharacterAtEvent
+  a owl:ObjectProperty ;
+  rdfs:label "features character at event" ;
+  rdfs:comment """
+  Indicates that a particular Character is prominently featured at a LiveEvent,
+  e.g., a character-themed concert, character meet-and-greet, or franchise panel.
+  """ ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range narrative:Character
+.
+
+narrative:featuresFranchiseAtEvent
+  a owl:ObjectProperty ;
+  rdfs:label "features franchise at event" ;
+  rdfs:comment """
+  Indicates that a particular Franchise or Universe is a core focus
+  of a LiveEvent.
+  """ ;
+  rdfs:domain narrative:LiveEvent ;
+  rdfs:range narrative:Franchise
+.

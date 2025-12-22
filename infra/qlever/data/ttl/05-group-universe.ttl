@@ -1,0 +1,384 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Group and Universe Module
+# Teams, fictional universes, and franchises
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/group-universe>
+    a owl:Ontology ;
+    rdfs:label "PopModern Group and Universe Module" ;
+    rdfs:comment "Properties and relationships for teams, groups, universes, and franchises" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Group Subclasses
+#################################################################
+
+narrative:SuperheroTeam a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Superhero Team" ;
+    rdfs:comment "Team of superheroes working together (e.g., Avengers, X-Men, Justice League)" .
+
+narrative:VillainGroup a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Villain Group" ;
+    rdfs:comment "Organization or team of antagonists (e.g., Sinister Six, Brotherhood of Evil Mutants)" .
+
+narrative:GovernmentAgency a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Government Agency" ;
+    rdfs:comment "Governmental organization within fictional universe (e.g., SHIELD, Checkmate, ARGUS)" .
+
+narrative:CriminalOrganization a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Criminal Organization" ;
+    rdfs:comment "Criminal syndicate or illegal organization (e.g., Hydra, League of Assassins)" .
+
+narrative:MilitaryUnit a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Military Unit" ;
+    rdfs:comment "Military force or unit within fictional universe" .
+
+narrative:CorporateEntity a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Corporate Entity" ;
+    rdfs:comment "Fictional corporation or business (e.g., Wayne Enterprises, Stark Industries)" .
+
+narrative:ReligiousOrder a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Religious Order" ;
+    rdfs:comment "Religious organization or order within fictional universe" .
+
+narrative:AlienRace a owl:Class ;
+    rdfs:subClassOf narrative:Group ;
+    rdfs:label "Alien Race" ;
+    rdfs:comment "Species or race of extraterrestrial beings" .
+
+#################################################################
+# Group Properties
+#################################################################
+
+narrative:groupName a owl:DatatypeProperty ;
+    rdfs:label "group name" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Primary name of the team, organization, or collective" .
+
+narrative:groupType a owl:DatatypeProperty ;
+    rdfs:label "group type" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of group: Superhero Team, Villain Group, Government Agency, etc." .
+
+narrative:bio a owl:DatatypeProperty ;
+    rdfs:label "group bio" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Group description and history" .
+
+narrative:image a owl:DatatypeProperty ;
+    rdfs:label "group image" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Group logo or emblem URL" .
+
+narrative:motto a owl:DatatypeProperty ;
+    rdfs:label "motto" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Group motto or slogan" .
+
+narrative:headquarters a owl:DatatypeProperty ;
+    rdfs:label "headquarters" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Location of group's base or headquarters" .
+
+narrative:foundedDate a owl:DatatypeProperty ;
+    rdfs:label "founded date" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date group was founded (in-universe)" .
+
+narrative:disbandedDate a owl:DatatypeProperty ;
+    rdfs:label "disbanded date" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date group disbanded (in-universe)" .
+
+narrative:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Disbanded, Reformed, Destroyed, etc." .
+
+narrative:memberCount a owl:DatatypeProperty ;
+    rdfs:label "member count" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Approximate number of members" .
+
+narrative:objectives a owl:DatatypeProperty ;
+    rdfs:label "objectives" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Group goals and objectives" .
+
+#################################################################
+# Group-Character Relationships
+#################################################################
+
+narrative:hasCharacterMember a owl:ObjectProperty ;
+    rdfs:label "has character member" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:characterMemberOf ;
+    rdfs:comment "Character member of this team" .
+
+narrative:ledBy a owl:ObjectProperty ;
+    rdfs:label "led by" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:characterLeaderOf ;
+    rdfs:comment "Character who leads this group" .
+
+narrative:foundedByCharacter a owl:ObjectProperty ;
+    rdfs:label "founded by character" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:characterFounderOf ;
+    rdfs:comment "Character who founded this group" .
+
+#################################################################
+# Group-Universe Relationships
+#################################################################
+
+narrative:existsInUniverse a owl:ObjectProperty ;
+    rdfs:label "exists in universe" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:containsGroup ;
+    rdfs:comment "Universe this group exists in" .
+
+#################################################################
+# Group-Group Relationships
+#################################################################
+
+narrative:alliedWith a owl:ObjectProperty ;
+    rdfs:label "allied with" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Group ;
+    rdfs:comment "Groups allied with this group" .
+
+narrative:rivalOf a owl:ObjectProperty ;
+    rdfs:label "rival of" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Group ;
+    rdfs:comment "Rival or enemy groups" .
+
+narrative:spinoffOf a owl:ObjectProperty ;
+    rdfs:label "spinoff of" ;
+    rdfs:domain narrative:Group ;
+    rdfs:range narrative:Group ;
+    rdfs:comment "Parent group this group spun off from" .
+
+#################################################################
+# Universe Properties
+#################################################################
+
+narrative:universeName a owl:DatatypeProperty ;
+    rdfs:label "universe name" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the fictional universe or continuity" .
+
+narrative:universeDesignation a owl:DatatypeProperty ;
+    rdfs:label "universe designation" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Official designation code (e.g., Earth-616, Prime Earth, MCU)" .
+
+narrative:bio a owl:DatatypeProperty ;
+    rdfs:label "universe bio" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Universe description and key characteristics" .
+
+narrative:image a owl:DatatypeProperty ;
+    rdfs:label "universe image" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Representative image for this universe" .
+
+narrative:continuityType a owl:DatatypeProperty ;
+    rdfs:label "continuity type" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Main Continuity, Alternate Universe, Elseworlds, What If, etc." .
+
+narrative:timelineStart a owl:DatatypeProperty ;
+    rdfs:label "timeline start" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "When this universe's timeline begins (in-universe)" .
+
+narrative:realWorldStart a owl:DatatypeProperty ;
+    rdfs:label "real world start" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:date ;
+    rdfs:comment "When this universe was created (real publication date)" .
+
+narrative:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Active, Rebooted, Merged, Destroyed, etc." .
+
+#################################################################
+# Universe-Organization Relationships
+#################################################################
+
+narrative:publisherUniverse a owl:ObjectProperty ;
+    rdfs:label "publisher universe" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:ownsUniverse ;
+    rdfs:comment "Publisher that owns/maintains this fictional universe" .
+
+#################################################################
+# Universe-Character/Group Relationships
+#################################################################
+
+narrative:containsCharacter a owl:ObjectProperty ;
+    rdfs:label "contains character" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:existsInUniverse ;
+    rdfs:comment "Characters existing in this universe" .
+
+narrative:containsGroup a owl:ObjectProperty ;
+    rdfs:label "contains group" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Group ;
+    owl:inverseOf narrative:existsInUniverse ;
+    rdfs:comment "Groups existing in this universe" .
+
+#################################################################
+# Universe-Work Relationships
+#################################################################
+
+narrative:containsWork a owl:ObjectProperty ;
+    rdfs:label "contains work" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:setInUniverse ;
+    rdfs:comment "Works set in this universe" .
+
+#################################################################
+# Universe-Universe Relationships
+#################################################################
+
+narrative:parallelTo a owl:ObjectProperty ;
+    rdfs:label "parallel to" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Universe ;
+    rdfs:comment "Parallel or alternate universe" .
+
+narrative:mergedInto a owl:ObjectProperty ;
+    rdfs:label "merged into" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:mergedFrom ;
+    rdfs:comment "Universe this was merged into (for reboots/crises)" .
+
+narrative:mergedFrom a owl:ObjectProperty ;
+    rdfs:label "merged from" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:mergedInto ;
+    rdfs:comment "Universes that were merged to create this one" .
+
+narrative:rebootOf a owl:ObjectProperty ;
+    rdfs:label "reboot of" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:rebootedAs ;
+    rdfs:comment "Previous universe that this is a reboot of" .
+
+narrative:rebootedAs a owl:ObjectProperty ;
+    rdfs:label "rebooted as" ;
+    rdfs:domain narrative:Universe ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:rebootOf ;
+    rdfs:comment "New universe this was rebooted as" .
+
+#################################################################
+# Franchise Properties
+#################################################################
+
+narrative:franchiseName a owl:DatatypeProperty ;
+    rdfs:label "franchise name" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the media franchise" .
+
+narrative:bio a owl:DatatypeProperty ;
+    rdfs:label "franchise bio" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Franchise description and overview" .
+
+narrative:logo a owl:DatatypeProperty ;
+    rdfs:label "franchise logo" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Franchise logo URL" .
+
+narrative:launchDate a owl:DatatypeProperty ;
+    rdfs:label "launch date" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date franchise launched" .
+
+narrative:mediaTypes a owl:DatatypeProperty ;
+    rdfs:label "media types" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Types of media in franchise (Comics, Films, TV, Games, etc.)" .
+
+#################################################################
+# Franchise Relationships
+#################################################################
+
+narrative:ownedBy a owl:ObjectProperty ;
+    rdfs:label "owned by" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range narrative:Org ;
+    owl:inverseOf narrative:ownsFranchise ;
+    rdfs:comment "Organization that owns this franchise" .
+
+narrative:includesCharacter a owl:ObjectProperty ;
+    rdfs:label "includes character" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range narrative:Character ;
+    owl:inverseOf narrative:belongsToFranchise ;
+    rdfs:comment "Character belonging to this franchise" .
+
+narrative:includesWork a owl:ObjectProperty ;
+    rdfs:label "includes work" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range narrative:StoryWork ;
+    owl:inverseOf narrative:partOfFranchise ;
+    rdfs:comment "Work that is part of this franchise" .
+
+narrative:includesUniverse a owl:ObjectProperty ;
+    rdfs:label "includes universe" ;
+    rdfs:domain narrative:Franchise ;
+    rdfs:range narrative:Universe ;
+    owl:inverseOf narrative:belongsToFranchise ;
+    rdfs:comment "Universe within this franchise" .

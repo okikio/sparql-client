@@ -1,0 +1,473 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# Discovery and Recommendation Module
+# Genre, theme, tone, tags, user interactions, ranking features
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/discovery-recommendation>
+    a owl:Ontology ;
+    rdfs:label "PopModern Discovery and Recommendation Module" ;
+    rdfs:comment "Content descriptors, user interactions, and recommendation features" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Content Descriptor Classes
+#################################################################
+
+narrative:Genre a owl:Class ;
+    rdfs:label "Genre" ;
+    rdfs:comment "High-level narrative genre (Superhero, Romance, Horror, Slice of Life, etc.)" .
+
+narrative:Theme a owl:Class ;
+    rdfs:label "Theme" ;
+    rdfs:comment "Thematic motifs or story DNA (Found Family, Revenge, Coming of Age, etc.)" .
+
+narrative:Tone a owl:Class ;
+    rdfs:label "Tone" ;
+    rdfs:comment "Overall emotional tone (Wholesome, Dark, Comedic, Melancholic, etc.)" .
+
+narrative:Tag a owl:Class ;
+    rdfs:label "Tag" ;
+    rdfs:comment "Flexible tagging for story facets, audience labels, or marketing categories" .
+
+narrative:Demographic a owl:Class ;
+    rdfs:label "Demographic" ;
+    rdfs:comment "Target demographic (Shonen, Seinen, Shoujo, Josei, Kids, Young Adult, Adult, etc.)" .
+
+narrative:ContentRating a owl:Class ;
+    rdfs:label "Content Rating" ;
+    rdfs:comment "Content rating system (MPAA, TV Rating, ESRB, CERO, etc.)" .
+
+narrative:ArtStyleClass a owl:Class ;
+    rdfs:label "Art Style Class" ;
+    rdfs:comment "Canonical art style cluster (Manga, Western Comic, Webtoon, Chibi, Realistic, etc.)" .
+
+narrative:FormatClass a owl:Class ;
+    rdfs:label "Format Class" ;
+    rdfs:comment "Canonical format cluster (Single Issue, Trade Paperback, Digital Chapter, etc.)" .
+
+#################################################################
+# Content Descriptor Properties
+#################################################################
+
+narrative:genreName a owl:DatatypeProperty ;
+    rdfs:label "genre name" ;
+    rdfs:domain narrative:Genre ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the genre" .
+
+narrative:genreDescription a owl:DatatypeProperty ;
+    rdfs:label "genre description" ;
+    rdfs:domain narrative:Genre ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of the genre" .
+
+narrative:themeName a owl:DatatypeProperty ;
+    rdfs:label "theme name" ;
+    rdfs:domain narrative:Theme ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the theme" .
+
+narrative:themeDescription a owl:DatatypeProperty ;
+    rdfs:label "theme description" ;
+    rdfs:domain narrative:Theme ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of the theme" .
+
+narrative:toneName a owl:DatatypeProperty ;
+    rdfs:label "tone name" ;
+    rdfs:domain narrative:Tone ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the tone" .
+
+narrative:toneDescription a owl:DatatypeProperty ;
+    rdfs:label "tone description" ;
+    rdfs:domain narrative:Tone ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of the tone" .
+
+narrative:tagName a owl:DatatypeProperty ;
+    rdfs:label "tag name" ;
+    rdfs:domain narrative:Tag ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Tag label" .
+
+narrative:tagCategory a owl:DatatypeProperty ;
+    rdfs:label "tag category" ;
+    rdfs:domain narrative:Tag ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Tag category (Content Warning, Trope, Setting, etc.)" .
+
+#################################################################
+# Story Descriptor Relationships
+#################################################################
+
+narrative:hasGenre a owl:ObjectProperty ;
+    rdfs:label "has genre" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Genre ;
+    rdfs:comment "Associates a StoryWork with one or more genres" .
+
+narrative:hasTheme a owl:ObjectProperty ;
+    rdfs:label "has theme" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Theme ;
+    rdfs:comment "Associates a StoryWork with one or more themes" .
+
+narrative:hasTone a owl:ObjectProperty ;
+    rdfs:label "has tone" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Tone ;
+    rdfs:comment "Associates a StoryWork with a dominant tone" .
+
+narrative:hasTag a owl:ObjectProperty ;
+    rdfs:label "has tag" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Tag ;
+    rdfs:comment "Associates a StoryWork with flexible tags" .
+
+narrative:hasDemographic a owl:ObjectProperty ;
+    rdfs:label "has demographic" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Demographic ;
+    rdfs:comment "Target demographic for this work" .
+
+narrative:hasContentRating a owl:ObjectProperty ;
+    rdfs:label "has content rating" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:ContentRating ;
+    rdfs:comment "Content rating for this work" .
+
+#################################################################
+# Art & Format Classifications
+#################################################################
+
+narrative:hasArtStyleClass a owl:ObjectProperty ;
+    rdfs:label "has art style class" ;
+    rdfs:domain narrative:Artist ;
+    rdfs:range narrative:ArtStyleClass ;
+    rdfs:comment "Classifies an Artist into an art style cluster" .
+
+narrative:hasFormatClass a owl:ObjectProperty ;
+    rdfs:label "has format class" ;
+    rdfs:domain narrative:Manifestation ;
+    rdfs:range narrative:FormatClass ;
+    rdfs:comment "Classifies a Manifestation into a format cluster" .
+
+#################################################################
+# User & Interaction Model
+#################################################################
+
+narrative:User a owl:Class ;
+    rdfs:label "User" ;
+    rdfs:comment """
+    End-user / reader account corresponding to Supabase auth.users + public.profiles.
+    Instances are created by sync processes and may carry external identifiers.
+    """ .
+
+narrative:UserStoryInteraction a owl:Class ;
+    rdfs:label "User Story Interaction" ;
+    rdfs:comment """
+    Normalized interaction between a User and a StoryWork / StoryExpression.
+    Examples: read, completed, liked, rated, wishlisted, owned.
+    Derived from Supabase tables such as user_product_state, likes, reviews,
+    pull_list_items, collections, and other behavioral events.
+    """ .
+
+#################################################################
+# User Properties
+#################################################################
+
+narrative:username a owl:DatatypeProperty ;
+    rdfs:label "username" ;
+    rdfs:domain narrative:User ;
+    rdfs:range xsd:string ;
+    rdfs:comment "User's display name or username" .
+
+narrative:email a owl:DatatypeProperty ;
+    rdfs:label "email" ;
+    rdfs:domain narrative:User ;
+    rdfs:range xsd:string ;
+    rdfs:comment "User's email address" .
+
+narrative:joinDate a owl:DatatypeProperty ;
+    rdfs:label "join date" ;
+    rdfs:domain narrative:User ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date user joined platform" .
+
+narrative:avatar a owl:DatatypeProperty ;
+    rdfs:label "avatar" ;
+    rdfs:domain narrative:User ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "User's avatar/profile image URL" .
+
+#################################################################
+# User Interaction Core Links
+#################################################################
+
+narrative:interactionUser a owl:ObjectProperty ;
+    rdfs:label "interaction user" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range narrative:User ;
+    rdfs:comment "The User who performed this interaction" .
+
+narrative:interactionTarget a owl:ObjectProperty ;
+    rdfs:label "interaction target work" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "The primary StoryWork to which this interaction refers" .
+
+narrative:interactionExpressionTarget a owl:ObjectProperty ;
+    rdfs:label "interaction target expression" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range narrative:StoryExpression ;
+    rdfs:comment "Optional issue-level target (StoryExpression) for per-issue reading history" .
+
+#################################################################
+# User Interaction Attributes
+#################################################################
+
+narrative:interactionType a owl:DatatypeProperty ;
+    rdfs:label "interaction type" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range xsd:string ;
+    rdfs:comment """
+    Application-level interaction type.
+    Suggested values: 'view', 'read', 'completed', 'liked', 'rated',
+    'wishlisted', 'owned', 'added_to_collection', 'pull_list'.
+    """ .
+
+narrative:interactionTimestamp a owl:DatatypeProperty ;
+    rdfs:label "interaction timestamp" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Timestamp at which the interaction occurred" .
+
+narrative:interactionRating a owl:DatatypeProperty ;
+    rdfs:label "interaction rating" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Rating value (0–5 scale, app-defined) given as part of this interaction" .
+
+narrative:interactionProgressPercent a owl:DatatypeProperty ;
+    rdfs:label "interaction progress percent" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Estimated completion percentage at time of interaction" .
+
+narrative:interactionNotes a owl:DatatypeProperty ;
+    rdfs:label "interaction notes" ;
+    rdfs:domain narrative:UserStoryInteraction ;
+    rdfs:range xsd:string ;
+    rdfs:comment "User notes or comments about this interaction" .
+
+#################################################################
+# User Preference Hooks
+#################################################################
+
+narrative:favoriteUniverse a owl:ObjectProperty ;
+    rdfs:label "favorite universe" ;
+    rdfs:domain narrative:User ;
+    rdfs:range narrative:Universe ;
+    rdfs:comment """
+    Indicates that a Universe is a favorite for this User.
+    Derived from user_follows, collections, and ownership data.
+    """ .
+
+narrative:favoriteCharacter a owl:ObjectProperty ;
+    rdfs:label "favorite character" ;
+    rdfs:domain narrative:User ;
+    rdfs:range narrative:Character ;
+    rdfs:comment "User's favorite characters" .
+
+narrative:favoriteCreator a owl:ObjectProperty ;
+    rdfs:label "favorite creator" ;
+    rdfs:domain narrative:User ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "User's favorite creators" .
+
+narrative:followsCreator a owl:ObjectProperty ;
+    rdfs:label "follows creator" ;
+    rdfs:domain narrative:User ;
+    rdfs:range narrative:Person ;
+    rdfs:comment "Creators the user follows" .
+
+narrative:followsPublisher a owl:ObjectProperty ;
+    rdfs:label "follows publisher" ;
+    rdfs:domain narrative:User ;
+    rdfs:range narrative:Org ;
+    rdfs:comment "Publishers the user follows" .
+
+#################################################################
+# Story-Level Ranking Features
+#################################################################
+
+narrative:popularityScore a owl:DatatypeProperty ;
+    rdfs:label "popularity score" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:float ;
+    rdfs:comment """
+    Aggregate popularity score derived from reads, purchases, follows, likes, wishlist, etc.
+    Intended for medium- to long-term popularity ranking.
+    """ .
+
+narrative:trendingScore a owl:DatatypeProperty ;
+    rdfs:label "trending score" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:float ;
+    rdfs:comment """
+    Short-term momentum score (e.g. last 7–30 days).
+    Used for 'Trending Now' style discovery lanes.
+    """ .
+
+narrative:completionRate a owl:DatatypeProperty ;
+    rdfs:label "completion rate" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:float ;
+    rdfs:comment """
+    Estimated fraction of users who start and then complete this StoryWork.
+    Derived from interactionProgressPercent and user_product_state consumption data.
+    """ .
+
+narrative:engagementScore a owl:DatatypeProperty ;
+    rdfs:label "engagement score" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:float ;
+    rdfs:comment """
+    Model-computed engagement measure combining reading dwell time, repeat sessions,
+    interaction density, and other behavioral features.
+    """ .
+
+narrative:averageRating a owl:DatatypeProperty ;
+    rdfs:label "average rating" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Average user rating (0-5 scale)" .
+
+narrative:ratingCount a owl:DatatypeProperty ;
+    rdfs:label "rating count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of user ratings" .
+
+narrative:viewCount a owl:DatatypeProperty ;
+    rdfs:label "view count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Total number of views" .
+
+narrative:readCount a owl:DatatypeProperty ;
+    rdfs:label "read count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of times work was read" .
+
+narrative:favoriteCount a owl:DatatypeProperty ;
+    rdfs:label "favorite count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of users who favorited this work" .
+
+narrative:wishlistCount a owl:DatatypeProperty ;
+    rdfs:label "wishlist count" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Number of users who wishlisted this work" .
+
+#################################################################
+# Embedding Storage (for ML/vector search)
+#################################################################
+
+narrative:userEmbeddingVector a owl:DatatypeProperty ;
+    rdfs:label "user embedding vector" ;
+    rdfs:domain narrative:User ;
+    rdfs:range xsd:string ;
+    rdfs:comment """
+    Serialized vector representation of a User's tastes.
+    Common encodings: JSON array, base64-encoded binary, or space-separated floats.
+    """ .
+
+narrative:workEmbeddingVector a owl:DatatypeProperty ;
+    rdfs:label "work embedding vector" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment """
+    Serialized vector representation of a StoryWork's content and graph neighborhood.
+    Used for nearest-neighbor search in a vector index.
+    """ .
+
+narrative:characterEmbeddingVector a owl:DatatypeProperty ;
+    rdfs:label "character embedding vector" ;
+    rdfs:domain narrative:Character ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Serialized vector representation of a Character" .
+
+#################################################################
+# Similarity Relationships
+#################################################################
+
+narrative:similarTo a owl:ObjectProperty ;
+    rdfs:label "similar to" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:StoryWork ;
+    rdfs:comment "Works similar to this work (for recommendations)" .
+
+narrative:similarityScore a owl:DatatypeProperty ;
+    rdfs:label "similarity score" ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Similarity score between two works (0.0-1.0)" .
+
+narrative:recommendedFor a owl:ObjectProperty ;
+    rdfs:label "recommended for" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:User ;
+    rdfs:comment "User this work is recommended for" .
+
+narrative:recommendationScore a owl:DatatypeProperty ;
+    rdfs:label "recommendation score" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Recommendation score for a user (personalized)" .
+
+#################################################################
+# Discovery Shelf/Collection Types
+#################################################################
+
+narrative:Shelf a owl:Class ;
+    rdfs:label "Shelf" ;
+    rdfs:comment "Curated discovery shelf (Trending, Popular, New Releases, Staff Picks, etc.)" .
+
+narrative:shelfName a owl:DatatypeProperty ;
+    rdfs:label "shelf name" ;
+    rdfs:domain narrative:Shelf ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the shelf" .
+
+narrative:shelfType a owl:DatatypeProperty ;
+    rdfs:label "shelf type" ;
+    rdfs:domain narrative:Shelf ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Algorithmic, Curated, Personalized, etc." .
+
+narrative:shelfDescription a owl:DatatypeProperty ;
+    rdfs:label "shelf description" ;
+    rdfs:domain narrative:Shelf ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Description of what's on this shelf" .
+
+narrative:onShelf a owl:ObjectProperty ;
+    rdfs:label "on shelf" ;
+    rdfs:domain narrative:StoryWork ;
+    rdfs:range narrative:Shelf ;
+    rdfs:comment "Work appears on this discovery shelf" .
+
+narrative:shelfPosition a owl:DatatypeProperty ;
+    rdfs:label "shelf position" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Position of work on shelf (for ordering)" .

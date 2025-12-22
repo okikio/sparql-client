@@ -1,0 +1,404 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dc: <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix : <http://popmodern.xyz/ontology/narrative#> .
+
+# Core Narrative Concepts (Schema/Ontology Prefixes)
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+@prefix character: <http://popmodern.xyz/ontology/character#> .
+@prefix creator: <http://popmodern.xyz/ontology/creator#> .
+@prefix work: <http://popmodern.xyz/ontology/work#> .
+@prefix universe: <http://popmodern.xyz/ontology/universe#> .
+@prefix product: <http://popmodern.xyz/ontology/product#> .
+
+# Instance Data (Resource Prefixes)
+@prefix data: <http://popmodern.xyz/data/> .
+
+#################################################################
+# Ontology Header
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative>
+    a owl:Ontology ;
+    rdfs:label "PopModern Narrative Graph Ontology" ;
+    dc:description """
+    Core ontology for PopModern platform spanning comics, manga, anime, films, TV,
+    novels, games, and music. Supports discovery, recommendations, collection management,
+    creator analytics, publisher insights, and retail operations.
+    
+    Architecture:
+    - Neptune: Catalog data, relationships, metadata (this ontology)
+    - Supabase: Transactional data, real-time events, analytics
+    
+    Version: 1.0
+    Date: 2025-11-30
+    """ ;
+    dc:creator "PopModern" ;
+    owl:versionInfo "1.0" .
+
+#################################################################
+# Core Entity Classes
+#################################################################
+
+narrative:Person a owl:Class ;
+    rdfs:label "Person" ;
+    rdfs:comment "Real person - creator, performer, or industry professional" .
+
+narrative:Org a owl:Class ;
+    rdfs:label "Organization" ;
+    rdfs:comment "Company, publisher, studio, distributor, or retail establishment" .
+
+narrative:Character a owl:Class ;
+    rdfs:label "Character" ;
+    rdfs:comment "Fictional character appearing in narrative works across any medium" .
+
+narrative:Franchise a owl:Class ;
+    rdfs:label "Franchise" ;
+    rdfs:comment "Media franchise spanning multiple works and mediums" .
+
+narrative:Universe a owl:Class ;
+    rdfs:label "Universe" ;
+    rdfs:comment "Fictional universe or continuity (e.g., Earth-616, MCU, One Piece World)" .
+
+narrative:Group a owl:Class ;
+    rdfs:label "Group" ;
+    rdfs:comment "Team, organization, or collective of characters within fictional universe" .
+
+#################################################################
+# Story Structure Classes
+#################################################################
+
+narrative:StoryWork a owl:Class ;
+    rdfs:label "Story Work" ;
+    rdfs:comment "Abstract story work - the conceptual series/title (e.g., 'Amazing Spider-Man')" .
+
+narrative:StoryExpression a owl:Class ;
+    rdfs:label "Story Expression" ;
+    rdfs:comment "Specific realization of a work - individual issue, episode, chapter" .
+
+narrative:NarrativeUnit a owl:Class ;
+    rdfs:label "Narrative Unit" ;
+    rdfs:comment "Atomic narrative unit - single issue, episode, chapter, or track" .
+
+narrative:Arc a owl:Class ;
+    rdfs:label "Story Arc" ;
+    rdfs:comment "Multi-issue story arc spanning multiple narrative units" .
+
+narrative:Event a owl:Class ;
+    rdfs:label "Event" ;
+    rdfs:comment "Crossover event spanning multiple series" .
+
+narrative:Season a owl:Class ;
+    rdfs:label "Season" ;
+    rdfs:comment "Season of TV series, anime, or podcast" .
+
+narrative:Series a owl:Class ;
+    rdfs:label "Series" ;
+    rdfs:comment "Ongoing series containing multiple seasons" .
+
+narrative:Collection a owl:Class ;
+    rdfs:label "Collection" ;
+    rdfs:comment "Curated collection (trade paperback, box set, anthology)" .
+
+narrative:Page a owl:Class ;
+    rdfs:label "Page" ;
+    rdfs:comment "Individual page within a narrative unit (for page-level tracking)" .
+
+#################################################################
+# Product Classes
+#################################################################
+
+narrative:Product a owl:Class ;
+    rdfs:label "Product" ;
+    rdfs:comment "Abstract product - the conceptual edition (hardcover vs paperback)" .
+
+narrative:Manifestation a owl:Class ;
+    rdfs:label "Manifestation" ;
+    rdfs:comment "Physical/digital manifestation - specific printing, release, variant" .
+
+narrative:Item a owl:Class ;
+    rdfs:label "Item" ;
+    rdfs:comment "Individual copy - specific physical or digital instance owned by someone" .
+
+#################################################################
+# Role Hierarchy
+#################################################################
+
+narrative:Role a owl:Class ;
+    rdfs:label "Role" ;
+    rdfs:comment "Creative or professional role in content production" .
+
+# Performance Roles
+narrative:Performer a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Performer" .
+
+narrative:Actor a owl:Class ;
+    rdfs:subClassOf narrative:Performer ;
+    rdfs:label "Actor" .
+
+narrative:VoiceActor a owl:Class ;
+    rdfs:subClassOf narrative:Performer ;
+    rdfs:label "Voice Actor" .
+
+narrative:Singer a owl:Class ;
+    rdfs:subClassOf narrative:Performer ;
+    rdfs:label "Singer" .
+
+narrative:Dancer a owl:Class ;
+    rdfs:subClassOf narrative:Performer ;
+    rdfs:label "Dancer" .
+
+narrative:Musician a owl:Class ;
+    rdfs:subClassOf narrative:Performer ;
+    rdfs:label "Musician" .
+
+# Writing Roles
+narrative:Writer a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Writer" .
+
+narrative:Screenwriter a owl:Class ;
+    rdfs:subClassOf narrative:Writer ;
+    rdfs:label "Screenwriter" .
+
+narrative:Novelist a owl:Class ;
+    rdfs:subClassOf narrative:Writer ;
+    rdfs:label "Novelist" .
+
+narrative:Playwright a owl:Class ;
+    rdfs:subClassOf narrative:Writer ;
+    rdfs:label "Playwright" .
+
+# Visual Art Roles
+narrative:Artist a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Artist" .
+
+narrative:Penciller a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Penciller" .
+
+narrative:Inker a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Inker" .
+
+narrative:Colorist a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Colorist" .
+
+narrative:Letterer a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Letterer" .
+
+narrative:CoverArtist a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Cover Artist" .
+
+narrative:ConceptArtist a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Concept Artist" .
+
+narrative:CharacterDesigner a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Character Designer" .
+
+narrative:Animator a owl:Class ;
+    rdfs:subClassOf narrative:Artist ;
+    rdfs:label "Animator" .
+
+# Production Roles
+narrative:Director a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Director" .
+
+narrative:Producer a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Producer" .
+
+narrative:Editor a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Editor" .
+
+narrative:Compositor a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Compositor" ;
+    rdfs:comment "Music composer" .
+
+narrative:SoundDesigner a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Sound Designer" .
+
+narrative:Cinematographer a owl:Class ;
+    rdfs:subClassOf narrative:Role ;
+    rdfs:label "Cinematographer" .
+
+#################################################################
+# Base Relationship Class
+#################################################################
+
+narrative:Relationship a owl:Class ;
+    rdfs:label "Relationship" ;
+    rdfs:comment "Base class for all reified relationships with metadata" .
+
+#################################################################
+# Extended Role hierarchy for music, games, streaming, esports
+#################################################################
+
+### Music & audio roles #########################################################
+
+narrative:Composer
+  a owl:Class ;
+  rdfs:label "Composer" ;
+  rdfs:comment """
+  A Role representing someone who composes music (scores, themes, songs)
+  for works such as films, series, games, albums, or soundtracks.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:Lyricist
+  a owl:Class ;
+  rdfs:label "Lyricist" ;
+  rdfs:comment "A Role representing someone who writes song lyrics." ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:Arranger
+  a owl:Class ;
+  rdfs:label "Arranger" ;
+  rdfs:comment "A Role representing someone who arranges existing musical material." ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:MusicProducer
+  a owl:Class ;
+  rdfs:label "Music Producer" ;
+  rdfs:comment """
+  A Role representing a music producer responsible for the overall sound,
+  recording process, and production of music works.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:Performer
+  a owl:Class ;
+  rdfs:label "Performer" ;
+  rdfs:comment """
+  A Role for someone who performs music or audio content:
+  instrumentalist, vocalist, band member, solo artist, etc.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:Vocalist
+  a owl:Class ;
+  rdfs:label "Vocalist" ;
+  rdfs:comment "A Performer who primarily contributes vocals." ;
+  rdfs:subClassOf narrative:Performer
+.
+
+narrative:BandMember
+  a owl:Class ;
+  rdfs:label "Band Member" ;
+  rdfs:comment "A Performer who is a member of a musical group or band." ;
+  rdfs:subClassOf narrative:Performer
+.
+
+### Game / interactive media roles #############################################
+
+narrative:GameDesigner
+  a owl:Class ;
+  rdfs:label "Game Designer" ;
+  rdfs:comment """
+  A Role representing someone who designs game systems, mechanics,
+  levels, rules, and overall player experience.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:LevelDesigner
+  a owl:Class ;
+  rdfs:label "Level Designer" ;
+  rdfs:comment "A Role representing someone who designs levels, maps, or stages in a game." ;
+  rdfs:subClassOf narrative:GameDesigner
+.
+
+narrative:GameProgrammer
+  a owl:Class ;
+  rdfs:label "Game Programmer" ;
+  rdfs:comment "A Role representing someone who implements game systems, tools, or engine code." ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:GameDirector
+  a owl:Class ;
+  rdfs:label "Game Director" ;
+  rdfs:comment "A Role representing someone who directs the overall creative vision for a game." ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:VoiceActor
+  a owl:Class ;
+  rdfs:label "Voice Actor" ;
+  rdfs:comment """
+  A Role for someone who provides voice performances for characters
+  in games, animation, or other media.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:LocalizationWriter
+  a owl:Class ;
+  rdfs:label "Localization Writer" ;
+  rdfs:comment """
+  A Role representing someone who adapts scripts, dialogue, and UI text
+  into another language/locale while preserving meaning and tone.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+### Streaming / esports / event roles ###########################################
+
+narrative:Streamer
+  a owl:Class ;
+  rdfs:label "Streamer" ;
+  rdfs:comment """
+  A Role for someone who regularly streams games or pop culture content
+  on live platforms (e.g., Twitch, YouTube, etc.).
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:EsportsPlayer
+  a owl:Class ;
+  rdfs:label "Esports Player" ;
+  rdfs:comment """
+  A Role representing a competitive player in organized esports events
+  and tournaments.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:Shoutcaster
+  a owl:Class ;
+  rdfs:label "Shoutcaster" ;
+  rdfs:comment """
+  A Role representing a live commentator for competitive events,
+  especially in esports.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.
+
+narrative:Host
+  a owl:Class ;
+  rdfs:label "Host" ;
+  rdfs:comment """
+  A Role representing a presenter or host for shows, panels, streams,
+  or live events.
+  """ ;
+  rdfs:subClassOf narrative:Role
+.

@@ -1,0 +1,505 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix narrative: <http://popmodern.xyz/ontology/narrative#> .
+
+#################################################################
+# External Identifiers Module
+# Cross-system identifiers and metadata for deduplication and enrichment
+#################################################################
+
+<http://popmodern.xyz/ontology/narrative/external-identifiers>
+    a owl:Ontology ;
+    rdfs:label "PopModern External Identifiers Module" ;
+    rdfs:comment "External system identifiers and metadata for all entity types" ;
+    owl:imports <http://popmodern.xyz/ontology/narrative> .
+
+#################################################################
+# Generic External Identifier
+#################################################################
+
+narrative:externalSystemId a owl:DatatypeProperty ;
+    rdfs:label "external system ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment """
+    Generic hook for storing an external system identifier.
+    Recommended pattern: prefix values with a system tag, such as:
+      - 'supabase:profiles:<uuid>'
+      - 'supabase:products:<uuid>'
+      - 'metron:character:145'
+      - 'comicvine:issue:12345'
+    so that lookups remain unambiguous across systems.
+    """ .
+
+#################################################################
+# Comics & Manga Identifiers
+#################################################################
+
+### Metron (Comics Database)
+narrative:metronId a owl:DatatypeProperty ;
+    rdfs:label "Metron ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Metron database identifier" .
+
+### ComicVine
+narrative:comicVineId a owl:DatatypeProperty ;
+    rdfs:label "ComicVine ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ComicVine database identifier" .
+
+### Grand Comics Database
+narrative:gcdId a owl:DatatypeProperty ;
+    rdfs:label "GCD ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Grand Comics Database identifier" .
+
+### League of Comic Geeks
+narrative:leagueOfComicGeeksId a owl:DatatypeProperty ;
+    rdfs:label "League of Comic Geeks ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "League of Comic Geeks identifier" .
+
+#################################################################
+# Anime & Manga Identifiers
+#################################################################
+
+### MyAnimeList
+narrative:malId a owl:DatatypeProperty ;
+    rdfs:label "MAL ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "MyAnimeList identifier" .
+
+### AniList
+narrative:anilistId a owl:DatatypeProperty ;
+    rdfs:label "AniList ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "AniList database identifier" .
+
+### Kitsu
+narrative:kitsuId a owl:DatatypeProperty ;
+    rdfs:label "Kitsu ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Kitsu database identifier" .
+
+### AniDB
+narrative:anidbId a owl:DatatypeProperty ;
+    rdfs:label "AniDB ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "AniDB (Anime Database) identifier" .
+
+### MangaDex
+narrative:mangadexId a owl:DatatypeProperty ;
+    rdfs:label "MangaDex ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "MangaDex identifier (UUID)" .
+
+### MangaUpdates
+narrative:mangaUpdatesId a owl:DatatypeProperty ;
+    rdfs:label "MangaUpdates ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "MangaUpdates (Baka-Updates) series identifier" .
+
+#################################################################
+# Film & TV Identifiers
+#################################################################
+
+### IMDb
+narrative:imdbId a owl:DatatypeProperty ;
+    rdfs:label "IMDb ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Internet Movie Database identifier (tt1234567)" .
+
+### The Movie Database (TMDb)
+narrative:tmdbId a owl:DatatypeProperty ;
+    rdfs:label "TMDb ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "The Movie Database identifier" .
+
+### TheTVDB
+narrative:tvdbId a owl:DatatypeProperty ;
+    rdfs:label "TheTVDB ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "TheTVDB series identifier" .
+
+### Trakt.tv
+narrative:traktId a owl:DatatypeProperty ;
+    rdfs:label "Trakt ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Trakt.tv identifier" .
+
+#################################################################
+# Music Identifiers
+#################################################################
+
+### MusicBrainz
+narrative:musicbrainzId a owl:DatatypeProperty ;
+    rdfs:label "MusicBrainz ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "MusicBrainz identifier (UUID)" .
+
+### Discogs
+narrative:discogsId a owl:DatatypeProperty ;
+    rdfs:label "Discogs ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Discogs release/artist identifier" .
+
+### Spotify
+narrative:spotifyId a owl:DatatypeProperty ;
+    rdfs:label "Spotify ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Spotify track/album/artist identifier" .
+
+### Apple Music
+narrative:appleMusicId a owl:DatatypeProperty ;
+    rdfs:label "Apple Music ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Apple Music identifier" .
+
+### Last.fm
+narrative:lastfmId a owl:DatatypeProperty ;
+    rdfs:label "Last.fm ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Last.fm artist/album identifier" .
+
+### ISRC (International Standard Recording Code)
+narrative:isrc a owl:DatatypeProperty ;
+    rdfs:label "ISRC" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "International Standard Recording Code for audio tracks" .
+
+#################################################################
+# Games Identifiers
+#################################################################
+
+### IGDB (Internet Game Database)
+narrative:igdbId a owl:DatatypeProperty ;
+    rdfs:label "IGDB ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Internet Game Database identifier" .
+
+### Steam
+narrative:steamId a owl:DatatypeProperty ;
+    rdfs:label "Steam ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Steam application ID" .
+
+### GOG
+narrative:gogId a owl:DatatypeProperty ;
+    rdfs:label "GOG ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "GOG.com game identifier" .
+
+### Epic Games
+narrative:epicGamesId a owl:DatatypeProperty ;
+    rdfs:label "Epic Games ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Epic Games Store identifier" .
+
+### Giant Bomb
+narrative:giantBombId a owl:DatatypeProperty ;
+    rdfs:label "Giant Bomb ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Giant Bomb game database identifier" .
+
+#################################################################
+# Books & Literature Identifiers
+#################################################################
+
+### ISBN (International Standard Book Number)
+narrative:isbn a owl:DatatypeProperty ;
+    rdfs:label "ISBN" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "International Standard Book Number (ISBN-10 or ISBN-13)" .
+
+### ISBN-10
+narrative:isbn10 a owl:DatatypeProperty ;
+    rdfs:label "ISBN-10" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "10-digit ISBN" .
+
+### ISBN-13
+narrative:isbn13 a owl:DatatypeProperty ;
+    rdfs:label "ISBN-13" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "13-digit ISBN" .
+
+### Goodreads
+narrative:goodreadsId a owl:DatatypeProperty ;
+    rdfs:label "Goodreads ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Goodreads book/author identifier" .
+
+### Open Library
+narrative:openLibraryId a owl:DatatypeProperty ;
+    rdfs:label "Open Library ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Open Library identifier (OL123456W)" .
+
+### LibraryThing
+narrative:libraryThingId a owl:DatatypeProperty ;
+    rdfs:label "LibraryThing ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "LibraryThing work identifier" .
+
+#################################################################
+# Product & Commerce Identifiers
+#################################################################
+
+### UPC (Universal Product Code)
+narrative:upc a owl:DatatypeProperty ;
+    rdfs:label "UPC" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Universal Product Code (barcode)" .
+
+### EAN (European Article Number)
+narrative:ean a owl:DatatypeProperty ;
+    rdfs:label "EAN" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "European Article Number" .
+
+### SKU (Stock Keeping Unit)
+narrative:sku a owl:DatatypeProperty ;
+    rdfs:label "SKU" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Stock Keeping Unit / Diamond order code" .
+
+### ASIN (Amazon Standard Identification Number)
+narrative:asin a owl:DatatypeProperty ;
+    rdfs:label "ASIN" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Amazon Standard Identification Number" .
+
+### Diamond Comic Distributors Code
+narrative:diamondCode a owl:DatatypeProperty ;
+    rdfs:label "Diamond Code" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Diamond Comic Distributors order code" .
+
+### COMET Distribution System Codes
+narrative:cometStockCode a owl:DatatypeProperty ;
+    rdfs:label "COMET Stock Code" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "COMET StockCode - primary catalog ID for distribution" .
+
+narrative:cometMonthCode a owl:DatatypeProperty ;
+    rdfs:label "COMET Month Code" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "COMET MonthCode identifier (e.g., SEP081984)" .
+
+narrative:cometAlternateCode a owl:DatatypeProperty ;
+    rdfs:label "COMET Alternate Code" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Additional COMET AlternateCode(s) for product lookup" .
+
+### BISAC (Book Industry Standards and Communications)
+narrative:bisacCode a owl:DatatypeProperty ;
+    rdfs:label "BISAC Code" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "BISAC subject code for book/comic categorization (e.g., CGN004030)" .
+
+#################################################################
+# Digital Platform Identifiers
+#################################################################
+
+### Webtoon
+narrative:webtoonId a owl:DatatypeProperty ;
+    rdfs:label "Webtoon ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Webtoon series identifier" .
+
+### Tapas
+narrative:tapasId a owl:DatatypeProperty ;
+    rdfs:label "Tapas ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Tapas series identifier" .
+
+### ComiXology
+narrative:comixologyId a owl:DatatypeProperty ;
+    rdfs:label "ComiXology ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ComiXology/Amazon Comics identifier" .
+
+### Crunchyroll
+narrative:crunchyrollId a owl:DatatypeProperty ;
+    rdfs:label "Crunchyroll ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "Crunchyroll series identifier" .
+
+### Funimation
+narrative:funimationId a owl:DatatypeProperty ;
+    rdfs:label "Funimation ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Funimation series identifier" .
+
+#################################################################
+# Social & Fan Sites
+#################################################################
+
+### MyComicShop
+narrative:myComicShopId a owl:DatatypeProperty ;
+    rdfs:label "MyComicShop ID" ;
+    rdfs:range xsd:int ;
+    rdfs:comment "MyComicShop.com product identifier" .
+
+### Fandom Wiki
+narrative:fandomWikiUrl a owl:DatatypeProperty ;
+    rdfs:label "Fandom Wiki URL" ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Fandom (formerly Wikia) wiki page URL" .
+
+### Wikipedia
+narrative:wikipediaUrl a owl:DatatypeProperty ;
+    rdfs:label "Wikipedia URL" ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Wikipedia page URL" .
+
+### Wikidata
+narrative:wikidataId a owl:DatatypeProperty ;
+    rdfs:label "Wikidata ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Wikidata entity identifier (Q123456)" .
+
+#################################################################
+# Supabase Platform Identifiers
+#################################################################
+
+### Supabase UUID (Primary Platform ID)
+narrative:supabaseId a owl:DatatypeProperty ;
+    rdfs:label "Supabase ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Supabase database UUID (primary platform identifier)" .
+
+### Supabase Profile ID
+narrative:supabaseProfileId a owl:DatatypeProperty ;
+    rdfs:label "Supabase Profile ID" ;
+    rdfs:domain narrative:User ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Supabase auth.users / public.profiles UUID" .
+
+### Supabase Product ID
+narrative:supabaseProductId a owl:DatatypeProperty ;
+    rdfs:label "Supabase Product ID" ;
+    rdfs:domain narrative:Product ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Supabase products table UUID" .
+
+#################################################################
+# Metadata Properties
+#################################################################
+
+### Resource URL (Canonical External URL)
+narrative:resourceUrl a owl:DatatypeProperty ;
+    rdfs:label "resource URL" ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Canonical external resource URL (e.g., Metron, ComicVine page)" .
+
+### Last Modified Timestamp
+narrative:lastModified a owl:DatatypeProperty ;
+    rdfs:label "last modified" ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Last modification timestamp from source system for data freshness tracking" .
+
+### Created Timestamp
+narrative:createdAt a owl:DatatypeProperty ;
+    rdfs:label "created at" ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Creation timestamp" .
+
+### Updated Timestamp
+narrative:updatedAt a owl:DatatypeProperty ;
+    rdfs:label "updated at" ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Last update timestamp" .
+
+### Source System
+narrative:sourceSystem a owl:DatatypeProperty ;
+    rdfs:label "source system" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Source system name (metron, comicvine, mal, tmdb, etc.)" .
+
+### Data Quality Score
+narrative:dataQualityScore a owl:DatatypeProperty ;
+    rdfs:label "data quality score" ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Data quality score (0.0-1.0) for confidence in data accuracy" .
+
+### Verification Status
+narrative:verificationStatus a owl:DatatypeProperty ;
+    rdfs:label "verification status" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Unverified, Community Verified, Official, Admin Verified" .
+
+### Canonical ID
+narrative:canonicalId a owl:DatatypeProperty ;
+    rdfs:label "canonical ID" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Canonical identifier chosen as primary when multiple IDs exist" .
+
+#################################################################
+# Deduplication Properties
+#################################################################
+
+### Duplicate Of
+narrative:duplicateOf a owl:ObjectProperty ;
+    rdfs:label "duplicate of" ;
+    rdfs:comment "This entity is a duplicate of another entity (for deduplication)" .
+
+### Merged Into
+narrative:mergedInto a owl:ObjectProperty ;
+    rdfs:label "merged into" ;
+    rdfs:comment "This entity was merged into another entity" .
+
+### Canonical Entity
+narrative:canonicalEntity a owl:ObjectProperty ;
+    rdfs:label "canonical entity" ;
+    rdfs:comment "The canonical version of this entity" .
+
+### Alternate Of
+narrative:alternateOf a owl:ObjectProperty ;
+    rdfs:label "alternate of" ;
+    rdfs:comment "This is an alternate representation of another entity" .
+
+#################################################################
+# Domain-Specific Identifier Mappings
+#################################################################
+
+### Character Domain
+# Applied domains: Character
+# Applicable IDs: metronId, comicVineId, gcdId, malId, anilistId, wikidataId
+
+### Person Domain
+# Applied domains: Person
+# Applicable IDs: metronId, imdbId, tmdbId, musicbrainzId, wikidataId
+
+### Organization Domain
+# Applied domains: Org
+# Applicable IDs: wikidataId
+
+### StoryWork Domain
+# Applied domains: StoryWork
+# Applicable IDs: metronId, comicVineId, gcdId, malId, anilistId, tmdbId, tvdbId, igdbId
+
+### StoryExpression Domain
+# Applied domains: StoryExpression
+# Applicable IDs: metronId, comicVineId, gcdId, malId, anilistId, tmdbId, imdbId
+
+### Universe Domain
+# Applied domains: Universe
+# Applicable IDs: metronId, wikidataId
+
+### Group Domain
+# Applied domains: Group
+# Applicable IDs: metronId, comicVineId
+
+### Product/Manifestation Domain
+# Applied domains: Product, Manifestation
+# Applicable IDs: isbn, upc, ean, sku, asin, diamondCode, cometStockCode, cometMonthCode, cometAlternateCode, bisacCode, supabaseProductId
+
+### NarrativeUnit Domain (Audio)
+# Applied domains: NarrativeUnit (audio tracks)
+# Applicable IDs: isrc
+
+### User Domain
+# Applied domains: User
+# Applicable IDs: supabaseProfileId
