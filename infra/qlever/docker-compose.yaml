@@ -1,21 +1,42 @@
 services:
+  qlever-init:
+    image: busybox:latest
+    env_file:
+      - ./qlever.env
+    user: "0:0"
+    volumes:
+      - qlever-server-data:/data
+    command:
+      - sh
+      - -lc
+      - |
+        echo "Fixing /data ownership to ${UID:-1000}:${GID:-1000}"
+        chown -R ${UID:-1000}:${GID:-1000} /data
+        chmod -R u+rwX,g+rwX,o+rX /data
+    restart: "no"
+
   qlever-server:
     image: adfreiburg/qlever:latest
     container_name: qlever-server
 
-    # M1 fix: you already proved amd64 works for indexing
-    platform: linux/amd64
+    # Optional (Apple Silicon workaround you already discovered):
+    # set QLEVER_PLATFORM=linux/amd64 in a .env file when needed
+    platform: "${QLEVER_PLATFORM:-}"
 
     # Not strictly required because your entrypoint does `cd /data`,
     # but it keeps everything consistent and avoids surprises.
+    user: "${UID:-1000}:${GID:-1000}"   # <-- MUST match qlever.env UID/GID
     working_dir: /data
+    depends_on:
+      qlever-init:
+        condition: service_completed_successfully
 
     env_file:
       - ./qlever.env
 
     volumes:
       # QLever working dir (Qleverfile + index artifacts)
-      - ./output:/data
+      - qlever-server-data:/data
       
       # Your raw host data folder, mounted read-only
       - ./data:/input:ro
@@ -44,3 +65,4 @@ services:
 
 volumes:
   qlever-ui-db:
+  qlever-server-data:

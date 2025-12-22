@@ -18,6 +18,11 @@ STOP_ON_CALL_ENABLED="${STOP_ON_CALL_ENABLED:-false}"
 echo "INFO: Indexing : should index = ${SHOULD_INDEX} ; force indexing = ${FORCE_INDEXING}"
 echo "INFO: Data download : should download = ${SHOULD_DOWNLOAD} ; force download = ${FORCE_DOWNLOAD}"
 
+# Wait briefly for /data to become writable (named volumes are often root-owned at first).
+echo "UID=$(id -u)"
+echo "GID=$(id -g)"
+ls -al /
+
 # Generate Qleverfile (or skip, depending on QLEVER_GENERATE_CONFIG_FILE)
 /bin/sh /qlever/scripts/generate-qleverfile.sh
 
