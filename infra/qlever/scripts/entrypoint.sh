@@ -12,13 +12,14 @@ FORCE_DOWNLOAD="${FORCE_DOWNLOAD:-false}"
 
 # Additional parameters to qlever start (e.g. --kill-existing-with-same-port)
 START_ADDITIONAL_ARGS="${START_ADDITIONAL_ARGS:-}"
+STOP_ON_CALL_ENABLED="${STOP_ON_CALL_ENABLED:-false}"
 
 # Display some debug information
 echo "INFO: Indexing : should index = ${SHOULD_INDEX} ; force indexing = ${FORCE_INDEXING}"
 echo "INFO: Data download : should download = ${SHOULD_DOWNLOAD} ; force download = ${FORCE_DOWNLOAD}"
 
 # Generate Qleverfile (or skip, depending on QLEVER_GENERATE_CONFIG_FILE)
- /qlever/scripts/generate-qleverfile.sh
+/bin/sh /qlever/scripts/generate-qleverfile.sh
 
 # Go to the data directory
 cd /data

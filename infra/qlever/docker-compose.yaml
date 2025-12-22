@@ -1,28 +1,46 @@
 services:
-  # One-shot init container to fix permissions on the data volume
-  qlever-init:
-    image: busybox:latest
-    container_name: qlever-init
-    command: ["sh", "-c", "chown -R 65534:0 /data"]
-    volumes:
-      - ./qlever-data:/data
-    restart: "no"
-
   qlever-server:
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    image: local/qlever-server:latest
+    image: adfreiburg/qlever:latest
     container_name: qlever-server
-    user: "65534:0"          # run as 'nobody' (uid 65534), group root
-    depends_on:
-      - qlever-init          # make sure perms are fixed first
+
+    # M1 fix: you already proved amd64 works for indexing
+    platform: linux/amd64
+
+    # Not strictly required because your entrypoint does `cd /data`,
+    # but it keeps everything consistent and avoids surprises.
+    working_dir: /data
+
     env_file:
-      - ./qlever.env         # QLever + indexing config (see below)
+      - ./qlever.env
+
     volumes:
-      - ./qlever-data:/data      # QLever index + Qleverfile live here
-      - ./data/data.nt:/data/data.nt:ro  # your RDF data file
+      # QLever working dir (Qleverfile + index artifacts)
+      - ./output:/data
+      
+      # Your raw host data folder, mounted read-only
+      - ./data:/input:ro
+
+      # Your scripts
+      - ./scripts:/qlever/scripts:ro
+
+    # Override the image entrypoint completely
+    entrypoint: ["/bin/bash", "/qlever/scripts/entrypoint.sh"]
+
     ports:
-      - "7001:7001"          # SPARQL endpoint
-    stop_grace_period: 0s
+      - "7001:7001" # server
+
     restart: unless-stopped
+
+  qlever-ui:
+    image: adfreiburg/qlever-ui:latest
+    container_name: qlever-ui
+    depends_on:
+      - qlever-server
+    ports:
+      - "7002:7000"
+    restart: unless-stopped
+    volumes:
+      - qlever-ui-db:/app/db
+
+volumes:
+  qlever-ui-db:
