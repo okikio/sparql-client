@@ -32,37 +32,13 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-      
-      # Init container to fix volume permissions
-      initContainers:
-        - name: fix-permissions
-          image: busybox:latest
-          command:
-            - sh
-            - -c
-            - |
-              echo "Fixing /data ownership to 1000:1000"
-              chown -R 1000:1000 /data
-              chmod -R u+rwX,g+rwX,o+rX /data
-              echo "Permissions fixed successfully"
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-          volumeMounts:
-            - name: data
-              mountPath: /data
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "128Mi"
+        seccompProfile:
+          type: RuntimeDefault
       
       containers:
         - name: qlever-server
-          image: adfreiburg/qlever:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/popmodern/qlever-wrapper:latest
+          imagePullPolicy: Always
           
           # Container-level security context
           # Best practice: read-only root filesystem + explicit writable volumes
@@ -71,13 +47,9 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true  # Immutable infrastructure
             capabilities:
-              drop:
-                - ALL
+              drop: [ALL]
           
           workingDir: /data
-          
-          # Custom entrypoint from scripts ConfigMap
-          command: ["/bin/bash", "/qlever/scripts/entrypoint.sh"]
           
           # Environment from ConfigMap and Secret
           envFrom:
@@ -98,11 +70,6 @@ spec:
               mountPath: /data
               readOnly: false
             
-            # Scripts from ConfigMap - READ-ONLY
-            - name: scripts
-              mountPath: /qlever/scripts
-              readOnly: true
-            
             # Writable temp directory (required with readOnlyRootFilesystem)
             - name: tmp
               mountPath: /tmp
@@ -114,11 +81,11 @@ spec:
           # Resource limits
           resources:
             requests:
-              cpu: "2"
-              memory: "10Gi"
+              cpu: "250m"
+              memory: "512Mi"
             limits:
-              cpu: "4"
-              memory: "18Gi"
+              cpu: "1"
+              memory: "2Gi"
           
           # Health probes using SPARQL queries
           # Startup probe: Allows up to 30 minutes for initial indexing
@@ -181,12 +148,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: qlever-data-pvc
-        
-        # Scripts from ConfigMap (read-only)
-        - name: scripts
-          configMap:
-            name: qlever-scripts
-            defaultMode: 0555  # r-xr-xr-x (read + execute)
         
         # Ephemeral volumes for writable directories
         # (required when readOnlyRootFilesystem: true)

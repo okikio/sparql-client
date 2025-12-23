@@ -2,30 +2,31 @@
 # Kustomization for QLever Deployment
 # 
 # Usage:
-#   kubectl apply -k base/
+#   kubectl apply -k k8s/
 #
 # This deploys all resources in the correct order
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: qlever
-
 # Resource files in deployment order
 resources:
+  - ./storage
   - 00-namespace.yaml
   - 01-secrets.yaml
   - 02-configmaps.yaml
   - 03-storage.yaml
   - 04-deployment.yaml
   - 05-service.yaml
-  - 06-ingress.yaml
-  - 07-network-policies.yaml
+  
+  # Only uncomment for Production
+  # - ./gateway
 
 # Common labels applied to all resources
-commonLabels:
-  app.kubernetes.io/managed-by: kustomize
-  app.kubernetes.io/part-of: qlever
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/part-of: qlever
 
 # Images (uncomment to override image versions)
 # images:

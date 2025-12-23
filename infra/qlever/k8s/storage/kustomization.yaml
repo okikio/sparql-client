@@ -1,0 +1,21 @@
+---
+# Kustomization for QLever Deployment
+# 
+# Usage:
+#   kubectl apply -k k8s/storage/
+#
+# This deploys all resources in the correct order
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Resource files in deployment order
+resources:
+  - 00-local-path-storage.yaml
+  # - https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.32/deploy/local-path-storage.yaml
+
+# Common labels applied to all resources
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/part-of: storage

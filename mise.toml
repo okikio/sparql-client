@@ -1,2 +1,5 @@
 [tools]
 deno = "latest"
+kubectl = "latest"
+talosctl = "latest"
+k9s = "latest"

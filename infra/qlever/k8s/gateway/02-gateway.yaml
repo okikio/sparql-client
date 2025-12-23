@@ -1,0 +1,89 @@
+# Caddy Gateway API Resources
+#
+# For production use with automatic HTTPS
+# Skip these files for local development
+#
+# Prerequisites:
+# 1. Install Gateway API CRDs:
+#    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml
+#
+# 2. Install Caddy Gateway controller:
+#    kubectl apply -f gateway/01-caddy-gateway-install.yaml
+#
+# 3. Configure your domain below
+
+---
+# GatewayClass - Defines the Gateway controller
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: caddy
+  labels:
+    app.kubernetes.io/name: caddy-gateway
+spec:
+  controllerName: github.com/caddyserver/gateway
+
+---
+# Gateway - The actual gateway instance
+# This is like a LoadBalancer - it gets an external IP
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: qlever-gateway
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+  annotations:
+    # Caddy-specific annotations for HTTPS
+    # Email for Let's Encrypt notifications
+    caddy.gateway.kubernetes.io/email: "gateway@popmodern.dev"  # ⚠️ CHANGE THIS
+spec:
+  gatewayClassName: caddy
+  listeners:
+    # HTTP listener (redirects to HTTPS)
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    
+    # HTTPS listener (automatic TLS via Caddy)
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Same
+      tls:
+        mode: Terminate
+        # Caddy automatically obtains Let's Encrypt certificates
+        # No certificateRefs needed - Caddy handles this
+
+---
+# HTTPRoute - Routing rules for HTTP traffic
+# This is like an Ingress, but more powerful
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: qlever-route
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+spec:
+  parentRefs:
+    - name: qlever-gateway
+      namespace: qlever
+  
+  hostnames:
+    - "qlever.popmodern.dev"  # ⚠️ CHANGE THIS to your domain
+  
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: qlever-server  # ClusterIP service
+          port: 7001
+          weight: 1

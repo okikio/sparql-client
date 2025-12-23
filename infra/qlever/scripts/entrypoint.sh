@@ -12,7 +12,6 @@ FORCE_DOWNLOAD="${FORCE_DOWNLOAD:-false}"
 
 # Additional parameters to qlever start (e.g. --kill-existing-with-same-port)
 START_ADDITIONAL_ARGS="${START_ADDITIONAL_ARGS:-}"
-STOP_ON_CALL_ENABLED="${STOP_ON_CALL_ENABLED:-false}"
 
 # Display some debug information
 echo "INFO: Indexing : should index = ${SHOULD_INDEX} ; force indexing = ${FORCE_INDEXING}"
@@ -101,43 +100,6 @@ fi
 
 # Start the QLever server
 echo "INFO: Starting QLever server..."
-if [ "${STOP_ON_CALL_ENABLED}" = "true" ]; then
 
-  # Start QLever in the background
-  qlever start --run-in-foreground $START_ADDITIONAL_ARGS &
-  QLEVER_PID=$!
-
-  # Start stop_on_call in the background
-  stop_on_call &
-  STOP_ON_CALL_PID=$!
-
-  # Wait for either QLever or stop_on_call to exit
-  wait -n $QLEVER_PID $STOP_ON_CALL_PID
-  EXITED_PID=$?
-
-  # Check which one exited
-  if ! kill -0 $QLEVER_PID 2>/dev/null; then
-    # QLever exited
-    wait $QLEVER_PID
-    QLEVER_EXIT_CODE=$?
-    echo "qlever exited with code $QLEVER_EXIT_CODE"
-    kill $STOP_ON_CALL_PID 2>/dev/null
-    exit $QLEVER_EXIT_CODE
-  else
-    # stop_on_call was called, so we stop QLever
-    echo ""
-    echo ""
-    echo ""
-    echo "[INFO] Stopped using stop_on_call"
-    qlever stop
-
-    # Stop QLever manually, in case it is still running (it should not be, but just in case)
-    kill $QLEVER_PID 2>/dev/null || true
-    wait $QLEVER_PID || true
-    exit 0
-  fi
-
-else
-  # Normal case: keep QLever in the foreground, container stays alive
-  exec qlever start --run-in-foreground $START_ADDITIONAL_ARGS
-fi
+# Normal case: keep QLever in the foreground, container stays alive
+exec qlever start --run-in-foreground $START_ADDITIONAL_ARGS

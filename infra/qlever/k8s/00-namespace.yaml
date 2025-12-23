@@ -7,3 +7,6 @@ metadata:
     name: qlever
     app.kubernetes.io/name: qlever
     app.kubernetes.io/component: sparql-database
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline

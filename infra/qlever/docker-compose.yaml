@@ -21,6 +21,7 @@ services:
       context: .
       dockerfile: ./Dockerfile
     
+    image: ghcr.io/popmodern/qlever-wrapper:latest
     container_name: qlever-server
 
     # Optional (Apple Silicon workaround you already discovered):
@@ -44,9 +45,6 @@ services:
       
       # Your raw host data folder, mounted read-only
       - ./data:/input:ro
-
-    # Override the image entrypoint completely
-    entrypoint: ["/bin/bash", "/qlever/scripts/entrypoint.sh"]
 
     ports:
       - "7001:7001" # server

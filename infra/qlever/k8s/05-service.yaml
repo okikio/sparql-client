@@ -1,6 +1,5 @@
 ---
-# QLever Service
-# ClusterIP by default - access via Ingress
+# QLever Service - ClusterIP (for production with Gateway)
 apiVersion: v1
 kind: Service
 metadata:
@@ -18,14 +17,34 @@ spec:
       port: 7001
       targetPort: 7001
       protocol: TCP
-  
-  # Optional: Uncomment for external access without Ingress
-  # type: LoadBalancer
-  # OR
-  # type: NodePort
-  # ports:
-  #   - name: http
-  #     port: 7001
-  #     targetPort: 7001
-  #     nodePort: 30701  # 30000-32767
-  #     protocol: TCP
+
+---
+# QLever Service - NodePort (for local development/testing)
+#
+# Use this for local testing without Gateway/Ingress
+# Access via: http://NODE_IP:30701
+# Or: kubectl port-forward svc/qlever-server-nodeport 7001:7001
+#
+# Delete this service in production when using Gateway API
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: qlever-server-nodeport
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+    app.kubernetes.io/component: sparql-database
+    app.kubernetes.io/environment: dev
+  annotations:
+    description: "NodePort service for local development - remove in production"
+spec:
+  type: NodePort
+  selector:
+    app: qlever-server
+  ports:
+    - name: http
+      port: 7001
+      targetPort: 7001
+      nodePort: 30701  # Fixed port 30701 for consistency
+      protocol: TCP

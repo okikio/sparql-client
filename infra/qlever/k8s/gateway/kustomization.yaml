@@ -1,0 +1,23 @@
+---
+# Kustomization for QLever Deployment
+# 
+# Usage:
+#   kubectl apply -k k8s/gateway/
+#
+# This deploys all resources in the correct order
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Resource files in deployment order
+resources:
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml
+  - 01-caddy-gateway-install.yaml
+  - 02-gateway.yaml
+  - 03-network-policies.yaml
+
+# Common labels applied to all resources
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/part-of: gateway
