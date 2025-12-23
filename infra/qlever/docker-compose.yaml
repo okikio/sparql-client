@@ -17,12 +17,15 @@ services:
     restart: "no"
 
   qlever-server:
-    image: adfreiburg/qlever:latest
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    
     container_name: qlever-server
 
     # Optional (Apple Silicon workaround you already discovered):
     # set QLEVER_PLATFORM=linux/amd64 in a .env file when needed
-    platform: "${QLEVER_PLATFORM:-}"
+    platform: "${QLEVER_PLATFORM:-linux/amd64}"
 
     # Not strictly required because your entrypoint does `cd /data`,
     # but it keeps everything consistent and avoids surprises.
@@ -41,9 +44,6 @@ services:
       
       # Your raw host data folder, mounted read-only
       - ./data:/input:ro
-
-      # Your scripts
-      - ./scripts:/qlever/scripts:ro
 
     # Override the image entrypoint completely
     entrypoint: ["/bin/bash", "/qlever/scripts/entrypoint.sh"]
