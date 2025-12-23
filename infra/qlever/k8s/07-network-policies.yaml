@@ -1,0 +1,148 @@
+# Zero-Trust Network Policies for QLever
+# 
+# Architecture:
+# 1. Default deny all traffic
+# 2. Explicitly allow QLever ingress from Caddy
+# 3. Explicitly allow QLever egress for DNS and external data
+#
+# Best Practice: Start with deny-all, add allow rules incrementally
+
+---
+# Policy 1: Default Deny All Traffic
+# Applied to all pods in qlever namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+spec:
+  podSelector: {}  # Applies to all pods
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# Policy 2: Allow Ingress from Caddy Ingress Controller
+# QLever must accept traffic from Caddy to serve queries
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-caddy
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+spec:
+  podSelector:
+    matchLabels:
+      app: qlever-server
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from Caddy ingress controller pods
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: caddy-system
+        # Alternatively, match by pod labels if Caddy is in same namespace
+        # - podSelector:
+        #     matchLabels:
+        #       app: caddy-ingress-controller
+      ports:
+        - protocol: TCP
+          port: 7001
+
+---
+# Policy 3: Allow DNS Queries
+# QLever needs DNS resolution for external data downloads
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+spec:
+  podSelector:
+    matchLabels:
+      app: qlever-server
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS queries to kube-dns/coredns
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# Policy 4: Allow External HTTPS for Data Downloads
+# QLever may need to download RDF data from external sources
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-https
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+spec:
+  podSelector:
+    matchLabels:
+      app: qlever-server
+  policyTypes:
+    - Egress
+  egress:
+    # Allow HTTPS to any external IP
+    # Restrict this further if you know the specific IPs/CIDRs
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+# ---
+# Optional: Calico GlobalNetworkPolicy for stricter control
+# Requires Calico CNI (not standard Kubernetes)
+# Uncomment if you have Calico installed
+#
+# apiVersion: projectcalico.org/v3
+# kind: GlobalNetworkPolicy
+# metadata:
+#   name: qlever-global-deny
+# spec:
+#   # Deny all traffic by default, higher precedence
+#   order: 100
+#   selector: projectcalico.org/namespace == 'qlever'
+#   types:
+#     - Ingress
+#     - Egress
+#   ingress: []
+#   egress: []
+
+# ---
+# Optional: Allow internal pod-to-pod communication
+# Uncomment if you have multiple services in qlever namespace that need to communicate
+#
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: allow-same-namespace
+#   namespace: qlever
+# spec:
+#   podSelector: {}
+#   policyTypes:
+#     - Ingress
+#   ingress:
+#     - from:
+#         - podSelector: {}

@@ -1,0 +1,197 @@
+---
+# QLever Deployment with Production Security Best Practices
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qlever-server
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+    app.kubernetes.io/component: sparql-database
+    app.kubernetes.io/version: "latest"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Single replica, avoid two pods fighting over ReadWriteOnce PVC
+  selector:
+    matchLabels:
+      app: qlever-server
+  template:
+    metadata:
+      labels:
+        app: qlever-server
+        app.kubernetes.io/name: qlever
+        app.kubernetes.io/component: sparql-database
+    spec:
+      # Graceful shutdown
+      terminationGracePeriodSeconds: 120
+      
+      # Pod-level security context
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      
+      # Init container to fix volume permissions
+      initContainers:
+        - name: fix-permissions
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Fixing /data ownership to 1000:1000"
+              chown -R 1000:1000 /data
+              chmod -R u+rwX,g+rwX,o+rX /data
+              echo "Permissions fixed successfully"
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      
+      containers:
+        - name: qlever-server
+          image: adfreiburg/qlever:latest
+          imagePullPolicy: IfNotPresent
+          
+          # Container-level security context
+          # Best practice: read-only root filesystem + explicit writable volumes
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true  # Immutable infrastructure
+            capabilities:
+              drop:
+                - ALL
+          
+          workingDir: /data
+          
+          # Custom entrypoint from scripts ConfigMap
+          command: ["/bin/bash", "/qlever/scripts/entrypoint.sh"]
+          
+          # Environment from ConfigMap and Secret
+          envFrom:
+            - configMapRef:
+                name: qlever-config
+            - secretRef:
+                name: qlever-secrets
+          
+          ports:
+            - name: http
+              containerPort: 7001
+              protocol: TCP
+          
+          # Volume mounts
+          volumeMounts:
+            # Data volume - READ/WRITE (database writes here)
+            - name: data
+              mountPath: /data
+              readOnly: false
+            
+            # Scripts from ConfigMap - READ-ONLY
+            - name: scripts
+              mountPath: /qlever/scripts
+              readOnly: true
+            
+            # Writable temp directory (required with readOnlyRootFilesystem)
+            - name: tmp
+              mountPath: /tmp
+            
+            # Writable cache directory
+            - name: cache
+              mountPath: /var/cache
+          
+          # Resource limits
+          resources:
+            requests:
+              cpu: "2"
+              memory: "10Gi"
+            limits:
+              cpu: "4"
+              memory: "18Gi"
+          
+          # Health probes using SPARQL queries
+          # Startup probe: Allows up to 30 minutes for initial indexing
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf http://localhost:7001 > /dev/null
+            periodSeconds: 10
+            failureThreshold: 180  # 30 minutes (180 * 10s)
+            timeoutSeconds: 5
+          
+          # Readiness probe: Confirms database is responding to queries
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf http://localhost:7001 \
+                    -H "Accept: text/tab-separated-values" \
+                    --data-urlencode 'query=SELECT * WHERE { ?s ?p ?o } LIMIT 1' \
+                    > /dev/null
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          # Liveness probe: Ensures server stays responsive
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf http://localhost:7001 \
+                    -H "Accept: text/tab-separated-values" \
+                    --data-urlencode 'query=SELECT * WHERE { ?s ?p ?o } LIMIT 1' \
+                    > /dev/null
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          # Graceful shutdown
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    cd /data
+                    qlever stop || true
+      
+      volumes:
+        # Persistent data volume
+        - name: data
+          persistentVolumeClaim:
+            claimName: qlever-data-pvc
+        
+        # Scripts from ConfigMap (read-only)
+        - name: scripts
+          configMap:
+            name: qlever-scripts
+            defaultMode: 0555  # r-xr-xr-x (read + execute)
+        
+        # Ephemeral volumes for writable directories
+        # (required when readOnlyRootFilesystem: true)
+        - name: tmp
+          emptyDir: {}
+        
+        - name: cache
+          emptyDir: {}

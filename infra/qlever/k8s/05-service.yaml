@@ -1,0 +1,31 @@
+---
+# QLever Service
+# ClusterIP by default - access via Ingress
+apiVersion: v1
+kind: Service
+metadata:
+  name: qlever-server
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+    app.kubernetes.io/component: sparql-database
+spec:
+  type: ClusterIP
+  selector:
+    app: qlever-server
+  ports:
+    - name: http
+      port: 7001
+      targetPort: 7001
+      protocol: TCP
+  
+  # Optional: Uncomment for external access without Ingress
+  # type: LoadBalancer
+  # OR
+  # type: NodePort
+  # ports:
+  #   - name: http
+  #     port: 7001
+  #     targetPort: 7001
+  #     nodePort: 30701  # 30000-32767
+  #     protocol: TCP

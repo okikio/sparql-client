@@ -1,0 +1,9 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qlever
+  labels:
+    name: qlever
+    app.kubernetes.io/name: qlever
+    app.kubernetes.io/component: sparql-database

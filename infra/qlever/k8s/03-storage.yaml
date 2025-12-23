@@ -1,0 +1,18 @@
+---
+# Persistent volume for /data (Qleverfile + index artifacts)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qlever-data-pvc
+  namespace: qlever
+  labels:
+    app.kubernetes.io/name: qlever
+    app.kubernetes.io/component: sparql-database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  # Optional: Uncomment to pin to specific storage class
+  # storageClassName: standard

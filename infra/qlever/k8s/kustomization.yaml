@@ -1,0 +1,58 @@
+---
+# Kustomization for QLever Deployment
+# 
+# Usage:
+#   kubectl apply -k base/
+#
+# This deploys all resources in the correct order
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: qlever
+
+# Resource files in deployment order
+resources:
+  - 00-namespace.yaml
+  - 01-secrets.yaml
+  - 02-configmaps.yaml
+  - 03-storage.yaml
+  - 04-deployment.yaml
+  - 05-service.yaml
+  - 06-ingress.yaml
+  - 07-network-policies.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: qlever
+
+# Images (uncomment to override image versions)
+# images:
+#   - name: adfreiburg/qlever
+#     newTag: v1.0.0
+
+# ConfigMap generator (alternative to 02-configmaps.yaml)
+# Uncomment if you prefer to manage scripts as local files
+# configMapGenerator:
+#   - name: qlever-scripts
+#     files:
+#       - scripts/entrypoint.sh
+#       - scripts/generate-qleverfile.sh
+
+# Secret generator (for local development only)
+# ⚠️ DO NOT use in production - use sealed secrets or external secret managers
+# secretGenerator:
+#   - name: qlever-secrets
+#     literals:
+#       - QLEVER_SERVER_ACCESS_TOKEN=dev-token-replace-in-prod
+
+# Patches (optional customizations)
+# patches:
+#   - target:
+#       kind: Deployment
+#       name: qlever-server
+#     patch: |-
+#       - op: replace
+#         path: /spec/replicas
+#         value: 2
