@@ -602,6 +602,7 @@ export function escapeString(
   str: string,
   quote: '"' | "'" = '"',
 ): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: <explanation>
   return str.replace(/[\u0000-\u001F\\'"]/g, function (ch: string): string {
     // Always escape backslash
     if (ch === '\\') return '\\\\'

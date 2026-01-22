@@ -20,15 +20,15 @@ import {
   toVarToken,
   toPredicateName,
   toRawString,
-  raw,
   variable,
+  raw,
+  rawTerm,
+  rawPattern,
   SPARQL_VALUE_BRAND,
   SPARQL_PATTERN_BRAND,
   type SparqlValue,
   type SparqlTerm,
   type PatternValue,
-  rawTerm,
-  rawPattern,
 } from '../sparql.ts'
 import { exprTermString } from '../utils.ts'
 

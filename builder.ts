@@ -36,7 +36,7 @@ import {
   type VariableName,
   type PatternValue,
   type SparqlTerm,
-  SparqlExpr,
+  type SparqlExpr,
 } from './sparql.ts'
 import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
 import { bind, filter, optional } from './utils.ts'

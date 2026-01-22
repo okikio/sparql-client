@@ -1,6 +1,7 @@
 // executor.ts
 
-import sparql, {
+import {
+  sparql,
   raw,
   uri,
   valuesList,
@@ -888,6 +889,7 @@ export async function fetchProperties(
       const uriValue = binding.uri?.value
       if (!uriValue) continue
 
+      // biome-ignore lint/suspicious/noAssignInExpressions: <explanation>
       const entry = (result[uriValue] ??= {})
 
       requestedProperties.forEach((prop, index) => {

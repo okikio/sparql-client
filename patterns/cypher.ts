@@ -106,7 +106,8 @@ export function cypher(
   }
 
   // Then parse and add edge patterns
-  let match
+  let match: RegExpExecArray | null = null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: <explanation>
   while ((match = edgePattern.exec(result)) !== null) {
     const fromIdx = parseInt(match[1])
     const predicate = toPredicateName(match[2])

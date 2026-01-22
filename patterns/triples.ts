@@ -11,8 +11,8 @@
  * @module
  */
 
-import { isSparqlValue, toVarToken, type SparqlExpr, type SparqlTerm } from '../sparql.ts'
-import { raw, toPredicateName, toRawString, type SparqlValue, } from '../sparql.ts'
+import type { SparqlExpr, SparqlTerm } from '../sparql.ts'
+import { raw, toPredicateName, toRawString, isSparqlValue, toVarToken, } from '../sparql.ts'
 import { termString, type ExpressionPrimitive } from '../utils.ts'
 
 // ============================================================================
