@@ -47,14 +47,14 @@ import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult
  * This is immutable - each method creates a new state object rather than
  * modifying the existing one.
  */
-interface UpdateState {
+export interface UpdateState {
   readonly operations: UpdateOperation[]
 }
 
 /**
  * Individual update operation.
  */
-interface UpdateOperation {
+export interface UpdateOperation {
   readonly type: 'INSERT_DATA' | 'DELETE_DATA' | 'DELETE_WHERE' | 'DELETE_INSERT' | 'LOAD' | 'CLEAR' | 'DROP' | 'CREATE' | 'COPY' | 'MOVE' | 'ADD'
   readonly data?: SparqlValue
   readonly where?: SparqlValue
