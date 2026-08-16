@@ -1,19 +1,19 @@
 /**
  * Type-safe SPARQL construction using template literals.
- * 
+ *
  * Writing SPARQL by hand gets messy fast. String concatenation leads to injection
  * vulnerabilities, and manually escaping values is error-prone. This module lets
  * you write queries with automatic type conversion and proper escaping.
- * 
+ *
  * The core idea is simple: use template literals with automatic value conversion.
  * Strings become properly escaped literals, numbers stay as numbers, dates get
  * formatted correctly, and complex values are handled intelligently.
- * 
+ *
  * @example Basic query construction
  * ```ts
  * const name = "Peter Parker";
  * const age = 30;
- * 
+ *
  * const query = sparql`
  *   SELECT * WHERE {
  *     ?person foaf:name ${name} ;
@@ -21,11 +21,11 @@
  *   }
  * `;
  * ```
- * 
+ *
  * @example Working with arrays
  * ```ts
  * const cities = ["London", "Paris", "Tokyo"];
- * 
+ *
  * // Arrays become space-separated values for VALUES clauses
  * const query = sparql`
  *   SELECT * WHERE {
@@ -34,30 +34,37 @@
  *   }
  * `;
  * ```
- * 
+ *
  * @module
  */
 
-import { outdent } from "outdent"
+import { XSD, isTerm as isRdfTerm, type Literal as RdfLiteral, type NamedNode as RdfNamedNode, type Quad as RdfQuad, type Term as RdfTerm } from '@okikio/rdf'
 
 // ============================================================================
 // Core Types
 // ============================================================================
 
-/**
- * Internal brand used to distinguish SPARQL values from plain strings.
- */
+/** Brand shared by every library-owned SPARQL syntax value. */
 export const SPARQL_VALUE_BRAND = Symbol('SparqlValueBrand')
+/** Brand for values that serialize as one SPARQL term. */
 export const SPARQL_TERM_BRAND = Symbol('SparqlTermBrand')
+/** Brand for values that serialize as one SPARQL expression. */
 export const SPARQL_EXPR_BRAND = Symbol('SparqlExprBrand')
+/** Brand for values that serialize as a graph-pattern fragment. */
 export const SPARQL_PATTERN_BRAND = Symbol('SparqlPatternBrand')
+/** Brand for a complete SPARQL query document. */
+export const SPARQL_QUERY_BRAND = Symbol('SparqlQueryBrand')
+/** Brand for a complete SPARQL Update document. */
+export const SPARQL_UPDATE_BRAND = Symbol('SparqlUpdateBrand')
 
+/** One already-serialized SPARQL term. */
 export interface SparqlTerm {
   readonly [SPARQL_VALUE_BRAND]: true
   readonly [SPARQL_TERM_BRAND]: true
   readonly value: string
 }
 
+/** One already-serialized SPARQL expression. */
 export interface SparqlExpr {
   readonly [SPARQL_VALUE_BRAND]: true
   readonly [SPARQL_EXPR_BRAND]: true
@@ -74,7 +81,29 @@ export interface PatternValue {
   readonly value: string
 }
 
+/** A complete SPARQL query document, not an embeddable expression or pattern. */
+export interface SparqlQuery {
+  readonly [SPARQL_QUERY_BRAND]: true
+  readonly value: string
+}
+
+/** A complete SPARQL Update document, not an embeddable expression or pattern. */
+export interface SparqlUpdate {
+  readonly [SPARQL_UPDATE_BRAND]: true
+  readonly value: string
+}
+
+/** Complete SPARQL documents accepted by engines and protocol clients. */
+export type SparqlDocument = SparqlQuery | SparqlUpdate
+
+/** Any library-owned SPARQL syntax fragment accepted by shared helpers. */
 export type SparqlValue = SparqlTerm | SparqlExpr | PatternValue
+
+/** IRI-bearing input accepted by SPARQL grammar positions that require an IRI. */
+export type IriInput = string | SparqlTerm | RdfNamedNode
+
+/** Predicate syntax accepted by triple and property-path constructors. */
+export type PredicateInput = string | SparqlTerm | RdfNamedNode
 
 /**
  * Values that can be safely interpolated into the `sparql` tag *as a single
@@ -92,10 +121,11 @@ export type SparqlInterpolatable =
   | Date
   | null
   | undefined
+  | RdfTerm
 
 /**
  * Variable name without the leading ? or $ sigil.
- * 
+ *
  * In SPARQL, variables can be written as ?name or $name. We normalize these
  * internally to just store the name part, then add the ? when generating queries.
  */
@@ -109,7 +139,7 @@ export type PrefixName = string
 /**
  * Full IRI for a datatype (e.g., http://www.w3.org/2001/XMLSchema#integer).
  */
-export type DatatypeIRI = string
+export type DatatypeIRI = string | RdfNamedNode
 
 /**
  * Language tag for multilingual literals (e.g., "en", "fr", "ja-JP").
@@ -131,21 +161,24 @@ export function isSparqlValue(value: unknown): value is SparqlValue {
   )
 }
 
+/** Returns whether a library SPARQL value is a term fragment. */
 export function isSparqlTerm(v: SparqlValue): v is SparqlTerm {
   return (v as SparqlTerm)[SPARQL_TERM_BRAND] === true
 }
 
+/** Returns whether a library SPARQL value is an expression fragment. */
 export function isSparqlExpr(v: SparqlValue): v is SparqlExpr {
   return (v as SparqlExpr)[SPARQL_EXPR_BRAND] === true
 }
 
+/** Returns whether a library SPARQL value is a graph-pattern fragment. */
 export function isPatternValue(v: SparqlValue): v is PatternValue {
   return (v as PatternValue)[SPARQL_PATTERN_BRAND] === true
 }
 
 /**
  * Extract the raw string from a SparqlValue or return the string as-is.
- * 
+ *
  * Use this when you need the underlying string value without any conversion.
  * This is for SYNTAX elements that should pass through unchanged.
  */
@@ -211,7 +244,8 @@ export function isIRIRefToken(text: string): boolean {
  *
  * This gives you a clean lexical token suitable for query text.
  */
-export function toIriLikeToken(value: string): string {
+export function toIriLikeToken(value: string | RdfNamedNode): string {
+  if (typeof value !== 'string') return rdfTerm(value)
   const trimmed = value.trim()
 
   // Already <IRI> → validate inner and return.
@@ -234,6 +268,14 @@ export function toIriLikeToken(value: string): string {
   return trimmed
 }
 
+/** Serializes a predicate/path atom without flattening RDF named nodes to strings. */
+export function toPredicateToken(input: PredicateInput): string {
+  if (isRdfTerm(input)) return rdfTerm(input)
+  if (isSparqlValue(input)) return input.value
+  if (isVariableToken(input.trim())) return toVarToken(input)
+  return toPredicateName(input)
+}
+
 /**
  * SPARQL 1.1 `VarOrIriRef`:
  *
@@ -251,10 +293,12 @@ export function toIriLikeToken(value: string): string {
  *   - `name` with no colon → treated as variable name → `?name`
  *   - anything else → treated as IRI/prefixed name via toIriLikeToken()
  */
-export function toVarOrIriRef(input: string | SparqlValue): string {
+export function toVarOrIriRef(input: string | SparqlTerm | RdfNamedNode): string {
+  if (isRdfTerm(input)) return rdfTerm(input)
   if (isSparqlValue(input)) {
-    // Caller is responsible for providing a syntactically correct token.
-    return input.value
+    const token = input.value.trim()
+    if (isVariableToken(token)) return toVarToken(token)
+    return toIriLikeToken(token)
   }
 
   const trimmed = input.trim()
@@ -286,21 +330,15 @@ export function toVarOrIriRef(input: string | SparqlValue): string {
  * - Reject obvious variable tokens (`?name` / `$name`)
  * - Normalise to `<IRI>` or `prefix:local`
  */
-export function toGraphRef(input: string | SparqlValue): string {
-  if (isSparqlValue(input)) {
-    // Assume the caller built a correct IRI/prefixed token.
-    return input.value
+export function toGraphRef(input: IriInput): string {
+  if (isRdfTerm(input)) return rdfTerm(input)
+
+  const token = isSparqlValue(input) ? input.value.trim() : input.trim()
+  if (isVariableToken(token)) {
+    throw new Error(`GraphRef must be an IRI, not a variable: ${token}`)
   }
 
-  const trimmed = input.trim()
-
-  if (isVariableToken(trimmed)) {
-    throw new Error(
-      `GraphRef must be an IRI, not a variable: ${trimmed}`,
-    )
-  }
-
-  return toIriLikeToken(trimmed)
+  return toIriLikeToken(token)
 }
 
 /**
@@ -320,19 +358,22 @@ export function toGraphRef(input: string | SparqlValue): string {
  */
 export type GraphRefAllKeyword = 'DEFAULT' | 'NAMED' | 'ALL'
 
-export function toGraphRefAll(input: string | SparqlValue): string {
-  if (isSparqlValue(input)) {
-    return input.value
+/** Graph IRI or the DEFAULT graph accepted by COPY, MOVE, and ADD. */
+export type GraphOrDefaultInput = IriInput | 'DEFAULT' | 'default'
+
+/** Normalizes the SPARQL Update `GraphOrDefault` production. */
+export function toGraphOrDefault(input: GraphOrDefaultInput): string {
+  if (typeof input === 'string' && input.trim().toUpperCase() === 'DEFAULT') return 'DEFAULT'
+  return toGraphRef(input as IriInput)
+}
+
+/** Normalizes a SPARQL Update graph reference or DEFAULT/NAMED/ALL keyword. */
+export function toGraphRefAll(input: IriInput): string {
+  if (typeof input === 'string') {
+    const upper = input.trim().toUpperCase()
+    if (upper === 'DEFAULT' || upper === 'NAMED' || upper === 'ALL') return upper
   }
-
-  const trimmed = input.trim()
-  const upper = trimmed.toUpperCase()
-
-  if (upper === 'DEFAULT' || upper === 'NAMED' || upper === 'ALL') {
-    return upper
-  }
-
-  return toGraphRef(trimmed)
+  return toGraphRef(input)
 }
 
 /**
@@ -371,7 +412,7 @@ export type ParsedVarOrIriRef =
  * the same semantics as the rest of the builder.
  */
 export function parseVarOrIriRef(
-  input: string | SparqlValue,
+  input: string | SparqlTerm | RdfNamedNode,
 ): ParsedVarOrIriRef {
   const token = toVarOrIriRef(input)
 
@@ -411,6 +452,7 @@ export function parseVarOrIriRef(
   }
 }
 
+/** Wraps trusted syntax as one raw SPARQL term without escaping it. */
 export function rawTerm(value: string): SparqlTerm {
   return {
     [SPARQL_VALUE_BRAND]: true,
@@ -419,6 +461,7 @@ export function rawTerm(value: string): SparqlTerm {
   } as const
 }
 
+/** Wraps trusted syntax as one raw SPARQL expression without escaping it. */
 export function rawExpr(value: string): SparqlExpr {
   return {
     [SPARQL_VALUE_BRAND]: true,
@@ -427,6 +470,7 @@ export function rawExpr(value: string): SparqlExpr {
   } as const
 }
 
+/** Wraps trusted syntax as a raw graph-pattern fragment without escaping it. */
 export function rawPattern(text: string): PatternValue {
   return {
     [SPARQL_VALUE_BRAND]: true,
@@ -435,21 +479,31 @@ export function rawPattern(text: string): PatternValue {
   } as const
 }
 
+/** Wraps already-serialized text as one complete SPARQL query document. */
+export function queryDocument(value: string): SparqlQuery {
+  return { [SPARQL_QUERY_BRAND]: true, value } as const
+}
+
+/** Wraps already-serialized text as one complete SPARQL Update document. */
+export function updateDocument(value: string): SparqlUpdate {
+  return { [SPARQL_UPDATE_BRAND]: true, value } as const
+}
+
 /**
  * Wrap a raw SPARQL snippet as a `SparqlValue`.
  *
  * Use this when you *know* the string is already valid SPARQL syntax and you
  * do not want any further escaping or conversion.
- * 
+ *
  * Inserts raw SPARQL without any processing.
- * 
+ *
  * You can use this as an escape hatch when the builder doesn't support your syntax:
  * - Property paths
  * - Custom functions
  * - Complex expressions
- * 
+ *
  * ⚠️ WARNING: No escaping or validation. Ensure input is safe, before use.
- * 
+ *
  * @example
  * raw('foaf:knows+')           // Property path
  * raw('BNODE()')               // Built-in function
@@ -634,7 +688,7 @@ export function escapeString(
  * Check if a string needs triple-quoting (contains newlines or quotes).
  */
 export function needsLongQuotes(str: string): boolean {
-  return str.includes('\n') || str.includes('\r') || 
+  return str.includes('\n') || str.includes('\r') ||
          str.includes('"') || str.includes("'")
 }
 
@@ -649,10 +703,10 @@ export const INJECTION_CHARS = /[<>"'\n\r\t{}:]/
 
 /**
  * Validate an IRI for use in SPARQL.
- * 
+ *
  * Allows any valid URI scheme (not just http/https).
  * Blocks characters that could break SPARQL syntax or enable injection.
- * 
+ *
  * @throws {Error} If the IRI is invalid or contains forbidden characters
  */
 export function validateIRI(iri: string): void {
@@ -660,7 +714,7 @@ export function validateIRI(iri: string): void {
   if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(iri)) {
     throw new Error(`IRI must have a valid scheme (e.g., http:, urn:, file:), got: ${iri}`)
   }
-  
+
   // Block characters that break IRI syntax in SPARQL
   const forbidden = ['<', '>', '"', ' ', '\n', '\r', '\t', '{', '}']
   for (const char of forbidden) {
@@ -672,21 +726,21 @@ export function validateIRI(iri: string): void {
 
 /**
  * Validate a SPARQL variable name.
- * 
+ *
  * SPARQL allows Unicode in variable names, but we block injection chars.
- * 
+ *
  * @throws {Error} If the variable name is invalid
  */
 export function validateVariableName(name: string): void {
   if (!name || name.length === 0) {
     throw new Error('Variable name cannot be empty')
   }
-  
+
   // Block characters that could enable injection
   if (INJECTION_CHARS.test(name)) {
     throw new Error(`Variable name contains forbidden characters: ${name}`)
   }
-  
+
   // Must start with letter or underscore (simplified check)
   if (!/^[A-Za-z_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D]/.test(name)) {
     throw new Error(`Variable name must start with a letter or underscore: ${name}`)
@@ -695,21 +749,21 @@ export function validateVariableName(name: string): void {
 
 /**
  * Validate a namespace prefix name.
- * 
+ *
  * Prefixes follow similar rules to variable names - they're identifiers that
  * get expanded to full IRIs during query execution.
- * 
+ *
  * @throws {Error} If the prefix name is invalid
  */
 export function validatePrefixName(name: string): void {
   // Empty prefix (default namespace) is always valid
   if (name === '') return
-  
+
   // Block injection characters
   if (INJECTION_CHARS.test(name) || name.includes(':')) {
     throw new Error(`Prefix name contains forbidden characters: ${name}`)
   }
-  
+
   // Must start with letter or underscore
   if (!/^[A-Za-z_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF]/.test(name)) {
     throw new Error(`Prefix name must start with a letter or underscore: ${name}`)
@@ -718,7 +772,7 @@ export function validatePrefixName(name: string): void {
 
 /**
  * Validate a prefixed name (prefix:localPart).
- * 
+ *
  * @throws {Error} If the prefixed name is malformed
  */
 export function validatePrefixedName(prefixedName: string): void {
@@ -726,12 +780,12 @@ export function validatePrefixedName(prefixedName: string): void {
   if (colonIndex === -1) {
     throw new Error(`Prefixed name must contain a colon: ${prefixedName}`)
   }
-  
+
   const prefix = prefixedName.slice(0, colonIndex)
   const local = prefixedName.slice(colonIndex + 1)
-  
+
   validatePrefixName(prefix)
-  
+
   // Local part can be empty or must be a valid local name
   // This is a simplified check - full PN_LOCAL is more complex
   if (local !== '' && !/^[A-Za-z0-9_.-]*$/.test(local)) {
@@ -751,7 +805,7 @@ export function validateLanguageTag(tag: string): void {
 
 /**
  * Normalize variable names to handle both ?foo and foo formats.
- * 
+ *
  * SPARQL lets you write variables with ? or $ prefixes, but we want consistent
  * internal representation. This function strips the prefix if present, so both
  * "foo" and "?foo" become "foo" internally.
@@ -771,10 +825,10 @@ export function normalizeVariableName(name: VariableName): string {
 
 /**
  * Create a SPARQL variable reference.
- * 
+ *
  * Variables are placeholders that get bound to values during query execution.
  * The ? prefix is added automatically, so you can write either "name" or "?name".
- * 
+ *
  * @example
  * variable('name')  // → ?name
  * variable('?name') // → ?name
@@ -787,60 +841,61 @@ export function variable(name: VariableName): SparqlTerm {
 
 /**
  * Create an IRI reference wrapped in angle brackets.
- * 
+ *
  * IRIs are how you reference resources in RDF. This function validates the IRI
  * format and wraps it in the required angle brackets.
- * 
+ *
  * @example
  * uri('http://example.org/resource')  // → <http://example.org/resource>
  * uri('urn:isbn:0451450523')          // → <urn:isbn:0451450523>
 
  */
-export function uri(iri: string): SparqlTerm {
+export function uri(iri: string | RdfNamedNode): SparqlTerm {
+  if (typeof iri !== 'string') return rawTerm(rdfTerm(iri))
   validateIRI(iri)
   return rawTerm(`<${iri}>`)
 }
 
 /**
  * Create a prefixed name (namespace:local format).
- * 
+ *
  * Prefixes let you abbreviate long IRIs.
- * 
+ *
  * @example
  * prefixed('foaf', 'name')  // → foaf:name
  */
-export function prefixed(prefix: PrefixName, localName: string): SparqlExpr {
+export function prefixed(prefix: PrefixName, localName: string): SparqlTerm {
   validatePrefixName(prefix)
   // Local names have complex rules; block obvious injection
   if (INJECTION_CHARS.test(localName)) {
     throw new Error(`Local name contains forbidden characters: ${localName}`)
   }
-  return raw(`${prefix}:${localName}`)
+  return rawTerm(`${prefix}:${localName}`)
 }
 
 /**
  * Alias for {@link prefixed} with more explicit naming.
  */
-export function prefix(namespace: PrefixName, local: string): SparqlExpr {
+export function prefix(namespace: PrefixName, local: string): SparqlTerm {
   return prefixed(namespace, local)
 }
 
 /**
  * Create a simple string literal.
- * 
+ *
  * Uses the most concise valid syntax:
  * - Simple strings: "value"
  * - Strings with special chars: """value"""
- * 
+ *
  * Note: In RDF 1.1, simple string literals implicitly have type xsd:string.
- * 
+ *
  * @example
  * strlit('Hello')           // → "Hello"
  * strlit('Line 1\nLine 2')  // → """Line 1\nLine 2"""
  */
 export function strlit(value: string): SparqlTerm {
   const escaped = escapeString(value)
-  
+
   if (needsLongQuotes(value)) {
     return rawTerm(`"""${escaped}"""`)
   }
@@ -850,35 +905,40 @@ export function strlit(value: string): SparqlTerm {
 
 /**
  * Create a typed literal with explicit datatype.
- * 
+ *
  * @example
  * typed('42', 'http://www.w3.org/2001/XMLSchema#integer')
  * // → "42"^^<http://www.w3.org/2001/XMLSchema#integer>
  */
 export function typed(value: string, datatype: DatatypeIRI): SparqlTerm {
-  validateIRI(datatype)
+  const datatypeToken = typeof datatype === 'string'
+    ? (() => {
+        validateIRI(datatype)
+        return `<${datatype}>`
+      })()
+    : rdfTerm(datatype)
   const escaped = escapeString(value)
-  
+
   if (needsLongQuotes(value)) {
-    return rawTerm(`"""${escaped}"""^^<${datatype}>`)
+    return rawTerm(`"""${escaped}"""^^${datatypeToken}`)
   }
 
-  return rawTerm(`"${escaped}"^^<${datatype}>`)
+  return rawTerm(`"${escaped}"^^${datatypeToken}`)
 }
 
 /**
  * Create a language-tagged literal.
- * 
+ *
  * Use this for multilingual text. The language tag indicates which language the
  * text is in, following BCP 47 conventions (en, fr, ja-JP, etc.).
- * 
+ *
  * @example lang('Hello', 'en') → "Hello"@en
  * @example lang('Bonjour', 'fr') → "Bonjour"@fr
  */
 export function lang(value: string, tag: LanguageTag): SparqlTerm {
   validateLanguageTag(tag)
   const escaped = escapeString(value)
-  
+
   if (needsLongQuotes(value)) {
     return rawTerm(`"""${escaped}"""@${tag.toLowerCase()}`)
   }
@@ -888,12 +948,12 @@ export function lang(value: string, tag: LanguageTag): SparqlTerm {
 
 /**
  * Create an integer literal using native SPARQL syntax.
- * 
+ *
  * SPARQL treats bare integers like `42` as xsd:integer.
- * 
+ *
  * @example
  * integer(42)  // → 42
- * 
+ *
  * @throws {Error} If value is not an integer
  */
 export function integer(value: number): SparqlTerm {
@@ -907,13 +967,13 @@ export function integer(value: number): SparqlTerm {
 
 /**
  * Create a decimal literal using native SPARQL syntax.
- * 
+ *
  * SPARQL treats numbers with decimal points like `3.14` as xsd:decimal.
- * 
+ *
  * @example
  * decimal(3.14)  // → 3.14
  * decimal(42)    // → 42.0 (ensures decimal interpretation)
- * 
+ *
  * @throws {Error} If value is not finite (NaN or Infinity)
  */
 export function decimal(value: number): SparqlTerm {
@@ -931,13 +991,13 @@ export function decimal(value: number): SparqlTerm {
 
 /**
  * Create a double literal using scientific notation.
- * 
+ *
  * SPARQL treats numbers in scientific notation as xsd:double.
- * 
+ *
  * @example
  * double(42)      // → 4.2e1
  * double(3.14e10) // → 3.14e10
- * 
+ *
  * @throws {Error} If value is not an double
  */
 export function double(value: number): SparqlTerm {
@@ -950,10 +1010,10 @@ export function double(value: number): SparqlTerm {
 
 /**
  * Create a numeric literal, choosing appropriate type.
- * 
+ *
  * - Integers → native integer syntax (xsd:integer)
  * - Decimals → native decimal syntax (xsd:decimal)
- * 
+ *
  * @example
  * num(42)    // → 42
  * num(3.14)  // → 3.14
@@ -968,7 +1028,7 @@ export function num(value: number): SparqlTerm {
 
 /**
  * Create a boolean literal (true or false).
- * 
+ *
  * Boolean values in SPARQL are written as bare keywords, not quoted strings.
  */
 export function boolean(value: boolean): SparqlTerm {
@@ -984,7 +1044,7 @@ export function bool(value: boolean): SparqlTerm {
 
 /**
  * Create an xsd:date literal.
- * 
+ *
  * @example
  * date(new Date('2024-01-15'))  // → "2024-01-15"^^<xsd:date>
  */
@@ -993,18 +1053,18 @@ export function date(value: Date | string): SparqlTerm {
   const yyyy = dateObj.getFullYear()
   const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
   const dd = String(dateObj.getDate()).padStart(2, '0')
-  return rawTerm(`"${yyyy}-${mm}-${dd}"^^<http://www.w3.org/2001/XMLSchema#date>`)
+  return rawTerm(`"${yyyy}-${mm}-${dd}"^^<${XSD.date}>`)
 }
 
 /**
  * Create an xsd:dateTime literal.
- * 
+ *
  * @example
  * dateTime(new Date())  // → "2024-01-15T10:30:00.000Z"^^<xsd:dateTime>
  */
 export function dateTime(value: Date | string): SparqlTerm {
   const dateObj = value instanceof Date ? value : new Date(value)
-  return rawTerm(`"${dateObj.toISOString()}"^^<http://www.w3.org/2001/XMLSchema#dateTime>`)
+  return rawTerm(`"${dateObj.toISOString()}"^^<${XSD.dateTime}>`)
 }
 
 // ============================================================================
@@ -1013,7 +1073,7 @@ export function dateTime(value: Date | string): SparqlTerm {
 
 /**
  * Convert a single JavaScript value into a SPARQL *term* representation.
- * 
+ *
  * This is the workhorse function that handles all type conversions. It's called
  * automatically by the sparql template tag, so you rarely need to call it directly.
  * The conversion rules match what developers expect - strings become literals,
@@ -1024,7 +1084,7 @@ export function dateTime(value: Date | string): SparqlTerm {
  *
  * - Use `valuesList(...)`, `exprList(...)`, `rdfList(...)` for lists.
  * - Use `bnodePattern(...)` for `[ ... ]` blank node property lists.
- * 
+ *
  * ⚠️ IMPORTANT: This function is for DATA VALUES only, not SPARQL syntax.
  * Do not use this for variables, prefixes, IRIs, or other syntax elements.
  *
@@ -1053,10 +1113,10 @@ export function dateTime(value: Date | string): SparqlTerm {
  * convertValue(null)             // throws
  * ```
  */
-export function convertValue(value: SparqlInterpolatable, strict = true): string { // Already a SPARQL value – pass straight through.
-  if (isSparqlValue(value)) {
-    return value.value
-  }
+export function convertValue(value: SparqlInterpolatable, strict = true): string {
+  // Already a SPARQL value – pass straight through.
+  if (isSparqlValue(value)) return value.value
+  if (isRdfTerm(value)) return rdfTerm(value)
 
   // Null/undefined cannot represent "unbound" – force caller to decide.
   if (value === null || value === undefined) {
@@ -1115,7 +1175,8 @@ export function isNonStringIterable(value: unknown): value is Iterable<unknown> 
     value !== null &&
     value !== undefined &&
     typeof value !== 'string' &&
-    typeof (value as any)[Symbol.iterator] === 'function'
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof (value as { readonly [Symbol.iterator]?: unknown })[Symbol.iterator] === 'function'
   )
 }
 
@@ -1309,6 +1370,8 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
  * - Everything else → treated as `:${localName}` (assumes a default `:` prefix).
  */
 export function toPredicateName(key: string): string {
+  if (isVariableToken(key)) return toVarToken(key)
+
   if (key.startsWith('<') && key.endsWith('>')) {
     return key
   }
@@ -1457,7 +1520,7 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
  * It:
  * - Interpolates values using `convertValue` (scalars) or lets you insert
  *   richer fragments using `SparqlValue` helpers (`raw`, `valuesList`, etc.).
- * - Dedents/normalises indentation using `outdent`.
+ * - Normalizes only the common indentation introduced by the template call site.
  *
  * Because `SparqlInterpolatable` deliberately excludes arrays/objects, you are
  * guided towards the explicit helpers for composite structures.
@@ -1509,7 +1572,7 @@ export function sparql(
   strings: TemplateStringsArray,
   ...values: SparqlInterpolatable[]
 ): SparqlValue {
-  let result = strings[0]
+  let result = strings[0] ?? ''
 
   for (let i = 0; i < values.length; i++) {
     const value = values[i]
@@ -1522,10 +1585,60 @@ export function sparql(
       result += convertValue(value)
     }
 
-    result += strings[i + 1]
+    result += strings[i + 1] ?? ''
   }
 
-  return raw(outdent.string(result))
+  return raw(normalizeTemplate(result))
+}
+
+
+/** Serializes an RDF/JS term as SPARQL syntax without losing RDF semantics. */
+export function rdfTerm(term: RdfTerm): string {
+  switch (term.termType) {
+    case 'NamedNode':
+      return `<${escapeIriForQuery(term.value)}>`
+    case 'BlankNode':
+      return `_:${term.value}`
+    case 'Variable':
+      return `?${term.value}`
+    case 'DefaultGraph':
+      throw new TypeError('The default graph is not a standalone SPARQL term.')
+    case 'Literal': {
+      const literal = term as RdfLiteral
+      const lexical = `"${escapeString(literal.value, '"')}"`
+      if (literal.language) return `${lexical}@${literal.language}${literal.direction ? `--${literal.direction}` : ''}`
+      if (literal.datatype.value === XSD.string) return lexical
+      return `${lexical}^^<${escapeIriForQuery(literal.datatype.value)}>`
+    }
+    case 'Quad': {
+      const triple = term as RdfQuad
+      if (triple.graph.termType !== 'DefaultGraph') {
+        throw new TypeError('A SPARQL triple-term expression cannot contain a named graph.')
+      }
+      return `<<( ${rdfTerm(triple.subject)} ${rdfTerm(triple.predicate)} ${rdfTerm(triple.object)} )>>`
+    }
+  }
+}
+
+/**
+ * Removes indentation introduced by a template call site without implementing a
+ * general-purpose text dedent library. SPARQL syntax remains otherwise untouched.
+ */
+function normalizeTemplate(value: string): string {
+  const lines = value.replace(/^\n/, '').replace(/\n\s*$/, '').split('\n')
+  const indents = lines.filter((line) => line.trim()).map((line) => line.match(/^\s*/)?.[0].length ?? 0)
+  const common = indents.length === 0 ? 0 : Math.min(...indents)
+  return lines.map((line) => line.slice(common)).join('\n')
+}
+
+/** Escapes code points that cannot appear literally inside a SPARQL IRIREF. */
+function escapeIriForQuery(value: string): string {
+  return value.replace(/[<>"{}|^`\\\u0000-\u0020]/g, (char) => {
+    const point = char.codePointAt(0)!
+    return point <= 0xffff
+      ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
+      : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`
+  })
 }
 
 export default sparql

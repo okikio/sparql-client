@@ -1,0 +1,24 @@
+{
+  "name": "@okikio/sparql",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "dependencies": {
+    "@okikio/rdf": "0.1.0"
+  },
+  "exports": {
+    ".": "./mod.ts",
+    "./http": "./http/mod.ts",
+    "./syntax": "./syntax/mod.ts"
+  },
+  "description": "SPARQL construction, syntax inspection, and query contracts for TypeScript.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okikio/sparql-client.git",
+    "directory": "packages/sparql"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

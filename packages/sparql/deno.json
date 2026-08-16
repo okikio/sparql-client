@@ -1,0 +1,10 @@
+{
+  "name": "@okikio/sparql",
+  "version": "0.1.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./mod.ts",
+    "./http": "./http/mod.ts",
+    "./syntax": "./syntax/mod.ts"
+  }
+}

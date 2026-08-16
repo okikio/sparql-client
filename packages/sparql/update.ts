@@ -1,25 +1,25 @@
 /**
  * SPARQL 1.1 Update operations.
- * 
+ *
  * SPARQL Update provides operations for modifying RDF data. These complement
  * queries (SELECT/ASK/CONSTRUCT) by letting you insert, delete, and manage
  * graph data. Updates execute against an update endpoint (often different
  * from the query endpoint).
- * 
+ *
  * The pattern mirrors the query builder: start with an operation type (insert,
- * delete, modify), add details, then build or execute. Each operation is
- * immutable - methods return new builders rather than modifying existing ones.
- * 
+ * delete, modify), add details, then build. Execution belongs to an explicit
+ * SPARQL client. Each operation is immutable. Methods return new builders rather
+ * than modifying existing ones.
+ *
  * @example Insert data
  * ```ts
- * insert(triples('ex:person1', [
+ * const text = insert(triples('ex:person1', [
  *   ['rdf:type', 'foaf:Person'],
  *   ['foaf:name', str('Alice')],
  *   ['foaf:age', num(30)]
- * ]))
- *   .execute(config)
+ * ])).build()
  * ```
- * 
+ *
  * @example Conditional update
  * ```ts
  * modify()
@@ -28,14 +28,13 @@
  *   .where(triple('?person', 'foaf:age', '?oldAge'))
  *   .where(bind(add(v('oldAge'), 1), 'newAge'))
  *   .done()
- *   .execute(config)
+ *   .build()
  * ```
- * 
+ *
  * @module
  */
 
-import { raw, sparql, SPARQL_EXPR_BRAND, SPARQL_VALUE_BRAND, toGraphRef, toGraphRefAll, toVarOrIriRef, type SparqlValue } from './sparql.ts'
-import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult } from './executor.ts'
+import { rawPattern, toGraphOrDefault, toGraphRef, toGraphRefAll, updateDocument, type GraphOrDefaultInput, type IriInput, type PatternValue, type SparqlUpdate } from './sparql.ts'
 
 // ============================================================================
 // Update Operation Types
@@ -43,7 +42,7 @@ import { createExecutor, type BindingMap, type ExecutionConfig, type QueryResult
 
 /**
  * Internal state for update operations.
- * 
+ *
  * This is immutable - each method creates a new state object rather than
  * modifying the existing one.
  */
@@ -56,11 +55,11 @@ export interface UpdateState {
  */
 export interface UpdateOperation {
   readonly type: 'INSERT_DATA' | 'DELETE_DATA' | 'DELETE_WHERE' | 'DELETE_INSERT' | 'LOAD' | 'CLEAR' | 'DROP' | 'CREATE' | 'COPY' | 'MOVE' | 'ADD'
-  readonly data?: SparqlValue
-  readonly where?: SparqlValue
+  readonly data?: PatternValue
+  readonly where?: PatternValue
   readonly graph?: string
-  readonly deleteTemplate?: SparqlValue
-  readonly insertTemplate?: SparqlValue
+  readonly deleteTemplate?: PatternValue
+  readonly insertTemplate?: PatternValue
   readonly silent?: boolean
   readonly source?: string
   readonly dest?: string
@@ -79,35 +78,40 @@ const initialUpdateState: UpdateState = {
 
 /**
  * Builder for SPARQL Update operations.
- * 
+ *
  * Each method returns a new UpdateBuilder with updated state. This immutability
  * means you can safely store intermediate builders and branch from them.
- * 
+ *
  * @example Building incrementally
  * ```ts
  * const baseUpdate = update()
  *   .insertData(triple('ex:person1', 'rdf:type', 'foaf:Person'))
- * 
+ *
  * // Add more operations
  * const fullUpdate = baseUpdate
  *   .insertData(triple('ex:person1', 'foaf:name', str('Alice')))
  * ```
  */
 export class UpdateBuilder {
-  constructor(private readonly state: UpdateState) {}
+  private readonly state: UpdateState
+
+  /** Stores one immutable update-operation sequence; every builder method returns a new sequence instead of mutating this instance. */
+  constructor(state: UpdateState) {
+    this.state = state
+  }
 
   /**
    * Start building an update operation.
-   * 
+   *
    * Returns an empty builder you can add operations to. Operations are executed
    * in the order you add them.
-   * 
+   *
    * @example Multiple operations
    * ```ts
    * update()
    *   .insertData(triple('ex:person1', 'foaf:name', str('Alice')))
    *   .insertData(triple('ex:person2', 'foaf:name', str('Bob')))
-   *   .execute(config)
+   *   .build()
    * ```
    */
   static create(): UpdateBuilder {
@@ -116,14 +120,14 @@ export class UpdateBuilder {
 
   /**
    * Insert RDF triples (INSERT DATA).
-   * 
+   *
    * Adds triples directly to the dataset. The triples must be ground (no variables) -
    * all subjects, predicates, and objects must be concrete values, not variables.
    * For conditional inserts based on patterns, use modify() instead.
-   * 
+   *
    * @param data Triples to insert (must be ground)
    * @param graph Optional named graph to insert into
-   * 
+   *
    * @example Insert person data
    * ```ts
    * insertData(triples('ex:person1', [
@@ -132,7 +136,7 @@ export class UpdateBuilder {
    *   ['foaf:age', num(30)]
    * ]))
    * ```
-   * 
+   *
    * @example Insert into named graph
    * ```ts
    * insertData(
@@ -141,30 +145,30 @@ export class UpdateBuilder {
    * )
    * ```
    */
-  insertData(data: SparqlValue, graph?: string): UpdateBuilder {
+  insertData(data: PatternValue, graph?: IriInput): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'INSERT_DATA', data, graph: graph ? toVarOrIriRef(graph) : graph }
+        { type: 'INSERT_DATA', data, ...(graph ? { graph: toGraphRef(graph) } : {}) }
       ]
     })
   }
 
   /**
    * Delete RDF triples (DELETE DATA).
-   * 
+   *
    * Removes triples from the dataset. The triples must be ground (no variables) -
    * you must specify exact triples to delete. For pattern-based deletion,
    * use deleteWhere() or modify() instead.
-   * 
+   *
    * @param data Triples to delete (must be ground)
    * @param graph Optional named graph to delete from
-   * 
+   *
    * @example Delete specific triple
    * ```ts
    * deleteData(triple('ex:person1', 'foaf:age', num(30)))
    * ```
-   * 
+   *
    * @example Delete multiple triples
    * ```ts
    * deleteData(triples('ex:person1', [
@@ -173,36 +177,36 @@ export class UpdateBuilder {
    * ]))
    * ```
    */
-  deleteData(data: SparqlValue, graph?: string): UpdateBuilder {
+  deleteData(data: PatternValue, graph?: IriInput): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'DELETE_DATA', data, graph: graph ? toVarOrIriRef(graph) : graph  }
+        { type: 'DELETE_DATA', data, ...(graph ? { graph: toGraphRef(graph) } : {}) }
       ]
     })
   }
 
   /**
    * Delete triples matching a pattern (DELETE WHERE).
-   * 
+   *
    * Finds all triples matching the pattern and deletes them. The pattern can
    * contain variables - anything that matches gets deleted. This is shorthand
    * for DELETE/INSERT where the delete and where templates are the same.
-   * 
+   *
    * @param pattern Pattern of triples to delete
-   * 
+   *
    * @example Delete all ages
    * ```ts
    * deleteWhere(triple('?person', 'foaf:age', '?age'))
    * // Deletes age for all people
    * ```
-   * 
+   *
    * @example Delete specific person's data
    * ```ts
    * deleteWhere(triple('ex:person1', '?property', '?value'))
    * // Deletes all triples with ex:person1 as subject
    * ```
-   * 
+   *
    * @example Complex pattern
    * ```ts
    * deleteWhere(raw(`
@@ -212,7 +216,7 @@ export class UpdateBuilder {
    * // Deletes invalid ages
    * ```
    */
-  deleteWhere(pattern: SparqlValue): UpdateBuilder {
+  deleteWhere(pattern: PatternValue): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
@@ -223,15 +227,15 @@ export class UpdateBuilder {
 
   /**
    * Start a DELETE/INSERT operation.
-   * 
+   *
    * Combines deletion and insertion in one operation. Finds matches with WHERE,
    * deletes according to DELETE template, inserts according to INSERT template.
    * This is the most powerful update operation - use it when you need to transform
    * data based on patterns.
-   * 
+   *
    * Chain with .delete(), .insert(), and .where() to build the operation.
    * Call .done() when finished to return to the main UpdateBuilder.
-   * 
+   *
    * @example Update ages
    * ```ts
    * modify()
@@ -241,7 +245,7 @@ export class UpdateBuilder {
    *   .where(bind(add(v('oldAge'), 1), 'newAge'))
    *   .done()
    * ```
-   * 
+   *
    * @example Conditional insert
    * ```ts
    * modify()
@@ -258,19 +262,19 @@ export class UpdateBuilder {
 
   /**
    * Load RDF from a URL.
-   * 
+   *
    * Fetches RDF from the specified URL and adds it to the dataset. The URL
    * must return RDF in a format the endpoint understands (Turtle, RDF/XML, etc.).
-   * 
+   *
    * @param url URL to load from
    * @param graph Optional target graph (default: default graph)
    * @param silent Don't fail if URL unreachable (default: false)
-   * 
+   *
    * @example Load Turtle file
    * ```ts
    * load('http://example.org/data.ttl')
    * ```
-   * 
+   *
    * @example Load into named graph
    * ```ts
    * load(
@@ -278,48 +282,48 @@ export class UpdateBuilder {
    *   'http://example.org/graph1'
    * )
    * ```
-   * 
+   *
    * @example Silent load
    * ```ts
    * load('http://example.org/data.ttl', undefined, true)
    * // Continues even if URL is unreachable
    * ```
    */
-  load(url: string, graph?: string, silent = false): UpdateBuilder {
+  load(url: IriInput, graph?: IriInput, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'LOAD', data: { [SPARQL_VALUE_BRAND]: true, [SPARQL_EXPR_BRAND]: true, value: toGraphRef(url) }, graph: graph ? toVarOrIriRef(graph) : graph, silent }
+        { type: 'LOAD', source: toGraphRef(url), ...(graph ? { graph: toGraphRef(graph) } : {}), silent }
       ]
     })
   }
 
   /**
    * Clear a graph (remove all triples).
-   * 
+   *
    * Removes all triples from the specified graph but keeps the graph itself.
    * Use 'DEFAULT' to clear the default graph.
-   * 
+   *
    * @param graph Graph IRI or 'DEFAULT'
    * @param silent Don't fail if graph doesn't exist (default: false)
-   * 
+   *
    * @example Clear default graph
    * ```ts
    * clear('DEFAULT')
    * ```
-   * 
+   *
    * @example Clear named graph
    * ```ts
    * clear('http://example.org/graph1')
    * ```
-   * 
+   *
    * @example Silent clear
    * ```ts
    * clear('http://example.org/graph1', true)
    * // Doesn't error if graph doesn't exist
    * ```
    */
-  clear(graph: string, silent = false): UpdateBuilder {
+  clear(graph: IriInput, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
@@ -330,25 +334,25 @@ export class UpdateBuilder {
 
   /**
    * Drop a graph (delete it entirely).
-   * 
+   *
    * Completely removes a graph and all its triples. Unlike clear(), which
    * empties the graph but keeps it, drop() removes the graph entirely.
-   * 
+   *
    * @param graph Graph IRI to drop
    * @param silent Don't fail if graph doesn't exist (default: false)
-   * 
+   *
    * @example Drop named graph
    * ```ts
    * drop('http://example.org/graph1')
    * ```
-   * 
+   *
    * @example Silent drop
    * ```ts
    * drop('http://example.org/graph1', true)
    * // Succeeds even if graph doesn't exist
    * ```
    */
-  drop(graph: string, silent = false): UpdateBuilder {
+  drop(graph: IriInput, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
@@ -359,33 +363,27 @@ export class UpdateBuilder {
 
   /**
    * Create a new empty graph.
-   * 
+   *
    * Creates a new named graph. The graph starts empty - use insertData()
    * to add triples to it.
-   * 
+   *
    * @param graph Graph IRI to create
    * @param silent Don't fail if graph already exists (default: false)
-   * 
+   *
    * @example Create graph
    * ```ts
    * create('http://example.org/graph1')
    * ```
-   * 
+   *
    * @example Silent create
    * ```ts
    * create('http://example.org/graph1', true)
    * // Succeeds even if graph already exists
    * ```
    */
-  create(graph: string, silent = false): UpdateBuilder {
-    const trimmed = graph.trim()
-    const upper = trimmed.toUpperCase()
+  create(graph: IriInput, silent = false): UpdateBuilder {
+    const graphRef = toGraphRef(graph)
 
-    const graphRef = toGraphRef(graph);      
-    if (upper === 'NAMED' || upper === 'ALL') {
-      throw new Error("Graph Ref in create() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-    
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
@@ -396,227 +394,178 @@ export class UpdateBuilder {
 
   /**
    * Copy all triples from one graph to another.
-   * 
+   *
    * Copies the content of the source graph to the destination graph. The destination
    * graph is overwritten - any existing content in it is replaced. The source graph
    * remains unchanged.
-   * 
+   *
    * Use 'DEFAULT' as the graph name to refer to the default graph.
-   * 
+   *
    * @param source Source graph IRI (or 'DEFAULT')
    * @param dest Destination graph IRI (or 'DEFAULT')
    * @param silent Don't fail if source doesn't exist (default: false)
-   * 
+   *
    * @sparql `COPY [SILENT] <source> TO <dest>`
-   * 
+   *
    * @example Copy to backup
    * ```ts
    * // Library
    * copy('http://example.org/graph1', 'http://example.org/backup1')
-   * 
+   *
    * // SPARQL ↓
    * // COPY <http://example.org/graph1> TO <http://example.org/backup1>
    * ```
-   * 
+   *
    * @example Copy from default graph
    * ```ts
    * // Library
    * copy('DEFAULT', 'http://example.org/snapshot')
-   * 
+   *
    * // SPARQL ↓
    * // COPY DEFAULT TO <http://example.org/snapshot>
    * ```
-   * 
+   *
    * @example Silent copy
    * ```ts
    * // Library
    * copy('http://example.org/source', 'http://example.org/dest', true)
-   * 
+   *
    * // SPARQL ↓
    * // COPY SILENT <http://example.org/source> TO <http://example.org/dest>
    * ```
    */
-  copy(source: string, dest: string, silent = false): UpdateBuilder {
-    const src = source.trim()
-    const srcUpper = src.toUpperCase()
-
-    const destination = dest.trim()
-    const destUpper = destination.toUpperCase()
-     
-    if (srcUpper === 'NAMED' || srcUpper === 'ALL') {
-      throw new Error("Source graph ref in add() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-     
-    if (destUpper === 'NAMED' || destUpper === 'ALL') {
-      throw new Error("Destination graph ref in add() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-
-    const srcGraphRef = toGraphRef(source); 
-    const destGraphRef = toGraphRef(dest); 
+  copy(source: GraphOrDefaultInput, dest: GraphOrDefaultInput, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'COPY', source: srcGraphRef, dest: destGraphRef, silent }
+        { type: 'COPY', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent }
       ]
     })
   }
 
   /**
    * Move all triples from one graph to another.
-   * 
+   *
    * Moves the content of the source graph to the destination graph. The destination
    * graph is overwritten, and the source graph is cleared. This is equivalent to
    * COPY followed by DROP of the source.
-   * 
+   *
    * Use 'DEFAULT' as the graph name to refer to the default graph.
-   * 
+   *
    * @param source Source graph IRI (or 'DEFAULT')
    * @param dest Destination graph IRI (or 'DEFAULT')
    * @param silent Don't fail if source doesn't exist (default: false)
-   * 
+   *
    * @sparql `MOVE [SILENT] <source> TO <dest>`
-   * 
+   *
    * @example Rename graph
    * ```ts
    * // Library
    * move('http://example.org/temp', 'http://example.org/final')
-   * 
+   *
    * // SPARQL ↓
    * // MOVE <http://example.org/temp> TO <http://example.org/final>
    * ```
-   * 
+   *
    * @example Archive to default
    * ```ts
    * // Library
    * move('http://example.org/staging', 'DEFAULT')
-   * 
+   *
    * // SPARQL ↓
    * // MOVE <http://example.org/staging> TO DEFAULT
    * ```
-   * 
+   *
    * @example Silent move
    * ```ts
    * // Library
    * move('http://example.org/source', 'http://example.org/dest', true)
-   * 
+   *
    * // SPARQL ↓
    * // MOVE SILENT <http://example.org/source> TO <http://example.org/dest>
    * ```
    */
-  move(source: string, dest: string, silent = false): UpdateBuilder {
-    const src = source.trim()
-    const srcUpper = src.toUpperCase()
-
-    const destination = dest.trim()
-    const destUpper = destination.toUpperCase()
-     
-    if (srcUpper === 'NAMED' || srcUpper === 'ALL') {
-      throw new Error("Source graph ref in move() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-     
-    if (destUpper === 'NAMED' || destUpper === 'ALL') {
-      throw new Error("Destination graph ref in move() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-
-    const srcGraphRef = toGraphRef(source); 
-    const destGraphRef = toGraphRef(dest); 
+  move(source: GraphOrDefaultInput, dest: GraphOrDefaultInput, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'MOVE', source: srcGraphRef, dest: destGraphRef, silent }
+        { type: 'MOVE', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent }
       ]
     })
   }
 
   /**
    * Add all triples from one graph to another.
-   * 
+   *
    * Adds the content of the source graph to the destination graph. Unlike COPY,
    * existing triples in the destination are preserved. The source graph remains
    * unchanged. This is like a merge operation.
-   * 
+   *
    * Use 'DEFAULT' as the graph name to refer to the default graph.
-   * 
+   *
    * @param source Source graph IRI (or 'DEFAULT')
    * @param dest Destination graph IRI (or 'DEFAULT')
    * @param silent Don't fail if source doesn't exist (default: false)
-   * 
+   *
    * @sparql `ADD [SILENT] <source> TO <dest>`
-   * 
+   *
    * @example Merge graphs
    * ```ts
    * // Library
    * add('http://example.org/updates', 'http://example.org/main')
-   * 
+   *
    * // SPARQL ↓
    * // ADD <http://example.org/updates> TO <http://example.org/main>
    * ```
-   * 
+   *
    * @example Combine into default
    * ```ts
    * // Library
    * add('http://example.org/graph1', 'DEFAULT')
    * add('http://example.org/graph2', 'DEFAULT')
-   * 
+   *
    * // SPARQL ↓
    * // ADD <http://example.org/graph1> TO DEFAULT
    * // ADD <http://example.org/graph2> TO DEFAULT
    * ```
-   * 
+   *
    * @example Silent add
    * ```ts
    * // Library
    * add('http://example.org/optional', 'http://example.org/main', true)
-   * 
+   *
    * // SPARQL ↓
    * // ADD SILENT <http://example.org/optional> TO <http://example.org/main>
    * ```
    */
-  add(source: string, dest: string, silent = false): UpdateBuilder {
-    const src = source.trim()
-    const srcUpper = src.toUpperCase()
-
-    const destination = dest.trim()
-    const destUpper = destination.toUpperCase()
-     
-    if (srcUpper === 'NAMED' || srcUpper === 'ALL') {
-      throw new Error("Source graph ref in copy() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-     
-    if (destUpper === 'NAMED' || destUpper === 'ALL') {
-      throw new Error("Destination graph ref in copy() doesn't support either 'NAMED' nor 'ALL' in create statements")
-    }
-
-    const srcGraphRef = toGraphRef(source); 
-    const destGraphRef = toGraphRef(dest); 
-
+  add(source: GraphOrDefaultInput, dest: GraphOrDefaultInput, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'ADD', source: srcGraphRef, dest: destGraphRef, silent }
+        { type: 'ADD', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent }
       ]
     })
   }
 
   /**
    * Build the SPARQL Update request.
-   * 
+   *
    * Converts all operations into a SPARQL Update string. Multiple operations
    * are separated by semicolons.
-   * 
+   *
    * @returns SPARQL Update string wrapped in SparqlValue
-   * 
+   *
    * @example
    * ```ts
    * const updateStr = update()
    *   .insertData(triple('ex:person1', 'foaf:name', str('Alice')))
    *   .build()
-   * 
+   *
    * console.log(updateStr.value)
    * // INSERT DATA { ex:person1 foaf:name "Alice" . }
    * ```
    */
-  build(): SparqlValue {
+  build(): SparqlUpdate {
     const operations: string[] = []
 
     for (const op of this.state.operations) {
@@ -657,18 +606,18 @@ export class UpdateBuilder {
 
         case 'LOAD': {
           const into = op.graph ? ` INTO GRAPH ${op.graph}` : ''
-          operations.push(`LOAD ${silent}${op.data!.value}${into}`)
+          operations.push(`LOAD ${silent}${op.source!}${into}`)
           break
         }
 
         case 'CLEAR': {
-          const target = op.graph === 'DEFAULT' ? 'DEFAULT' : `GRAPH ${op.graph}`
+          const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL' ? op.graph : `GRAPH ${op.graph}`
           operations.push(`CLEAR ${silent}${target}`)
           break
         }
 
         case 'DROP': {
-          const target = op.graph === 'DEFAULT' ? 'DEFAULT' : `GRAPH ${op.graph}`
+          const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL' ? op.graph : `GRAPH ${op.graph}`
           operations.push(`DROP ${silent}${target}`)
           break
         }
@@ -679,60 +628,31 @@ export class UpdateBuilder {
         }
 
         case 'COPY': {
-          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `<${op.source}`
-          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `<${op.dest}`
+          const sourceRef = op.source!
+          const destRef = op.dest!
           operations.push(`COPY ${silent}${sourceRef} TO ${destRef}`)
           break
         }
 
         case 'MOVE': {
-          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `${op.source}`
-          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `${op.dest}`
+          const sourceRef = op.source!
+          const destRef = op.dest!
           operations.push(`MOVE ${silent}${sourceRef} TO ${destRef}`)
           break
         }
 
         case 'ADD': {
-          const sourceRef = op.source === 'DEFAULT' ? 'DEFAULT' : `${op.source}`
-          const destRef = op.dest === 'DEFAULT' ? 'DEFAULT' : `${op.dest}`
+          const sourceRef = op.source!
+          const destRef = op.dest!
           operations.push(`ADD ${silent}${sourceRef} TO ${destRef}`)
           break
         }
       }
     }
 
-    return sparql`${operations.join(';\n')}`
+    return updateDocument(operations.join(';\n'))
   }
 
-  /**
-   * Execute the update against an endpoint.
-   * 
-   * Builds the update and sends it to the endpoint's update endpoint.
-   * Returns a result object indicating success or failure.
-   * 
-   * @param config Endpoint configuration
-   * @returns Promise of update result
-   * 
-   * @example
-   * ```ts
-   * const result = await update()
-   *   .insertData(triple('ex:person1', 'foaf:name', str('Alice')))
-   *   .execute({
-   *     endpoint: 'http://localhost:9999/sparql',
-   *     updateEndpoint: 'http://localhost:9999/update'
-   *   })
-   * 
-   * if (result.success) {
-   *   console.log('Update succeeded')
-   * } else {
-   *   console.error(result.error.message)
-   * }
-   * ```
-   */
-  execute<TBind extends BindingMap = BindingMap>(config: ExecutionConfig): Promise<QueryResult<TBind>> {
-    const executor = createExecutor(config)
-    return executor.execute<TBind>(this.build())
-  }
 }
 
 // ============================================================================
@@ -741,27 +661,38 @@ export class UpdateBuilder {
 
 /**
  * Builder for DELETE/INSERT operations.
- * 
+ *
  * Created by calling modify() on an UpdateBuilder. Lets you specify delete
  * templates, insert templates, and where patterns. Call done() when finished
  * to return to the main UpdateBuilder.
  */
 class ModifyBuilder {
+  private readonly updateState: UpdateState
+  private readonly deleteTemplate: PatternValue | undefined
+  private readonly insertTemplate: PatternValue | undefined
+  private readonly wherePatterns: PatternValue[]
+
+  /** Creates one DELETE/INSERT/WHERE sub-builder tied to the immutable parent update sequence. */
   constructor(
-    private readonly updateState: UpdateState,
-    private readonly deleteTemplate?: SparqlValue,
-    private readonly insertTemplate?: SparqlValue,
-    private readonly wherePatterns: SparqlValue[] = []
-  ) {}
+    updateState: UpdateState,
+    deleteTemplate?: PatternValue,
+    insertTemplate?: PatternValue,
+    wherePatterns: PatternValue[] = [],
+  ) {
+    this.updateState = updateState
+    this.deleteTemplate = deleteTemplate
+    this.insertTemplate = insertTemplate
+    this.wherePatterns = wherePatterns
+  }
 
   /**
    * Add DELETE template.
-   * 
+   *
    * Specifies which triples to delete. Variables in the template are bound
    * by the WHERE clause, then those matched triples are deleted.
-   * 
+   *
    * @param template Pattern of triples to delete
-   * 
+   *
    * @example
    * ```ts
    * modify()
@@ -770,7 +701,7 @@ class ModifyBuilder {
    *   .done()
    * ```
    */
-  delete(template: SparqlValue): ModifyBuilder {
+  delete(template: PatternValue): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       template,
@@ -781,12 +712,12 @@ class ModifyBuilder {
 
   /**
    * Add INSERT template.
-   * 
+   *
    * Specifies which triples to insert. Variables in the template are bound
    * by the WHERE clause, then those new triples are inserted.
-   * 
+   *
    * @param template Pattern of triples to insert
-   * 
+   *
    * @example
    * ```ts
    * modify()
@@ -796,7 +727,7 @@ class ModifyBuilder {
    *   .done()
    * ```
    */
-  insert(template: SparqlValue): ModifyBuilder {
+  insert(template: PatternValue): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       this.deleteTemplate,
@@ -807,12 +738,12 @@ class ModifyBuilder {
 
   /**
    * Add WHERE pattern.
-   * 
+   *
    * Patterns that bind variables used in DELETE and INSERT templates.
    * Multiple where() calls are ANDed together.
-   * 
+   *
    * @param pattern Pattern to match
-   * 
+   *
    * @example
    * ```ts
    * modify()
@@ -824,7 +755,7 @@ class ModifyBuilder {
    *   .done()
    * ```
    */
-  where(pattern: SparqlValue): ModifyBuilder {
+  where(pattern: PatternValue): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       this.deleteTemplate,
@@ -835,12 +766,12 @@ class ModifyBuilder {
 
   /**
    * Finalize and return to UpdateBuilder.
-   * 
+   *
    * Completes the DELETE/INSERT operation and returns to the main UpdateBuilder
-   * so you can add more operations or execute.
-   * 
+   * so you can add more operations or build the final update.
+   *
    * @returns UpdateBuilder with this operation added
-   * 
+   *
    * @example
    * ```ts
    * update()
@@ -850,12 +781,12 @@ class ModifyBuilder {
    *     .where(triple('?person', 'foaf:age', '?oldAge'))
    *     .where(bind(add(v('oldAge'), 1), 'newAge'))
    *   .done()  // Returns to UpdateBuilder
-   *   .execute(config)
+   *   .build()
    * ```
    */
   done(): UpdateBuilder {
     const whereValue = this.wherePatterns.length > 0
-      ? raw(this.wherePatterns.map(p => p.value).join('\n  '))
+      ? rawPattern(this.wherePatterns.map(p => p.value).join('\n  '))
       : undefined
 
     return new UpdateBuilder({
@@ -863,9 +794,9 @@ class ModifyBuilder {
         ...this.updateState.operations,
         {
           type: 'DELETE_INSERT',
-          deleteTemplate: this.deleteTemplate,
-          insertTemplate: this.insertTemplate,
-          where: whereValue
+          ...(this.deleteTemplate ? { deleteTemplate: this.deleteTemplate } : {}),
+          ...(this.insertTemplate ? { insertTemplate: this.insertTemplate } : {}),
+          ...(whereValue ? { where: whereValue } : {}),
         }
       ]
     })
@@ -878,67 +809,65 @@ class ModifyBuilder {
 
 /**
  * Start building an update operation.
- * 
+ *
  * Creates an empty UpdateBuilder you can add operations to. This is the
  * general entry point when you want to combine multiple operations.
- * 
+ *
  * @example
  * ```ts
  * update()
  *   .insertData(triple('ex:person1', 'foaf:name', str('Alice')))
  *   .insertData(triple('ex:person2', 'foaf:name', str('Bob')))
- *   .execute(config)
+ *   .build()
  * ```
  */
 export const update = UpdateBuilder.create
 
 /**
  * Start with INSERT DATA operation.
- * 
+ *
  * Convenience function for inserting triples. Equivalent to
  * update().insertData(...).
- * 
+ *
  * @param data Triples to insert
  * @param graph Optional named graph
- * 
+ *
  * @example
  * ```ts
  * insert(triples('ex:person1', [
  *   ['rdf:type', 'foaf:Person'],
  *   ['foaf:name', str('Alice')]
- * ]))
- *   .execute(config)
+ * ])).build()
  * ```
  */
-export function insert(data: SparqlValue, graph?: string): UpdateBuilder {
+export function insert(data: PatternValue, graph?: IriInput): UpdateBuilder {
   return UpdateBuilder.create().insertData(data, graph)
 }
 
 /**
  * Start with DELETE DATA operation.
- * 
+ *
  * Convenience function for deleting triples. Equivalent to
  * update().deleteData(...).
- * 
+ *
  * @param data Triples to delete
  * @param graph Optional named graph
- * 
+ *
  * @example
  * ```ts
- * deleteOp(triple('ex:person1', 'foaf:age', num(30)))
- *   .execute(config)
+ * deleteOp(triple('ex:person1', 'foaf:age', num(30))).build()
  * ```
  */
-export function deleteOp(data: SparqlValue, graph?: string): UpdateBuilder {
+export function deleteOp(data: PatternValue, graph?: IriInput): UpdateBuilder {
   return UpdateBuilder.create().deleteData(data, graph)
 }
 
 /**
  * Start with DELETE/INSERT operation.
- * 
+ *
  * Convenience function for conditional updates. Equivalent to
  * update().modify().
- * 
+ *
  * @example
  * ```ts
  * modify()
@@ -947,7 +876,7 @@ export function deleteOp(data: SparqlValue, graph?: string): UpdateBuilder {
  *   .where(triple('?person', 'foaf:age', '?oldAge'))
  *   .where(bind(add(v('oldAge'), 1), 'newAge'))
  *   .done()
- *   .execute(config)
+ *   .build()
  * ```
  */
 export function modify(): ModifyBuilder {

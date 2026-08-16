@@ -1,0 +1,16 @@
+{
+  "name": "root",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "fmt": "deno task fmt",
+    "lint": "deno task lint",
+    "check": "deno task check",
+    "test": "deno task test",
+    "bench": "deno task bench",
+    "verify": "deno task verify"
+  }
+}

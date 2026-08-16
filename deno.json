@@ -1,0 +1,54 @@
+{
+  "workspace": [
+    "./packages/rdf",
+    "./packages/sparql",
+    "./packages/vocab",
+    "./packages/triplestore",
+    "./packages/oxigraph",
+    "./packages/comunica"
+  ],
+  "tasks": {
+    "fmt": "deno fmt packages bench examples .mise/tasks docs README.md VALIDATION.md",
+    "lint": "deno lint packages bench examples .mise/tasks",
+    "check": "deno check packages/*/mod.ts packages/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts",
+    "test": "deno test packages --allow-read",
+    "bench": "deno run --allow-read=packages --allow-run .mise/tasks/bench.ts",
+    "verify": "deno task fmt --check && deno task lint && deno task check && deno task test",
+    "vocab": "deno run --allow-read --allow-write .mise/tasks/vocab.ts",
+    "vocab:schema": "deno run --allow-net=raw.githubusercontent.com --allow-write .mise/tasks/schema.ts",
+    "bench:types": "deno run --allow-read --allow-write --allow-env --allow-run bench/vocab/types.ts",
+    "bench:all": "deno task bench && deno task bench:types"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": false,
+    "lib": [
+      "deno.window",
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ]
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": false,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": [
+        "recommended"
+      ]
+    }
+  },
+  "imports": {
+    "@std/expect": "jsr:@std/expect@^1.0.20",
+    "mitata": "npm:mitata@1.0.34",
+    "@standard-schema/spec": "jsr:@standard-schema/spec@1.1.0"
+  }
+}

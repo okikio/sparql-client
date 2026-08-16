@@ -1,37 +1,39 @@
 /**
  * SPARQL expression helpers and query utilities.
- * 
+ *
  * These helpers build SPARQL expressions programmatically with proper escaping
  * for data values and validation for syntax elements.
- * 
+ *
  * ## Key Distinction
- * 
+ *
  * **Syntax elements** (passed through raw after validation):
  * - Variables created with `v()` or `variable()`
  * - Prefixed names like `foaf:name`
  * - IRIs
- * 
+ *
  * **Data values** (escaped and type-annotated):
  * - String literals passed to comparisons: `eq(v('name'), 'Alice')`
  * - Numbers: `gte(v('age'), 18)`
  * - Values in `concat()`, `contains()`, etc.
- * 
+ *
  * @module
  */
+
+import { isTerm as isRdfTerm, type NamedNode as RdfNamedNode, type Term as RdfTerm } from '@okikio/rdf'
 
 import {
   convertValue,
   isSparqlValue,
   normalizeVariableName,
   raw,
+  rawPattern,
+  rawTerm,
   strlit,
   validateVariableName,
   variable,
-  toPredicateName,
-  toRawString,
+  toPredicateToken,
   toVarOrIriRef,
   toVarToken,
-  PrefixName,
   validatePrefixName,
   validateIRI,
   isIRIRefToken,
@@ -39,11 +41,15 @@ import {
   SPARQL_EXPR_BRAND,
   SPARQL_TERM_BRAND,
   SPARQL_PATTERN_BRAND,
+  type PrefixName,
   type VariableName,
   type SparqlValue,
   type SparqlInterpolatable,
   type SparqlExpr,
   type SparqlTerm,
+  type PatternValue,
+  type IriInput,
+  type PredicateInput,
 } from './sparql.ts'
 
 // ============================================================================
@@ -52,17 +58,17 @@ import {
 
 /**
  * Create a VALUES clause for filtering by a list of values.
- * 
+ *
  * VALUES clauses let you provide a set of possible values for a variable.
  * Think of it like an IN clause in SQL. The query engine will try each value
  * and return results that match any of them.
- * 
+ *
  * @example Simple list
  * ```ts
  * values('city', ['London', 'Paris', 'Tokyo'])
  * // VALUES ?city { "London" "Paris" "Tokyo" }
  * ```
- * 
+ *
  * @example With numbers
  * ```ts
  * values('age', [18, 21, 25])
@@ -72,25 +78,25 @@ import {
 export function values(
   varName: VariableName,
   items: SparqlInterpolatable[]
-): SparqlValue {
+): PatternValue {
   const _var = toVarToken(varName)
   const converted = items.map((item) => convertValue(item)).join(' ')
-  return raw(`VALUES ${_var} { ${converted} }`)
+  return rawPattern(`VALUES ${_var} { ${converted} }`)
 }
 
 /**
  * Wrap an expression in a FILTER clause.
- * 
+ *
  * Filters restrict results based on boolean conditions. The expression you pass
  * should evaluate to true or false. Use this with comparison operators, regex
  * checks, or any other boolean expression.
- * 
+ *
  * @example Age filter
  * ```ts
  * filter(gte(v('age'), 18))
  * // FILTER(?age >= 18)
  * ```
- * 
+ *
  * @example Multiple conditions
  * ```ts
  * filter(and(
@@ -100,23 +106,23 @@ export function values(
  * // FILTER(?age >= 18 && REGEX(?name, "^Spider"))
  * ```
  */
-export function filter(expression: SparqlValue): SparqlValue {
-  return raw(`FILTER(${expression.value})`)
+export function filter(expression: SparqlExpr): PatternValue {
+  return rawPattern(`FILTER(${expression.value})`)
 }
 
 /**
  * Wrap a pattern in an OPTIONAL block.
- * 
+ *
  * Optional patterns don't fail the whole query if they don't match - they just
  * leave variables unbound. This is like a LEFT JOIN in SQL. Use it for properties
  * that might not exist on all results.
- * 
+ *
  * @example Email might not exist
  * ```ts
  * optional(triple('?person', 'foaf:email', '?email'))
  * // OPTIONAL { ?person foaf:email ?email }
  * ```
- * 
+ *
  * @example Multiple optional triples
  * ```ts
  * optional(triples('?person', [
@@ -125,64 +131,62 @@ export function filter(expression: SparqlValue): SparqlValue {
  * ]))
  * ```
  */
-export function optional(pattern: SparqlValue): SparqlValue {
-  return raw(`OPTIONAL { ${pattern.value} }`)
+export function optional(pattern: PatternValue): PatternValue {
+  return rawPattern(`OPTIONAL { ${pattern.value} }`)
 }
 
 /**
  * Create a BIND expression to compute new variables.
- * 
+ *
  * BIND lets you create new variables from expressions. Think of it like a computed
  * column - you're deriving a new value from existing data. The variable will be
  * available in the rest of the query.
- * 
+ *
  * @example Full name from parts
  * ```ts
  * bind(concat(v('firstName'), ' ', v('lastName')), 'fullName')
  * // BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
  * ```
- * 
+ *
  * @example Age calculation
  * ```ts
  * bind(sub(2024, v('birthYear')), 'age')
  * // BIND(2024 - ?birthYear AS ?age)
  * ```
  */
-export function bind(expression: SparqlValue, varName?: VariableName): SparqlValue {
-  if (!varName) return raw(`BIND(${expression.value})`);
-
+export function bind(expression: SparqlExpr | SparqlTerm, varName: VariableName): PatternValue {
   const normalized = toVarToken(varName)
-  return raw(`BIND(${expression.value} AS ${normalized})`)
+  return rawPattern(`BIND(${expression.value} AS ${normalized})`)
 }
 
 /**
  * Check if a pattern exists in the data.
- * 
+ *
  * EXISTS tests whether a graph pattern has any matches. The pattern you pass
  * is evaluated but doesn't affect variable bindings in the main query.
- * 
+ *
  * @example Has any email
  * ```ts
  * exists(triple('?person', 'foaf:email', '?anyEmail'))
  * // EXISTS { ?person foaf:email ?anyEmail }
  * ```
  */
-export function exists(pattern: SparqlValue): SparqlValue {
+export function exists(pattern: PatternValue): SparqlExpr {
   return raw(`EXISTS { ${pattern.value} }`)
 }
 
 /**
  * Check if a pattern does not exist in the data.
- * 
+ *
  * Opposite of EXISTS - returns true if the pattern has no matches.
- * 
+ *
  * @example No email address
  * ```ts
  * notExists(triple('?person', 'foaf:email', '?email'))
  * // NOT EXISTS { ?person foaf:email ?email }
  * ```
  */
-export function notExists(pattern: SparqlValue): SparqlValue {
+export function notExists(pattern: PatternValue): SparqlExpr {
   return raw(`NOT EXISTS { ${pattern.value} }`)
 }
 
@@ -193,7 +197,7 @@ export function notExists(pattern: SparqlValue): SparqlValue {
 
 /**
  * Values that can be used in SPARQL expressions.
- * 
+ *
  * These are the building blocks: literals, numbers, dates, and already-constructed
  * SparqlValue objects. Most expression helpers accept these types.
  */
@@ -204,13 +208,14 @@ export type ExpressionPrimitive =
   | Date
   | null
   | undefined
+  | RdfTerm
 
 /**
  * Convert a value to SPARQL for use in expressions.
- * 
+ *
  * - SparqlValue objects pass through unchanged
  * - Primitives are converted using convertValue (escaped and typed)
- * 
+ *
  * This is the key function that ensures data values are properly escaped
  * while syntax elements (already wrapped as SparqlValue) pass through.
  */
@@ -258,7 +263,7 @@ export type TermPosition = 'subject' | 'object' | 'graph'
  * - blank node label (_:b1, _:foo-123, etc.)
  * - blank node property list ([] or [ ... ])
  * - literal ("...", 42, true, "..."@en, "..."^^<...>)
- * - RDF* quoted triple (<< ... >>)
+ * - SPARQL 1.2 triple-term or reified-triple syntax
  *
  * Anything that looks like a function call or complex expression
  * (STR(...), CONCAT(...), BNODE(), etc.) is rejected.
@@ -309,7 +314,7 @@ export function isGraphNodeLexical(lex: string): boolean {
   if (/^\[\s*[\s\S]*\s*\]$/.test(t)) return true
 
   // ---------------------------------------------------------------------------
-  // RDF* quoted triple: << ... >>
+  // SPARQL 1.2 triple-term / reified-triple syntax.
   // ---------------------------------------------------------------------------
   if (/^<<[\s\S]*>>$/.test(t)) return true
 
@@ -366,7 +371,7 @@ export function termString(
   if (!isGraphNodeLexical(lex)) {
     throw new Error(
       `Invalid ${position} term "${lex}". Triple ${position}s must be variables, ` +
-      `IRIs, blank node labels, literals, prefixed names, or RDF* quoted triples. ` +
+      `IRIs, blank node labels, literals, prefixed names, or SPARQL 1.2 triple forms. ` +
       `Use BIND(...) / FILTER(...) to compute a value (e.g. STR(), CONCAT(), ` +
       `BNODE()) and then use the bound variable in the triple.`,
     )
@@ -381,11 +386,11 @@ export function termString(
 
 /**
  * Concatenate strings or values.
- * 
+ *
  * CONCAT joins multiple values into a single string. All arguments are converted
  * to strings first. This is your go-to for building full names, labels, or any
  * composite string field.
- * 
+ *
  * @example Full name
  * ```ts
  * concat(v('firstName'), ' ', v('lastName'))
@@ -405,7 +410,7 @@ export function concat(
 
 /**
  * Convert a value to a string.
- * 
+ *
  * Forces conversion to string representation. Useful when you need to ensure
  * a value is treated as a string for comparison or manipulation.
  */
@@ -415,7 +420,7 @@ export function str(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Get the length of a string.
- * 
+ *
  * Returns the character count. Note that this counts Unicode characters, not bytes.
  */
 export function strlen(
@@ -440,10 +445,10 @@ export function lcase(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Check if a string contains a substring.
- * 
+ *
  * Case-sensitive substring search. Returns true if pattern appears anywhere
  * in the text.
- * 
+ *
  * @example
  * ```ts
  * contains(v('title'), 'Spider')
@@ -461,7 +466,7 @@ export function contains(
 
 /**
  * Check if string starts with a prefix.
- * 
+ *
  * Case-sensitive prefix check.
  */
 export function startsWith(
@@ -483,7 +488,7 @@ export function strstarts(
 
 /**
  * Check if string ends with a suffix.
- * 
+ *
  * Case-sensitive suffix check.
  */
 export function endsWith(
@@ -505,16 +510,16 @@ export function strends(
 
 /**
  * Pattern matching with regular expressions.
- * 
+ *
  * Supports standard regex patterns. The flags parameter lets you control
  * matching behavior (i for case-insensitive, m for multiline, etc.).
- * 
+ *
  * @example Case-insensitive match
  * ```ts
  * regex(v('name'), '^Spider', 'i')
  * // REGEX(?name, "^Spider", "i")
  * ```
- * 
+ *
  * @example Match email pattern
  * ```ts
  * regex(v('email'), '^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$', 'i')
@@ -527,27 +532,27 @@ export function regex(
 ): SparqlExpr {
   const textStr = exprTermString(text)
   const patternStr = exprTermString(pattern)
-  
+
   if (flags) {
     const flagsStr = exprTermString(flags)
     return raw(`REGEX(${textStr}, ${patternStr}, ${flagsStr})`)
   }
-  
+
   return raw(`REGEX(${textStr}, ${patternStr})`)
 }
 
 /**
  * Extract substring from a string.
- * 
+ *
  * Starting position is 1-indexed (SPARQL convention). If length is omitted,
  * extracts to the end of the string.
- * 
+ *
  * @example First 5 characters
  * ```ts
  * substr(v('title'), 1, 5)
  * // SUBSTR(?title, 1, 5)
  * ```
- * 
+ *
  * @example Everything after position 10
  * ```ts
  * substr(v('description'), 10)
@@ -561,27 +566,27 @@ export function substr(
 ): FluentExpr {
   const textStr = exprTermString(text)
   const startStr = exprTermString(start)
-  
+
   if (length !== undefined) {
     const lengthStr = exprTermString(length)
     return fluent(raw(`SUBSTR(${textStr}, ${startStr}, ${lengthStr})`))
   }
-  
+
   return fluent(raw(`SUBSTR(${textStr}, ${startStr})`))
 }
 
 /**
  * Replace occurrences of a pattern in text.
- * 
+ *
  * Replaces all occurrences of pattern with replacement string.
  * Optional flags parameter for case-insensitive matching (i), etc.
- * 
+ *
  * @example Remove dashes
  * ```ts
  * replaceStr(v('isbn'), '-', '')
  * // REPLACE(?isbn, "-", "")
  * ```
- * 
+ *
  * @example Case-insensitive replacement
  * ```ts
  * replaceStr(v('text'), 'hello', 'hi', 'i')
@@ -597,27 +602,27 @@ export function replaceStr(
   const textStr = exprTermString(text)
   const patternStr = exprTermString(pattern)
   const replacementStr = exprTermString(replacement)
-  
+
   if (flags) {
     const flagsStr = exprTermString(flags)
     return fluent(raw(`REPLACE(${textStr}, ${patternStr}, ${replacementStr}, ${flagsStr})`))
   }
-  
+
   return fluent(raw(`REPLACE(${textStr}, ${patternStr}, ${replacementStr})`))
 }
 
 /**
  * Get substring before first occurrence of match string.
- * 
+ *
  * Returns the part of the text that appears before the first occurrence
  * of the match string. If match is not found, returns empty string.
- * 
+ *
  * @example Extract username from email
  * ```ts
  * strBefore(v('email'), '@')
  * // STRBEFORE(?email, "@")
  * ```
- * 
+ *
  * @example Extract domain before subdomain
  * ```ts
  * strBefore(v('domain'), '.')
@@ -635,16 +640,16 @@ export function strBefore(
 
 /**
  * Get substring after first occurrence of match string.
- * 
+ *
  * Returns the part of the text that appears after the first occurrence
  * of the match string. If match is not found, returns empty string.
- * 
+ *
  * @example Extract domain from email
  * ```ts
  * strAfter(v('email'), '@')
  * // STRAFTER(?email, "@")
  * ```
- * 
+ *
  * @example Extract file extension
  * ```ts
  * strAfter(v('filename'), '.')
@@ -662,10 +667,10 @@ export function strAfter(
 
 /**
  * Conditional expression (ternary operator).
- * 
+ *
  * Like JavaScript's `condition ? whenTrue : whenFalse`. Evaluates the condition
  * and returns one of two values based on the result.
- * 
+ *
  * @example Adult vs minor
  * ```ts
  * ifElse(gte(v('age'), 18), strlit('Adult'), strlit('Minor'))
@@ -814,10 +819,10 @@ export function lte(
 
 /**
  * Check if a variable is unbound (null).
- * 
+ *
  * In SPARQL, variables can be unbound if an OPTIONAL pattern didn't match.
  * This lets you check for that condition.
- * 
+ *
  * @example
  * ```ts
  * filter(isNull(v('email')))
@@ -832,7 +837,7 @@ export function isNull(
 
 /**
  * Check if a variable is bound (not null).
- * 
+ *
  * Opposite of isNull - checks if a variable has a value.
  */
 export function isNotNull(
@@ -875,10 +880,10 @@ export function isLiteral(
 
 /**
  * Combine conditions with AND.
- * 
+ *
  * All conditions must be true for the result to be true. Short-circuits on
  * the first false condition.
- * 
+ *
  * @example Multiple filters
  * ```ts
  * and(
@@ -902,10 +907,10 @@ export function and(
 
 /**
  * Combine conditions with OR.
- * 
+ *
  * Any condition being true makes the result true. Short-circuits on the
  * first true condition.
- * 
+ *
  * @example Alternative publishers
  * ```ts
  * or(
@@ -928,7 +933,7 @@ export function or(
 
 /**
  * Negate a condition.
- * 
+ *
  * Flips true to false and false to true.
  */
 export function not(condition: SparqlValue): SparqlExpr {
@@ -941,9 +946,9 @@ export function not(condition: SparqlValue): SparqlExpr {
 
 /**
  * Check if a value is in a list.
- * 
+ *
  * Like SQL's IN operator. Checks if the expression matches any value in the list.
- * 
+ *
  * @example Check publisher
  * ```ts
  * inList(v('publisher'), ['Marvel', 'DC Comics', 'Image'])
@@ -963,7 +968,7 @@ export function inList(
 
 /**
  * Check if a value is not in a list.
- * 
+ *
  * Opposite of inList - returns true if the value doesn't match any list item.
  */
 export function notInList(
@@ -979,9 +984,9 @@ export function notInList(
 
 /**
  * Check if a value is in a range.
- * 
+ *
  * Shorthand for value >= low AND value <= high. Both bounds are inclusive.
- * 
+ *
  * @example Age range
  * ```ts
  * between(v('age'), 18, 65)
@@ -1001,10 +1006,10 @@ export function between(
 
 /**
  * Return first non-null value from a list.
- * 
+ *
  * Like SQL's COALESCE. Evaluates arguments left-to-right and returns the first
  * one that's bound. Useful for providing fallback values.
- * 
+ *
  * @example Fallback label
  * ```ts
  * coalesce(v('preferredLabel'), v('commonLabel'), strlit('Unnamed'))
@@ -1037,26 +1042,26 @@ export function bnodeFn(): SparqlExpr {
 
 /**
  * Fluent interface for SPARQL values with chainable methods.
- * 
+ *
  * Instead of wrapping values in functions, you can call methods directly on values.
  * This makes complex expressions more readable and natural.
- * 
+ *
  * @example Comparison operators
  * ```ts
  * v('age').gte(18)          // instead of gte(v('age'), 18)
  * v('name').eq('Alice')     // instead of eq(v('name'), 'Alice')
  * ```
- * 
+ *
  * @example Arithmetic
  * ```ts
  * v('price').mul(1.1).add(5)   // instead of add(mul(v('price'), 1.1), 5)
  * ```
- * 
+ *
  * @example String operations
  * ```ts
  * v('name').ucase().contains('SPIDER')   // instead of contains(ucase(v('name')), 'SPIDER')
  * ```
- * 
+ *
  * @example Combining styles
  * ```ts
  * // Both functional and method styles work together
@@ -1121,19 +1126,19 @@ export interface FluentExpr extends SparqlExpr {
 
 /**
  * Create a fluent value with chainable methods.
- * 
+ *
  * Wraps any SparqlValue to add method chaining. This lets you write expressions
  * more naturally with dot notation instead of nested function calls.
- * 
+ *
  * @param value SparqlValue to enhance
  * @returns FluentValue with chainable methods
- * 
+ *
  * @example
  * ```ts
  * const age = fluent(v('age'))
  * age.gte(18).and(age.lt(65))
  * ```
- * 
+ *
  * @example Direct with variables
  * ```ts
  * fluent(v('price')).mul(1.1).add(5)
@@ -1210,26 +1215,26 @@ export function fluent(value: SparqlTerm | SparqlExpr): FluentExpr {
 
 /**
  * Create a fluent variable reference.
- * 
+ *
  * Variables are placeholders for values that get bound during query execution.
  * This enhanced version returns a FluentValue with chainable methods for
  * natural, readable query construction.
- * 
+ *
  * @param name Variable name (with or without ? prefix)
  * @returns FluentValue with comparison, arithmetic, and other methods
- * 
+ *
  * @example Chainable comparisons
  * ```ts
  * v('age').gte(18)
  * // Instead of: gte(v('age'), 18)
  * ```
- * 
+ *
  * @example Arithmetic chains
  * ```ts
  * v('price').mul(1.1).add(5)
  * // Instead of: add(mul(v('price'), 1.1), 5)
  * ```
- * 
+ *
  * @example Complex expressions
  * ```ts
  * select(['?name', '?total'])
@@ -1237,7 +1242,7 @@ export function fluent(value: SparqlTerm | SparqlExpr): FluentExpr {
  *   .where(triple('?person', 'schema:price', '?price'))
  *   .bind(v('price').mul(1.2).round(), 'total')
  * ```
- * 
+ *
  * @example Combining with logical operators
  * ```ts
  * filter(
@@ -1269,7 +1274,7 @@ export function datatype(
 
 /**
  * Aggregation expression that can be aliased with AS.
- * 
+ *
  * Aggregations reduce a group of values to a single result. They're typically
  * used with GROUP BY clauses. The `.as()` method lets you assign the result
  * to a variable.
@@ -1289,6 +1294,7 @@ function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPr
     [SPARQL_VALUE_BRAND]: true,
     [SPARQL_EXPR_BRAND]: true,
     value: baseValue,
+    /** Wraps this aggregation as `(expression AS ?variable)` for SELECT projection grammar. */
     as(variable: string): SparqlExpr {
       const varName = toVarToken(variable)
       // SPARQL 1.1 requires (Expression AS ?var) in SELECT
@@ -1301,16 +1307,16 @@ function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPr
 
 /**
  * Count the number of rows.
- * 
+ *
  * Without arguments, counts all rows (COUNT(*)). With an expression, counts
  * non-null values of that expression.
- * 
+ *
  * @example Count all
  * ```ts
  * select([count().as('total')])
  * // SELECT COUNT(*) AS ?total
  * ```
- * 
+ *
  * @example Count specific values
  * ```ts
  * select([count(v('email')).as('emailCount')])
@@ -1325,9 +1331,9 @@ export function count(
 
 /**
  * Count distinct values.
- * 
+ *
  * Like COUNT but only counts unique values.
- * 
+ *
  * @example Unique publishers
  * ```ts
  * select([countDistinct(v('publisher')).as('publisherCount')])
@@ -1344,9 +1350,9 @@ export function countDistinct(
 
 /**
  * Sum numeric values.
- * 
+ *
  * Adds up all values in the group.
- * 
+ *
  * @example Total price
  * ```ts
  * select([sum(v('price')).as('totalPrice')])
@@ -1382,7 +1388,7 @@ export function max(
 
 /**
  * Return an arbitrary value from the group.
- * 
+ *
  * When you just need one value from each group but don't care which one.
  * Useful for properties that should be the same across a group.
  */
@@ -1394,10 +1400,10 @@ export function sample(
 
 /**
  * Concatenate values into a single string.
- * 
+ *
  * Joins multiple values with an optional separator. Useful for creating
  * comma-separated lists or similar aggregations.
- * 
+ *
  * @example Author list
  * ```ts
  * select([groupConcat(v('author'), ', ').as('authors')])
@@ -1420,22 +1426,6 @@ export function groupConcat(
 // GRAPH Patterns
 // ============================================================================
 
-export function toGraphRefName(name: string): string {
-  // Variable: ?g
-  if (name.startsWith('?')) return name
-
-  // Already an IRI ref: <http://...>
-  if (name.startsWith('<') && name.endsWith('>')) return name
-
-  // Full IRI with scheme: http://, https://, etc.
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(name)) {
-    return `<${name}>`
-  }
-
-  // Otherwise treat as prefixed name or bare identifier
-  // (assumes appropriate PREFIX is declared)
-  return name
-}
 
 // ============================================================================
 // GRAPH Patterns
@@ -1486,11 +1476,11 @@ export function toGraphRefName(name: string): string {
  * ```
  */
 export function graph(
-  graphIri: string | SparqlValue,
-  pattern: SparqlValue,
-): SparqlValue {
+  graphIri: IriInput,
+  pattern: PatternValue,
+): PatternValue {
   const graphRef = toVarOrIriRef(graphIri)
-  return raw(`GRAPH ${graphRef} { ${pattern.value} }`)
+  return rawPattern(`GRAPH ${graphRef} { ${pattern.value} }`)
 }
 
 // ============================================================================
@@ -1498,36 +1488,13 @@ export function graph(
 // ============================================================================
 
 /**
- * Unbound variable placeholder.
- * 
- * Used in IF expressions to leave variables unbound. When ?UNDEF is used
- * as a binding result, it doesn't bind the variable at all - the variable
- * stays unbound.
- * 
- * @example Conditional binding
- * ```ts
- * bind(
- *   ifElse(eq(v('x'), 1), v('x'), undef()),
- *   'result'
- * )
- * // BIND(IF(?x = 1, ?x, ?UNDEF) AS ?result)
- * // If ?x = 1, ?result gets bound to ?x's value
- * // If ?x != 1, ?result stays unbound
- * ```
- * 
- * @example Inferring functional properties
- * ```ts
- * select([
- *   v('property'),
- *   ifElse(eq(v('maxCardinality'), 1), v('maxCardinality'), undef()).as('isFunctional')
- * ])
- *   .where(...)
- *   .groupBy('?property')
- * // ?isFunctional only gets bound for properties with max cardinality 1
- * ```
+ * Returns the SPARQL `UNDEF` data-block token.
+ *
+ * `UNDEF` is valid in VALUES data blocks. It is not a general expression value
+ * and must not be rewritten as a variable such as `?UNDEF`.
  */
-export function undef(): SparqlValue {
-  return raw('?UNDEF')
+export function undef(): SparqlTerm {
+  return rawTerm('UNDEF')
 }
 
 // ============================================================================
@@ -1536,66 +1503,66 @@ export function undef(): SparqlValue {
 
 /**
  * Zero or more path (transitive closure).
- * 
+ *
  * Matches the property zero or more times. Like * in regular expressions.
  * Use this to traverse relationship chains of any length, including zero
  * (which means subject and object can be the same).
- * 
+ *
  * @param property Property IRI
- * 
+ *
  * @example Find all connected people
  * ```ts
  * triple('?person', zeroOrMore('foaf:knows'), '?contact')
  * // ?person foaf:knows* ?contact
  * // Matches: direct friends, friends of friends, etc.
  * ```
- * 
+ *
  * @example Organizational hierarchy
  * ```ts
  * triple('?ceo', zeroOrMore('org:manages'), '?employee')
  * // Finds everyone in the org (including CEO themselves due to zero matches)
  * ```
  */
-export function zeroOrMore(property: string | SparqlValue): SparqlValue {
-  const prop = toPredicateName(toRawString(property))
-  return raw(`${prop}*`)
+export function zeroOrMore(property: PredicateInput): SparqlTerm {
+  const prop = toPredicateToken(property)
+  return rawTerm(`${prop}*`)
 }
 
 /**
  * One or more path.
- * 
+ *
  * Matches the property one or more times. Like + in regular expressions.
  * Subject and object must be different (at least one hop required).
- * 
+ *
  * @param property Property IRI
- * 
+ *
  * @example Find direct and indirect reports
  * ```ts
  * triple('?manager', oneOrMore('org:manages'), '?employee')
  * // ?manager org:manages+ ?employee
  * // Matches all reports at any level, but not the manager themselves
  * ```
- * 
+ *
  * @example Ancestor relationships
  * ```ts
  * triple('?ancestor', oneOrMore('bio:parent'), '?descendant')
  * // Finds parents, grandparents, great-grandparents, etc.
  * ```
  */
-export function oneOrMore(property: string | SparqlValue): SparqlValue {
-  const prop = toPredicateName(toRawString(property))
-  return raw(`${prop}+`)
+export function oneOrMore(property: PredicateInput): SparqlTerm {
+  const prop = toPredicateToken(property)
+  return rawTerm(`${prop}+`)
 }
 
 /**
  * Zero or one path (optional property).
- * 
+ *
  * Matches the property zero or one time. Like ? in regular expressions.
  * Use for optional properties where you want both entities with and without
  * the property.
- * 
+ *
  * @param property Property IRI
- * 
+ *
  * @example Person with optional spouse
  * ```ts
  * triple('?person', zeroOrOne('schema:spouse'), '?maybeSpouse')
@@ -1603,112 +1570,112 @@ export function oneOrMore(property: string | SparqlValue): SparqlValue {
  * // Matches married and unmarried people
  * ```
  */
-export function zeroOrOne(property: string | SparqlValue): SparqlValue {
-  const prop = toPredicateName(toRawString(property))
-  return raw(`${prop}?`)
+export function zeroOrOne(property: PredicateInput): SparqlTerm {
+  const prop = toPredicateToken(property)
+  return rawTerm(`${prop}?`)
 }
 
 /**
  * Sequence path.
- * 
+ *
  * Matches properties in sequence (path1 followed by path2). Use to navigate
  * multi-hop relationships as if they were single properties.
- * 
+ *
  * @param properties Properties to traverse in order
- * 
+ *
  * @example Person's city through address
  * ```ts
  * triple('?person', sequence('schema:address', 'schema:city'), '?city')
  * // ?person schema:address/schema:city ?city
  * // Equivalent to: ?person schema:address ?addr . ?addr schema:city ?city
  * ```
- * 
+ *
  * @example Complex navigation
  * ```ts
  * triple('?product', sequence('schema:manufacturer', 'schema:location', 'schema:city'), '?city')
  * // Navigate: product → manufacturer → location → city
  * ```
  */
-export function sequence(...properties: Array<string | SparqlValue>): SparqlValue {
-  const props = properties.map(p => toPredicateName(toRawString(p)))
-  return raw(props.join('/'))
+export function sequence(...properties: PredicateInput[]): SparqlTerm {
+  const props = properties.map(toPredicateToken)
+  return rawTerm(props.join('/'))
 }
 
 /**
  * Alternative path.
- * 
+ *
  * Matches either path1 or path2. Use when multiple properties lead to the
  * same kind of information.
- * 
+ *
  * @param properties Properties to try (any match)
- * 
+ *
  * @example Contact info
  * ```ts
  * triple('?person', alternative('foaf:phone', 'foaf:email'), '?contact')
  * // ?person foaf:phone|foaf:email ?contact
  * // Matches either phone numbers or email addresses
  * ```
- * 
+ *
  * @example Multiple name properties
  * ```ts
  * triple('?entity', alternative('rdfs:label', 'foaf:name', 'schema:name'), '?name')
  * // Gets name from any of these properties
  * ```
  */
-export function alternative(...properties: Array<string | SparqlValue>): SparqlValue {
-  const props = properties.map(p => toPredicateName(toRawString(p)))
-  return raw(`(${props.join('|')})`)
+export function alternative(...properties: PredicateInput[]): SparqlTerm {
+  const props = properties.map(toPredicateToken)
+  return rawTerm(`(${props.join('|')})`)
 }
 
 /**
  * Inverse path.
- * 
+ *
  * Traverses the property in reverse direction. Swaps subject and object positions.
- * 
+ *
  * @param property Property IRI
- * 
+ *
  * @example Find who manages this person
  * ```ts
  * triple('?employee', inverse('org:manages'), '?manager')
  * // ?employee ^org:manages ?manager
  * // Equivalent to: ?manager org:manages ?employee
  * ```
- * 
+ *
  * @example Find authors of book
  * ```ts
  * triple('?book', inverse('schema:author'), '?author')
  * // Reverse of: ?author schema:author ?book
  * ```
  */
-export function inverse(property: string | SparqlValue): SparqlValue {
-  const prop = toPredicateName(toRawString(property))
-  return raw(`^${prop}`)
+export function inverse(property: PredicateInput): SparqlTerm {
+  const prop = toPredicateToken(property)
+  return rawTerm(`^${prop}`)
 }
 
 /**
  * Negated property set.
- * 
+ *
  * Matches any property except those listed. Use to exclude specific
  * relationships when you want "everything else".
- * 
+ *
  * @param properties Properties to exclude
- * 
+ *
  * @example Any property except rdf:type
  * ```ts
  * triple('?s', negatedPropertySet('rdf:type'), '?o')
  * // ?s !(rdf:type) ?o
  * // Matches all triples except type declarations
  * ```
- * 
+ *
  * @example Non-metadata properties
  * ```ts
  * triple('?s', negatedPropertySet('rdf:type', 'rdfs:label', 'rdfs:comment'), '?o')
  * // Gets data properties, not metadata
  * ```
  */
-export function negatedPropertySet(...properties: Array<string | SparqlValue>): SparqlValue {
-  const props = properties.map(p => toPredicateName(toRawString(p)))
-  return raw(`!(${props.join('|')})`)
+export function negatedPropertySet(...properties: PredicateInput[]): SparqlTerm {
+  const props = properties.map(toPredicateToken)
+  return rawTerm(`!(${props.join('|')})`)
 }
 
 // ============================================================================
@@ -1717,15 +1684,15 @@ export function negatedPropertySet(...properties: Array<string | SparqlValue>): 
 
 /**
  * Query a remote SPARQL endpoint (federation).
- * 
+ *
  * SERVICE lets you include data from other SPARQL endpoints in your query.
  * The pattern is sent to the remote endpoint and results are integrated with
  * your local query. This is powerful for combining data from multiple sources.
- * 
+ *
  * @param endpoint Remote SPARQL endpoint URL
  * @param pattern Pattern to execute remotely
  * @param silent If true, continue if service unavailable (default: false)
- * 
+ *
  * @example Query DBpedia for birth places
  * ```ts
  * select(['?person', '?name', '?birthPlace'])
@@ -1736,7 +1703,7 @@ export function negatedPropertySet(...properties: Array<string | SparqlValue>): 
  *   ))
  * // Combines local names with DBpedia birth places
  * ```
- * 
+ *
  * @example Silent service (don't fail)
  * ```ts
  * service(
@@ -1746,7 +1713,7 @@ export function negatedPropertySet(...properties: Array<string | SparqlValue>): 
  * )
  * // SERVICE SILENT - continues even if endpoint is down
  * ```
- * 
+ *
  * @example Complex federated query
  * ```ts
  * select(['?company', '?revenue', '?stockPrice'])
@@ -1759,13 +1726,13 @@ export function negatedPropertySet(...properties: Array<string | SparqlValue>): 
  * ```
  */
 export function service(
-  endpoint: string | SparqlValue,
-  pattern: SparqlValue,
+  endpoint: IriInput,
+  pattern: PatternValue,
   silent = false
-): SparqlValue {
+): PatternValue {
   const endpointRef = toVarOrIriRef(endpoint)
   const silentModifier = silent ? 'SILENT ' : ''
-  return raw(`SERVICE ${silentModifier}${endpointRef} { ${pattern.value} }`)
+  return rawPattern(`SERVICE ${silentModifier}${endpointRef} { ${pattern.value} }`)
 }
 
 // ============================================================================
@@ -1774,13 +1741,13 @@ export function service(
 
 /**
  * Define a PREFIX for abbreviated IRIs.
- * 
+ *
  * Prefixes let you write short names instead of full IRIs. They're declared
  * at the top of queries and expand to full IRIs everywhere they're used.
- * 
+ *
  * @param prefix Prefix name
  * @param iri Full IRI for the namespace
- * 
+ *
  * @example Define common prefixes
  * ```ts
  * const prefixes = [
@@ -1788,55 +1755,46 @@ export function service(
  *   definePrefix('schema', 'http://schema.org/'),
  *   definePrefix('ex', 'http://example.org/')
  * ]
- * 
+ *
  * const query = raw(`
  *   ${prefixes.map(p => p.value).join('\n')}
- *   
+ *
  *   SELECT ?name WHERE {
  *     ?person foaf:name ?name .
  *     ?person schema:email ?email .
  *   }
  * `)
  * ```
- * 
+ *
  * @example With builder
  * ```ts
  * const prefixBlock = [
  *   definePrefix('rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'),
  *   definePrefix('rdfs', 'http://www.w3.org/2000/01/rdf-schema#')
  * ].map(p => p.value).join('\n')
- * 
+ *
  * const query = select(['?class'])
  *   .where(triple('?instance', 'rdf:type', '?class'))
- * 
+ *
  * const fullQuery = raw(`${prefixBlock}\n\n${query.build().value}`)
  * ```
  */
-export function definePrefix(prefix: PrefixName, iri: string): SparqlValue {
+export function definePrefix(prefix: PrefixName, iri: string | RdfNamedNode): SparqlValue {
   validatePrefixName(prefix)
 
-  let endpoint: string | null = null;
-  const trimmed = iri.trim()
+  if (isRdfTerm(iri)) {
+    return raw(`PREFIX ${prefix}: ${toPredicateToken(iri)}`)
+  }
 
-  // Already <IRI> → validate inner and return.
+  const trimmed = iri.trim()
   if (isIRIRefToken(trimmed)) {
     const inner = trimmed.slice(1, -1)
     validateIRI(inner)
-    endpoint = trimmed
+    return raw(`PREFIX ${prefix}: ${trimmed}`)
   }
 
-  // Try as absolute IRI first (scheme:...)
-  try {
-    validateIRI(trimmed)
-    endpoint = `<${trimmed}>`
-  } catch {
-    // Not a valid absolute IRI → fall through to prefixed
-  }
-
-  if (!endpoint)
-    throw new Error(`Prefix endpoint for \`PREFIX ${prefix}\: ${endpoint}\` in definePrefix() must be an IRI.`)
-
-  return raw(`PREFIX ${prefix}: ${endpoint}`)
+  validateIRI(trimmed)
+  return raw(`PREFIX ${prefix}: <${trimmed}>`)
 }
 
 // ============================================================================
@@ -1845,31 +1803,31 @@ export function definePrefix(prefix: PrefixName, iri: string): SparqlValue {
 
 /**
  * Compute MD5 hash of a value.
- * 
+ *
  * Returns the MD5 hash as a hex string. MD5 is a cryptographic hash function
  * that produces a 128-bit (16-byte) hash value, typically rendered as a
  * 32-character hexadecimal number.
- * 
+ *
  * @param value Value to hash
- * 
+ *
  * @sparql `MD5(value)`
- * 
+ *
  * @example Hash a string
  * ```ts
  * // Library
  * select([md5(v('email')).as('emailHash')])
  *   .where(triple('?person', 'foaf:mbox', '?email'))
- * 
+ *
  * // SPARQL ↓
  * // SELECT (MD5(?email) AS ?emailHash)
  * // WHERE { ?person foaf:mbox ?email }
  * ```
- * 
+ *
  * @example Deduplication key
  * ```ts
  * // Library
  * bind(md5(concat(v('firstName'), v('lastName'), v('birthDate'))), 'personKey')
- * 
+ *
  * // SPARQL ↓
  * // BIND(MD5(CONCAT(?firstName, ?lastName, ?birthDate)) AS ?personKey)
  * ```
@@ -1880,19 +1838,19 @@ export function md5(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Compute SHA1 hash of a value.
- * 
+ *
  * Returns the SHA-1 hash as a hex string. SHA-1 produces a 160-bit (20-byte)
  * hash value, typically rendered as a 40-character hexadecimal number.
- * 
+ *
  * @param value Value to hash
- * 
+ *
  * @sparql `SHA1(value)`
- * 
+ *
  * @example Content-based identifier
  * ```ts
  * // Library
  * bind(sha1(v('documentText')), 'contentHash')
- * 
+ *
  * // SPARQL ↓
  * // BIND(SHA1(?documentText) AS ?contentHash)
  * ```
@@ -1903,21 +1861,21 @@ export function sha1(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Compute SHA256 hash of a value.
- * 
+ *
  * Returns the SHA-256 hash as a hex string. SHA-256 produces a 256-bit (32-byte)
  * hash value, typically rendered as a 64-character hexadecimal number. This is
  * more secure than MD5 or SHA-1.
- * 
+ *
  * @param value Value to hash
- * 
+ *
  * @sparql `SHA256(value)`
- * 
+ *
  * @example Secure hash
  * ```ts
  * // Library
  * select([sha256(v('password')).as('passwordHash')])
  *   .where(triple('?user', 'ex:password', '?password'))
- * 
+ *
  * // SPARQL ↓
  * // SELECT (SHA256(?password) AS ?passwordHash)
  * // WHERE { ?user ex:password ?password }
@@ -1929,18 +1887,18 @@ export function sha256(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Compute SHA384 hash of a value.
- * 
+ *
  * Returns the SHA-384 hash as a hex string. SHA-384 produces a 384-bit hash value.
- * 
+ *
  * @param value Value to hash
- * 
+ *
  * @sparql `SHA384(value)`
- * 
+ *
  * @example
  * ```ts
  * // Library
  * sha384(v('data'))
- * 
+ *
  * // SPARQL ↓
  * // SHA384(?data)
  * ```
@@ -1951,20 +1909,20 @@ export function sha384(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Compute SHA512 hash of a value.
- * 
+ *
  * Returns the SHA-512 hash as a hex string. SHA-512 produces a 512-bit (64-byte)
  * hash value, typically rendered as a 128-character hexadecimal number. This
  * provides the highest security of the standard SHA-2 family.
- * 
+ *
  * @param value Value to hash
- * 
+ *
  * @sparql `SHA512(value)`
- * 
+ *
  * @example High-security hash
  * ```ts
  * // Library
  * bind(sha512(v('sensitiveData')), 'secureHash')
- * 
+ *
  * // SPARQL ↓
  * // BIND(SHA512(?sensitiveData) AS ?secureHash)
  * ```
@@ -1979,20 +1937,20 @@ export function sha512(value: SparqlValue | ExpressionPrimitive): FluentExpr {
 
 /**
  * Get the current date and time.
- * 
+ *
  * Returns the current dateTime when the query is executed. The value is fixed
  * for the entire query execution - all calls to NOW() in the same query return
  * the same value.
- * 
+ *
  * @sparql `NOW()`
- * 
+ *
  * @example Timestamp queries
  * ```ts
  * // Library
  * select(['?event', '?time'])
  *   .where(triple('?event', 'ex:timestamp', '?time'))
  *   .filter(v('time').lt(now()))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?event ?time
  * // WHERE {
@@ -2000,7 +1958,7 @@ export function sha512(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * //   FILTER(?time < NOW())
  * // }
  * ```
- * 
+ *
  * @example Add timestamp to data
  * ```ts
  * // Library
@@ -2008,7 +1966,7 @@ export function sha512(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  *   .insert(triple('?person', 'ex:lastModified', now()))
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .done()
- * 
+ *
  * // SPARQL ↓
  * // INSERT { ?person ex:lastModified NOW() }
  * // WHERE { ?person foaf:name ?name }
@@ -2020,23 +1978,23 @@ export function now(): SparqlValue {
 
 /**
  * Generate a fresh UUID as an IRI.
- * 
+ *
  * Creates a new UUID (Universally Unique Identifier) and returns it as an IRI
  * in the urn:uuid: namespace. Each call generates a different UUID.
- * 
+ *
  * @sparql `UUID()`
- * 
+ *
  * @example Generate unique IRIs
  * ```ts
  * // Library
  * construct(triple(uuid(), 'rdf:type', 'ex:Event'))
  *   .where(triple('?input', 'ex:data', '?data'))
- * 
+ *
  * // SPARQL ↓
  * // CONSTRUCT { UUID() rdf:type ex:Event }
  * // WHERE { ?input ex:data ?data }
  * ```
- * 
+ *
  * @example Stable blank node replacement
  * ```ts
  * // Library
@@ -2044,7 +2002,7 @@ export function now(): SparqlValue {
  *   .insert(triple(uuid(), 'ex:property', '?value'))
  *   .where(triple('?subject', 'ex:property', '?value'))
  *   .done()
- * 
+ *
  * // SPARQL ↓
  * // INSERT { UUID() ex:property ?value }
  * // WHERE { ?subject ex:property ?value }
@@ -2056,21 +2014,21 @@ export function uuid(): SparqlValue {
 
 /**
  * Generate a fresh UUID as a string literal.
- * 
+ *
  * Like UUID() but returns a plain string instead of an IRI. Useful when you
  * need a unique identifier as a literal value rather than an IRI.
- * 
+ *
  * @sparql `STRUUID()`
- * 
+ *
  * @example Unique string identifiers
  * ```ts
  * // Library
  * bind(struuid(), 'transactionId')
- * 
+ *
  * // SPARQL ↓
  * // BIND(STRUUID() AS ?transactionId)
  * ```
- * 
+ *
  * @example Session tracking
  * ```ts
  * // Library
@@ -2078,7 +2036,7 @@ export function uuid(): SparqlValue {
  *   .insert(triple('?user', 'ex:sessionId', struuid()))
  *   .where(triple('?user', 'ex:loginTime', now()))
  *   .done()
- * 
+ *
  * // SPARQL ↓
  * // INSERT { ?user ex:sessionId STRUUID() }
  * // WHERE { ?user ex:loginTime NOW() }
@@ -2090,32 +2048,32 @@ export function struuid(): FluentExpr {
 
 /**
  * Generate a random number between 0 and 1.
- * 
+ *
  * Returns a pseudo-random number in the range [0, 1). Different calls may
  * return different values, even within the same query execution.
- * 
+ *
  * @sparql `RAND()`
- * 
+ *
  * @example Random sampling
  * ```ts
  * // Library
  * select(['?item'])
  *   .where(triple('?item', 'rdf:type', 'ex:Product'))
  *   .filter(rand().lt(0.1))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?item
  * // WHERE { ?item rdf:type ex:Product }
  * // FILTER(RAND() < 0.1)
  * ```
- * 
+ *
  * @example Randomize order
  * ```ts
  * // Library
  * select(['?person', '?name'])
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .orderBy(rand().as('random'))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?person ?name
  * // WHERE { ?person foaf:name ?name }
@@ -2132,31 +2090,33 @@ export function rand(): FluentExpr {
 
 /**
  * Create a typed literal from a string.
- * 
+ *
  * @example strdt(strlit('custom value'), 'http://example.org/datatype')
  */
 export function strdt(lexical: SparqlValue, datatype: SparqlValue): SparqlValue {
   return raw(`STRDT(${lexical.value}, ${datatype.value})`)
 }
 
+/** Creates a SPARQL STRLANG expression from lexical text and a language tag. */
 export function strlang(lexical: SparqlValue, lang: string): SparqlValue {
   return raw(`STRLANG(${lexical.value}, ${exprTermString(lang)})`)
 }
 
+/** Creates a SPARQL sameTerm expression without JavaScript value coercion. */
 export function sameTerm(a: SparqlValue, b: SparqlValue): SparqlValue {
   return raw(`sameTerm(${a.value}, ${b.value})`)
 }
 
 /**
  * Encode a string for use in a URI.
- * 
+ *
  * Percent-encodes characters that have special meaning in URIs. This follows
  * the encoding rules of RFC 3986 for creating valid URI components.
- * 
+ *
  * @param value String to encode
- * 
+ *
  * @sparql `ENCODE_FOR_URI(value)`
- * 
+ *
  * @example Build query parameters
  * ```ts
  * // Library
@@ -2164,11 +2124,11 @@ export function sameTerm(a: SparqlValue, b: SparqlValue): SparqlValue {
  *   concat('http://example.org/search?q=', encodeForUri(v('searchTerm'))),
  *   'searchUrl'
  * )
- * 
+ *
  * // SPARQL ↓
  * // BIND(CONCAT("http://example.org/search?q=", ENCODE_FOR_URI(?searchTerm)) AS ?searchUrl)
  * ```
- * 
+ *
  * @example Create URIs from names
  * ```ts
  * // Library
@@ -2176,7 +2136,7 @@ export function sameTerm(a: SparqlValue, b: SparqlValue): SparqlValue {
  *   iri(concat('http://example.org/person/', encodeForUri(v('name')))),
  *   'personIri'
  * )
- * 
+ *
  * // SPARQL ↓
  * // BIND(IRI(CONCAT("http://example.org/person/", ENCODE_FOR_URI(?name))) AS ?personIri)
  * ```
@@ -2187,34 +2147,34 @@ export function encodeForUri(value: SparqlValue | ExpressionPrimitive): FluentEx
 
 /**
  * Check if a language tag matches a language range.
- * 
+ *
  * Tests whether a language tag (like "en-US") matches a language range
  * (like "en" or "*"). This implements RFC 4647 basic filtering.
- * 
+ *
  * @param lang Language tag to test
  * @param range Language range pattern
- * 
+ *
  * @sparql `langMatches(lang, range)`
- * 
+ *
  * @example Match English variants
  * ```ts
  * // Library
  * select(['?label'])
  *   .where(triple('?resource', 'rdfs:label', '?label'))
  *   .filter(langMatches(getlang(v('label')), 'en'))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?label
  * // WHERE { ?resource rdfs:label ?label }
  * // FILTER(langMatches(LANG(?label), "en"))
  * // Matches "en", "en-US", "en-GB", etc.
  * ```
- * 
+ *
  * @example Match any language
  * ```ts
  * // Library
  * filter(langMatches(getlang(v('label')), '*'))
- * 
+ *
  * // SPARQL ↓
  * // FILTER(langMatches(LANG(?label), "*"))
  * ```
@@ -2232,14 +2192,14 @@ export function langMatches(
 
 /**
  * Construct an IRI from a string.
- * 
+ *
  * Converts a string value to an IRI. This is useful for dynamically creating
  * IRIs from string components. The input must be a valid absolute IRI.
- * 
+ *
  * @param value String value to convert to IRI
- * 
+ *
  * @sparql `IRI(value)`
- * 
+ *
  * @example Dynamic IRI creation
  * ```ts
  * // Library
@@ -2247,11 +2207,11 @@ export function langMatches(
  *   iri(concat('http://example.org/id/', v('personId'))),
  *   'personIri'
  * )
- * 
+ *
  * // SPARQL ↓
  * // BIND(IRI(CONCAT("http://example.org/id/", ?personId)) AS ?personIri)
  * ```
- * 
+ *
  * @example Namespace-based IRIs
  * ```ts
  * // Library
@@ -2261,7 +2221,7 @@ export function langMatches(
  *     iri(concat('http://data.example.org/item/', encodeForUri(v('id')))),
  *     'newIri'
  *   )
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?newIri
  * // WHERE {
@@ -2280,18 +2240,18 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
 
 /**
  * Exclude solutions that match a pattern (MINUS).
- * 
+ *
  * MINUS removes solutions from the query results. It's different from NOT EXISTS:
  * - MINUS removes entire solutions if the pattern matches
  * - NOT EXISTS tests for pattern absence but keeps solutions
- * 
+ *
  * Use MINUS when you want to subtract one set of results from another. Use
  * NOT EXISTS when you want to filter based on absence of a pattern.
- * 
+ *
  * @param pattern Pattern to subtract from results
- * 
+ *
  * @sparql `MINUS { pattern }`
- * 
+ *
  * @example Exclude patterns
  * ```ts
  * // Library
@@ -2300,7 +2260,7 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  *   .where(minus(
  *     triple('?person', 'ex:blocked', true)
  *   ))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?person ?name
  * // WHERE {
@@ -2308,7 +2268,7 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  * //   MINUS { ?person ex:blocked true }
  * // }
  * ```
- * 
+ *
  * @example MINUS vs NOT EXISTS
  * ```ts
  * // Library - MINUS: Removes entire solution
@@ -2316,7 +2276,7 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .where(optional(triple('?person', 'foaf:age', '?age')))
  *   .where(minus(triple('?person', 'ex:status', 'inactive')))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?person ?name ?age
  * // WHERE {
@@ -2324,13 +2284,13 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  * //   OPTIONAL { ?person foaf:age ?age }
  * //   MINUS { ?person ex:status "inactive" }
  * // }
- * 
+ *
  * // Library - NOT EXISTS: Filters but keeps solution structure
  * select(['?person', '?name', '?age'])
  *   .where(triple('?person', 'foaf:name', '?name'))
  *   .where(optional(triple('?person', 'foaf:age', '?age')))
  *   .filter(notExists(triple('?person', 'ex:status', 'inactive')))
- * 
+ *
  * // SPARQL ↓
  * // SELECT ?person ?name ?age
  * // WHERE {
@@ -2340,6 +2300,6 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  * // }
  * ```
  */
-export function minus(pattern: SparqlValue): SparqlValue {
-  return raw(`MINUS { ${pattern.value} }`)
+export function minus(pattern: PatternValue): PatternValue {
+  return rawPattern(`MINUS { ${pattern.value} }`)
 }

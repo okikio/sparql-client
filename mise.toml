@@ -1,5 +1,25 @@
 [tools]
-deno = "latest"
-kubectl = "latest"
-talosctl = "latest"
-k9s = "latest"
+deno = "2"
+node = "26"
+pnpm = "11"
+
+[tasks.verify]
+depends = ["fmt", "lint", "check", "test"]
+
+[tasks.fmt]
+run = "deno fmt --check packages bench examples .mise/tasks docs README.md VALIDATION.md"
+
+[tasks.lint]
+run = "deno lint packages bench examples .mise/tasks"
+
+[tasks.check]
+run = "deno check packages/*/mod.ts packages/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts"
+
+[tasks.test]
+run = "deno test packages --allow-read --allow-write"
+
+[tasks.bench]
+run = "deno bench bench packages --allow-read --allow-write"
+
+[tasks.vocab-schema]
+run = "deno run --allow-net=raw.githubusercontent.com --allow-write .mise/tasks/schema.ts"
