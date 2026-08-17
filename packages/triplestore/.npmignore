@@ -1,0 +1,4 @@
+*_test.ts
+*_bench.ts
+_memory_test.ts
+*.map

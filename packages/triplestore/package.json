@@ -1,0 +1,22 @@
+{
+  "name": "@okikio/triplestore",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./mod.ts"
+  },
+  "description": "Crash-recoverable persistent RDF dataset storage.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okikio/sparql-client.git",
+    "directory": "packages/triplestore"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@okikio/rdf": "0.1.0"
+  }
+}
