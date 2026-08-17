@@ -1,0 +1,23 @@
+{
+  "name": "@okikio/oxigraph",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./mod.ts"
+  },
+  "description": "Oxigraph adapter for the @okikio/sparql query contract.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okikio/sparql-client.git",
+    "directory": "packages/oxigraph"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@okikio/rdf": "0.1.0",
+    "@okikio/sparql": "0.1.0"
+  }
+}
