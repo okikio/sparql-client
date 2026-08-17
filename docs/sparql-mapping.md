@@ -1,1059 +1,331 @@
-# SPARQL Mapping Guide
+# SPARQL construction and execution mapping
 
-This guide shows how every library feature maps to SPARQL 1.1, and vice versa. Use this to:
-- Understand what SPARQL is generated
-- Migrate from raw SPARQL to type-safe code
-- Migrate from library code back to SPARQL
-- Find areas where our DX exceeds the spec
+This guide maps the current `@okikio/sparql` API to SPARQL syntax and to the package graph around it. Query construction is independent from endpoint or engine execution.
 
-## Quick Reference: Library → SPARQL
+## Syntax roles
 
-```typescript
-// Library code
-select(['?name', '?age'])
-  .where(triple('?person', 'foaf:name', '?name'))
-  .where(triple('?person', 'foaf:age', '?age'))
-  .filter(v('age').gte(18))
+The package distinguishes the major grammar roles instead of treating every fragment as one branded string.
+
+| Type | Meaning | Typical producers |
+| --- | --- | --- |
+| `SparqlTerm` | one term or legal predicate-path syntax | `v()`, `iri()`, `tripleTerm()`, property-path helpers |
+| `SparqlExpr` | one expression | comparison/arithmetic/functions, `exists()` |
+| `PatternValue` | one graph-pattern fragment | `triple()`, `filter()`, `optional()`, `graph()`, `service()`, `values()` |
+| `SparqlQuery` | one complete query document | `QueryBuilder.build()` |
+| `SparqlUpdate` | one complete Update document | update builders |
+
+Complete query/update documents are intentionally not embeddable `SparqlValue` fragments. Use `subquery()` when a complete query must become a graph pattern.
+
+## RDF terms
+
+Native `@okikio/rdf` named nodes are accepted in IRI-bearing grammar positions.
+
+```ts
+import * as rdf from '@okikio/rdf'
+import * as sparql from '@okikio/sparql'
+import { Product, name } from '@okikio/vocab/schema'
+
+const query = sparql.select(['?product', '?name']).where(
+  sparql.triple('?product', rdf.namedNode(rdf.RDF.type), Product),
+  sparql.triple('?product', name, '?name'),
+)
+```
+
+`@okikio/sparql` does not depend on `@okikio/vocab`. Generated vocabulary terms compose because they are RDF named nodes.
+
+That composition applies across the IRI/predicate surface, not only simple triples:
+
+```ts
+import { name, offers, price } from '@okikio/vocab/schema'
+
+sparql.zeroOrMore(name)
+sparql.sequence(offers, price)
+sparql.typed('42', rdf.namedNode(rdf.XSD.integer))
+sparql.update().clear(rdf.namedNode('urn:graph:old'))
+```
+
+Strict graph positions validate `SparqlTerm` syntax and reject variables or literals. `GRAPH` and `SERVICE` keep their separate `VarOrIriRef` behavior because variables are legal there.
+
+## SELECT
+
+```ts
+sparql.select(['?name', '?age'])
+  .where(sparql.triple('?person', 'foaf:name', '?name'))
+  .where(sparql.triple('?person', 'foaf:age', '?age'))
+  .filter(sparql.v('age').gte(18))
   .orderBy('?age', 'DESC')
   .limit(10)
+```
 
-// Generates ↓
+```sparql
 SELECT ?name ?age
 WHERE {
   ?person foaf:name ?name .
   ?person foaf:age ?age .
   FILTER(?age >= 18)
 }
-ORDER BY ?age DESC
+ORDER BY DESC(?age)
 LIMIT 10
 ```
 
----
+## ASK
 
-## Table of Contents
-
-1. [Query Forms](#query-forms)
-2. [Pattern Matching](#pattern-matching)
-3. [Filters & Expressions](#filters--expressions)
-4. [Aggregations](#aggregations)
-5. [Property Paths](#property-paths)
-6. [Update Operations](#update-operations)
-7. [Graph Management](#graph-management)
-8. [Functions (Complete Reference)](#functions-complete-reference)
-9. [DX Enhancements](#dx-enhancements-beyond-sparql)
-
----
-
-## Query Forms
-
-### SELECT
-
-```typescript
-// Library
-select(['?name', '?email'])
-
-// SPARQL ↓
-SELECT ?name ?email
-
-// Library (all variables)
-select('*')
-
-// SPARQL ↓
-SELECT *
-
-// Library (with expressions)
-select([v('name'), v('age').add(1).as('nextAge')])
-
-// SPARQL ↓
-SELECT ?name (?age + 1 AS ?nextAge)
+```ts
+sparql.ask()
+  .where(sparql.triple('?person', 'foaf:name', 'Alice'))
 ```
 
-### ASK
-
-```typescript
-// Library
-ask()
-  .where(triple('?person', 'foaf:name', 'Alice'))
-
-// SPARQL ↓
+```sparql
 ASK
 WHERE {
   ?person foaf:name "Alice" .
 }
 ```
 
-### CONSTRUCT
+## CONSTRUCT
 
-```typescript
-// Library
-construct(triple('?person', 'ex:status', 'active'))
-  .where(triple('?person', 'foaf:age', '?age'))
-  .filter(v('age').gte(18))
+Template and WHERE pattern are separate inputs:
 
-// SPARQL ↓
+```ts
+sparql.construct(
+  sparql.triple('?copy', 'schema:name', '?name'),
+).where(
+  sparql.triple('?source', 'schema:name', '?name'),
+)
+```
+
+```sparql
 CONSTRUCT {
-  ?person ex:status "active" .
+  ?copy schema:name ?name .
 }
 WHERE {
-  ?person foaf:age ?age .
-  FILTER(?age >= 18)
+  ?source schema:name ?name .
 }
 ```
 
-### DESCRIBE
+The shorthand `CONSTRUCT WHERE { ... }` is available when no separate template is supplied.
 
-```typescript
-// Library
-describe(['<http://example.org/person/1>'])
+Use `queryQuads()` for CONSTRUCT results.
 
-// SPARQL ↓
-DESCRIBE <http://example.org/person/1>
+## DESCRIBE
+
+```ts
+sparql.describe([
+  rdf.namedNode('https://example.com/person/1'),
+  '?other',
+])
 ```
 
----
+Use `queryQuads()` for the result.
 
-## Pattern Matching
+## Triple patterns
 
-### Basic Triples
+```ts
+sparql.triple('?person', 'foaf:name', '?name')
+```
 
-```typescript
-// Library
-triple('?person', 'foaf:name', '?name')
-
-// SPARQL ↓
+```sparql
 ?person foaf:name ?name .
 ```
 
-### Multiple Properties (Semicolon Syntax)
+Variables are legal in predicate position:
 
-```typescript
-// Library
-triples('?person', [
-  ['foaf:name', 'Peter Parker'],
-  ['foaf:age', 18],
-  ['foaf:nick', 'Spidey']
+```ts
+sparql.triple('?s', '?p', '?o')
+```
+
+```sparql
+?s ?p ?o .
+```
+
+The builder must preserve `?p` as a variable. It must not normalize it to a prefixed name such as `:?p`.
+
+## Grouped triples
+
+```ts
+sparql.triples('?person', [
+  ['foaf:name', '?name'],
+  ['foaf:age', '?age'],
 ])
-
-// SPARQL ↓
-?person
-  foaf:name "Peter Parker" ;
-  foaf:age 18 ;
-  foaf:nick "Spidey" .
 ```
 
-### Object Format (Nested)
+The grouped helper emits semicolon syntax and rejects an empty predicate-object list.
 
-```typescript
-// Library
-triples('?person', {
-  'foaf:name': 'Peter Parker',
-  'foaf:age': 18,
-  'foaf:nick': ['Spidey', 'Spider-Man']  // Array → multiple triples
-})
+## Filters and expressions
 
-// SPARQL ↓
-?person
-  foaf:name "Peter Parker" ;
-  foaf:age 18 ;
-  foaf:nick "Spidey" ;
-  foaf:nick "Spider-Man" .
+```ts
+sparql.v('age').gte(18)
+sparql.v('price').mul(0.9).round()
+sparql.regex(sparql.v('name'), '^A', 'i')
+sparql.coalesce(sparql.v('nickname'), sparql.v('name'))
 ```
 
-### Nested Node Patterns
+`FILTER` is a graph-pattern construct but its argument is an expression:
 
-```typescript
-// Library
-node('product', 'schema:Product', {
-  'schema:name': v('title'),
-  'schema:publisher': node('pub', 'schema:Organization', {
-    'schema:name': v('pubName')
-  })
-})
-
-// SPARQL ↓
-?product a schema:Product .
-?product schema:name ?title .
-?product schema:publisher ?pub .
-?pub a schema:Organization .
-?pub schema:name ?pubName .
+```ts
+sparql.filter(sparql.v('age').gte(18))
 ```
 
-### ASCII Art (Cypher-style)
+This distinction is reflected in the TypeScript brands.
 
-```typescript
-// Library
-cypher`${product}-[schema:publisher]->${publisher}`
+## OPTIONAL, MINUS, GRAPH, and SERVICE
 
-// SPARQL ↓
-?product a schema:Product .
-?product schema:name ?title .
-?publisher a schema:Organization .
-?publisher schema:name ?pubName .
-?product schema:publisher ?publisher .
-```
-
-### OPTIONAL
-
-```typescript
-// Library
-.optional(triple('?person', 'foaf:email', '?email'))
-
-// SPARQL ↓
-OPTIONAL { ?person foaf:email ?email }
-```
-
-### UNION
-
-```typescript
-// Library
-.union(
-  triple('?person', 'foaf:name', '?name'),
-  triple('?person', 'schema:name', '?name')
+```ts
+sparql.optional(
+  sparql.triple('?person', 'schema:nickname', '?nickname'),
 )
 
-// SPARQL ↓
-{
-  ?person foaf:name ?name .
-}
-UNION
-{
-  ?person schema:name ?name .
-}
-```
-
-### MINUS
-
-```typescript
-// Library
-.where(minus(triple('?person', 'ex:deleted', true)))
-
-// SPARQL ↓
-MINUS { ?person ex:deleted true }
-```
-
-### GRAPH
-
-```typescript
-// Library
-.where(graph('?g', triple('?s', '?p', '?o')))
-
-// SPARQL ↓
-GRAPH ?g { ?s ?p ?o }
-
-// Library (specific graph)
-.where(graph('http://example.org/graph1', triple('?s', '?p', '?o')))
-
-// SPARQL ↓
-GRAPH <http://example.org/graph1> { ?s ?p ?o }
-```
-
-### VALUES
-
-```typescript
-// Library
-.values('city', ['London', 'Paris', 'Tokyo'])
-
-// SPARQL ↓
-VALUES ?city { "London" "Paris" "Tokyo" }
-```
-
-### Subquery
-
-```typescript
-// Library
-const inner = select([v('product'), count().as('sales')])
-  .where(triple('?order', 'schema:product', '?product'))
-  .groupBy('?product')
-
-select(['?product', '?sales'])
-  .where(subquery(inner))
-
-// SPARQL ↓
-SELECT ?product ?sales
-WHERE {
-  {
-    SELECT ?product (COUNT(*) AS ?sales)
-    WHERE {
-      ?order schema:product ?product .
-    }
-    GROUP BY ?product
-  }
-}
-```
-
----
-
-## Filters & Expressions
-
-### Comparison Operators
-
-```typescript
-// Library → SPARQL
-v('age').eq(18)          → ?age = 18
-v('age').neq(18)         → ?age != 18
-v('age').lt(18)          → ?age < 18
-v('age').lte(18)         → ?age <= 18
-v('age').gt(18)          → ?age > 18
-v('age').gte(18)         → ?age >= 18
-```
-
-### Logical Operators
-
-```typescript
-// Library
-and(v('age').gte(18), v('age').lt(65))
-
-// SPARQL ↓
-?age >= 18 && ?age < 65
-
-// Library (fluent style)
-v('age').gte(18).and(v('age').lt(65))
-
-// SPARQL ↓ (same)
-?age >= 18 && ?age < 65
-```
-
-### Arithmetic
-
-```typescript
-// Library → SPARQL
-v('price').add(10)       → ?price + 10
-v('price').sub(5)        → ?price - 5
-v('price').mul(1.2)      → ?price * 1.2
-v('price').div(2)        → ?price / 2
-v('price').mod(3)        → (?price % 3)
-```
-
-### Math Functions
-
-```typescript
-// Library → SPARQL
-abs(v('value'))          → ABS(?value)
-round(v('value'))        → ROUND(?value)
-ceil(v('value'))         → CEIL(?value)
-floor(v('value'))        → FLOOR(?value)
-```
-
-### String Functions
-
-```typescript
-// Library → SPARQL
-concat('Hello', ' ', 'World')              → CONCAT("Hello", " ", "World")
-str(v('value'))                            → STR(?value)
-strlen(v('text'))                          → STRLEN(?text)
-ucase(v('text'))                           → UCASE(?text)
-lcase(v('text'))                           → LCASE(?text)
-substr(v('text'), 1, 10)                   → SUBSTR(?text, 1, 10)
-startsWith(v('text'), 'Hello')             → STRSTARTS(?text, "Hello")
-endsWith(v('text'), 'World')               → STRENDS(?text, "World")
-contains(v('text'), 'foo')                 → CONTAINS(?text, "foo")
-regex(v('name'), '^Spider', 'i')           → REGEX(?name, "^Spider", "i")
-replaceStr(v('text'), 'old', 'new')        → REPLACE(?text, "old", "new")
-encodeForUri(v('text'))                    → ENCODE_FOR_URI(?text)
-```
-
-### Hash Functions (NEW)
-
-```typescript
-// Library → SPARQL
-md5(v('email'))          → MD5(?email)
-sha1(v('text'))          → SHA1(?text)
-sha256(v('password'))    → SHA256(?password)
-sha384(v('data'))        → SHA384(?data)
-sha512(v('data'))        → SHA512(?data)
-```
-
-### Random & Unique Functions (NEW)
-
-```typescript
-// Library → SPARQL
-now()                    → NOW()
-uuid()                   → UUID()
-struuid()                → STRUUID()
-rand()                   → RAND()
-```
-
-### Type Checking
-
-```typescript
-// Library → SPARQL
-isIri(v('term'))         → isIRI(?term)
-isBlank(v('term'))       → isBlank(?term)
-isLiteral(v('term'))     → isLiteral(?term)
-bound(v('var'))          → BOUND(?var)
-getlang(v('literal'))    → LANG(?literal)
-datatype(v('literal'))   → DATATYPE(?literal)
-langMatches(getlang(v('label')), 'en')  → langMatches(LANG(?label), "en")
-```
-
-### Conditionals
-
-```typescript
-// Library
-ifElse(v('stock').gt(0), v('price').mul(0.9), v('price').add(10))
-
-// SPARQL ↓
-IF(?stock > 0, ?price * 0.9, ?price + 10)
-
-// Library
-coalesce(v('nickname'), v('name'))
-
-// SPARQL ↓
-COALESCE(?nickname, ?name)
-```
-
-### EXISTS / NOT EXISTS
-
-```typescript
-// Library
-exists(triple('?person', 'foaf:email', '?email'))
-
-// SPARQL ↓
-EXISTS { ?person foaf:email ?email }
-
-// Library
-notExists(triple('?person', 'foaf:email', '?email'))
-
-// SPARQL ↓
-NOT EXISTS { ?person foaf:email ?email }
-```
-
-### BIND
-
-```typescript
-// Library
-.bind(concat(v('first'), ' ', v('last')), 'fullName')
-
-// SPARQL ↓
-BIND(CONCAT(?first, " ", ?last) AS ?fullName)
-```
-
----
-
-## Aggregations
-
-```typescript
-// Library → SPARQL
-count()                              → COUNT(*)
-count(v('email'))                    → COUNT(?email)
-countDistinct(v('publisher'))        → COUNT(DISTINCT ?publisher)
-sum(v('price'))                      → SUM(?price)
-avg(v('age'))                        → AVG(?age)
-min(v('price'))                      → MIN(?price)
-max(v('price'))                      → MAX(?price)
-sample(v('value'))                   → SAMPLE(?value)
-groupConcat(v('author'), ', ')       → GROUP_CONCAT(?author; separator=", ")
-```
-
-### Full Aggregation Example
-
-```typescript
-// Library
-select([
-  v('city'),
-  count().as('total'),
-  avg(v('age')).as('avgAge')
-])
-  .where(triple('?person', 'schema:city', '?city'))
-  .where(triple('?person', 'foaf:age', '?age'))
-  .groupBy('?city')
-  .having(count().gte(10))
-  .orderBy('?total', 'DESC')
-
-// SPARQL ↓
-SELECT ?city (COUNT(*) AS ?total) (AVG(?age) AS ?avgAge)
-WHERE {
-  ?person schema:city ?city .
-  ?person foaf:age ?age .
-}
-GROUP BY ?city
-HAVING(COUNT(*) >= 10)
-ORDER BY ?total DESC
-```
-
----
-
-## Property Paths
-
-```typescript
-// Library → SPARQL
-zeroOrMore('foaf:knows')                           → foaf:knows*
-oneOrMore('org:manages')                           → org:manages+
-zeroOrOne('schema:spouse')                         → schema:spouse?
-sequence('schema:address', 'schema:city')          → schema:address/schema:city
-alternative('foaf:name', 'schema:name')            → (foaf:name|schema:name)
-inverse('org:manages')                             → ^org:manages
-negatedPropertySet('rdf:type')                     → !(rdf:type)
-negatedPropertySet('rdf:type', 'rdfs:label')       → !(rdf:type|rdfs:label)
-```
-
-### Full Property Path Example
-
-```typescript
-// Library
-triple('?person', zeroOrMore('foaf:knows'), '?contact')
-
-// SPARQL ↓
-?person foaf:knows* ?contact .
-
-// Library (complex path)
-triple(
-  '?employee',
-  sequence(oneOrMore('org:reportsTo'), alternative('org:manages', 'org:supervises')),
-  '?boss'
+sparql.minus(
+  sparql.triple('?person', 'schema:disambiguatingDescription', '?blocked'),
 )
 
-// SPARQL ↓
-?employee org:reportsTo+/(org:manages|org:supervises) ?boss .
+sparql.graph(
+  rdf.namedNode('urn:graph:people'),
+  sparql.triple('?s', '?p', '?o'),
+)
+
+sparql.service(
+  rdf.namedNode('https://example.com/sparql'),
+  sparql.triple('?person', 'dbo:birthPlace', '?birthPlace'),
+)
 ```
 
----
+Graph/service IRIs preserve native RDF named nodes.
 
-## Update Operations
+## UNION
 
-### INSERT DATA
-
-```typescript
-// Library
-insert(triples('ex:person1', [
-  ['rdf:type', 'foaf:Person'],
-  ['foaf:name', 'Alice'],
-  ['foaf:age', 30]
-])).execute(config)
-
-// SPARQL ↓
-INSERT DATA {
-  ex:person1
-    rdf:type foaf:Person ;
-    foaf:name "Alice" ;
-    foaf:age 30 .
-}
+```ts
+sparql.select('*').union(
+  sparql.triple('?s', 'schema:name', '?name'),
+  sparql.triple('?s', 'schema:sku', '?sku'),
+)
 ```
 
-### DELETE DATA
+The alternatives are serialized as disjunctions, not as one conjunction.
 
-```typescript
-// Library
-deleteOp(triple('ex:person1', 'foaf:age', 30))
-  .execute(config)
+## Property paths
 
-// SPARQL ↓
-DELETE DATA {
-  ex:person1 foaf:age 30 .
-}
+```ts
+sparql.zeroOrMore('foaf:knows')
+sparql.sequence('schema:address', 'schema:addressLocality')
+sparql.alternative('foaf:name', 'schema:name')
 ```
 
-### DELETE WHERE
+Property paths return `SparqlTerm` because that syntax is legal in the predicate position of a triple path.
 
-```typescript
-// Library
-update()
-  .deleteWhere(triple('?person', 'foaf:age', '?age'))
-  .execute(config)
+## SPARQL 1.2 triple terms
 
-// SPARQL ↓
-DELETE WHERE {
-  ?person foaf:age ?age .
-}
+```ts
+sparql.tripleTerm('?s', 'schema:name', '?name')
 ```
 
-### DELETE/INSERT (Conditional)
+```sparql
+<<( ?s schema:name ?name )>>
+```
 
-```typescript
-// Library
-modify()
-  .delete(triple('?person', 'foaf:age', '?oldAge'))
-  .insert(triple('?person', 'foaf:age', v('oldAge').add(1)))
-  .where(triple('?person', 'foaf:age', '?oldAge'))
-  .where(filter(v('oldAge').gte(0)))
+The older public `quotedTriple()` / SPARQL-star terminology is intentionally removed.
+
+## VALUES and `UNDEF`
+
+`UNDEF` is the SPARQL data-block token, not a variable named `UNDEF`:
+
+```ts
+sparql.values(['?name'], [
+  ['Alice'],
+  [sparql.undef()],
+])
+```
+
+Do not use `?UNDEF` as a stand-in.
+
+## Subqueries
+
+A complete query is not automatically a graph pattern. Convert it explicitly:
+
+```ts
+const inner = sparql.select(['?person'])
+  .where(sparql.triple('?person', 'a', 'schema:Person'))
+
+const outer = sparql.select('*')
+  .where(sparql.subquery(inner))
+```
+
+This keeps the public types aligned with the grammar instead of allowing arbitrary complete documents in WHERE.
+
+## Updates
+
+A modify operation keeps DELETE, INSERT, and WHERE patterns separate:
+
+```ts
+const update = sparql.modify()
+  .delete(sparql.triple('?person', 'foaf:age', '?oldAge'))
+  .insert(sparql.triple('?person', 'foaf:age', sparql.v('oldAge').add(1)))
+  .where(sparql.triple('?person', 'foaf:age', '?oldAge'))
   .done()
-  .execute(config)
-
-// SPARQL ↓
-DELETE {
-  ?person foaf:age ?oldAge .
-}
-INSERT {
-  ?person foaf:age (?oldAge + 1) .
-}
-WHERE {
-  ?person foaf:age ?oldAge .
-  FILTER(?oldAge >= 0)
-}
 ```
 
----
+`INSERT DATA` and `DELETE DATA` graph positions require graph IRIs, not variables.
 
-## Graph Management
+`COPY`, `MOVE`, and `ADD` use the SPARQL `GraphOrDefault` grammar. `CLEAR` and `DROP` preserve `DEFAULT`, `NAMED`, and `ALL` rather than forcing a `GRAPH` token onto every form.
 
-### LOAD
+## Queryable execution contract
 
-```typescript
-// Library → SPARQL
-.load('http://example.org/data.ttl')
-→ LOAD <http://example.org/data.ttl>
+Construction and execution meet at the engine-neutral `Queryable` interface:
 
-.load('http://example.org/data.ttl', 'http://example.org/graph1')
-→ LOAD <http://example.org/data.ttl> INTO GRAPH <http://example.org/graph1>
-
-.load('http://example.org/data.ttl', undefined, true)
-→ LOAD SILENT <http://example.org/data.ttl>
-```
-
-### CLEAR
-
-```typescript
-// Library → SPARQL
-.clear('http://example.org/graph1')
-→ CLEAR GRAPH <http://example.org/graph1>
-
-.clear('DEFAULT')
-→ CLEAR DEFAULT
-
-.clear('http://example.org/graph1', true)
-→ CLEAR SILENT GRAPH <http://example.org/graph1>
-```
-
-### DROP
-
-```typescript
-// Library → SPARQL
-.drop('http://example.org/graph1')
-→ DROP GRAPH <http://example.org/graph1>
-
-.drop('DEFAULT')
-→ DROP DEFAULT
-
-.drop('http://example.org/graph1', true)
-→ DROP SILENT GRAPH <http://example.org/graph1>
-```
-
-### CREATE
-
-```typescript
-// Library → SPARQL
-.create('http://example.org/graph1')
-→ CREATE GRAPH <http://example.org/graph1>
-
-.create('http://example.org/graph1', true)
-→ CREATE SILENT GRAPH <http://example.org/graph1>
-```
-
-### COPY (NEW)
-
-```typescript
-// Library → SPARQL
-.copy('http://example.org/source', 'http://example.org/dest')
-→ COPY <http://example.org/source> TO <http://example.org/dest>
-
-.copy('DEFAULT', 'http://example.org/snapshot')
-→ COPY DEFAULT TO <http://example.org/snapshot>
-
-.copy('http://example.org/source', 'http://example.org/dest', true)
-→ COPY SILENT <http://example.org/source> TO <http://example.org/dest>
-```
-
-### MOVE (NEW)
-
-```typescript
-// Library → SPARQL
-.move('http://example.org/temp', 'http://example.org/final')
-→ MOVE <http://example.org/temp> TO <http://example.org/final>
-
-.move('http://example.org/staging', 'DEFAULT')
-→ MOVE <http://example.org/staging> TO DEFAULT
-```
-
-### ADD (NEW)
-
-```typescript
-// Library → SPARQL
-.add('http://example.org/updates', 'http://example.org/main')
-→ ADD <http://example.org/updates> TO <http://example.org/main>
-
-.add('http://example.org/graph1', 'DEFAULT')
-→ ADD <http://example.org/graph1> TO DEFAULT
-```
-
----
-
-## Functions Complete Reference
-
-### All 85+ Functions Mapped
-
-| Category | Library Function | SPARQL |
-|----------|-----------------|--------|
-| **Comparison** | `eq(a, b)` | `a = b` |
-| | `neq(a, b)` | `a != b` |
-| | `lt(a, b)` | `a < b` |
-| | `lte(a, b)` | `a <= b` |
-| | `gt(a, b)` | `a > b` |
-| | `gte(a, b)` | `a >= b` |
-| **Arithmetic** | `add(a, b)` | `a + b` |
-| | `sub(a, b)` | `a - b` |
-| | `mul(a, b)` | `a * b` |
-| | `div(a, b)` | `a / b` |
-| | `mod(a, b)` | `(a % b)` |
-| **Math** | `abs(x)` | `ABS(x)` |
-| | `round(x)` | `ROUND(x)` |
-| | `ceil(x)` | `CEIL(x)` |
-| | `floor(x)` | `FLOOR(x)` |
-| **String** | `concat(...args)` | `CONCAT(...)` |
-| | `str(x)` | `STR(x)` |
-| | `strlen(x)` | `STRLEN(x)` |
-| | `ucase(x)` | `UCASE(x)` |
-| | `lcase(x)` | `LCASE(x)` |
-| | `substr(s, start, len?)` | `SUBSTR(s, start, len)` |
-| | `startsWith(s, prefix)` | `STRSTARTS(s, prefix)` |
-| | `endsWith(s, suffix)` | `STRENDS(s, suffix)` |
-| | `contains(s, substr)` | `CONTAINS(s, substr)` |
-| | `regex(s, pattern, flags?)` | `REGEX(s, pattern, flags)` |
-| | `replaceStr(s, old, new)` | `REPLACE(s, old, new)` |
-| | `encodeForUri(s)` | `ENCODE_FOR_URI(s)` |
-| **Hash** | `md5(x)` | `MD5(x)` |
-| | `sha1(x)` | `SHA1(x)` |
-| | `sha256(x)` | `SHA256(x)` |
-| | `sha384(x)` | `SHA384(x)` |
-| | `sha512(x)` | `SHA512(x)` |
-| **Random/Unique** | `now()` | `NOW()` |
-| | `uuid()` | `UUID()` |
-| | `struuid()` | `STRUUID()` |
-| | `rand()` | `RAND()` |
-| **Type Check** | `isIri(x)` | `isIRI(x)` |
-| | `isBlank(x)` | `isBlank(x)` |
-| | `isLiteral(x)` | `isLiteral(x)` |
-| | `bound(x)` | `BOUND(x)` |
-| | `isNull(x)` | `!BOUND(x)` |
-| | `isNotNull(x)` | `BOUND(x)` |
-| | `getlang(x)` | `LANG(x)` |
-| | `datatype(x)` | `DATATYPE(x)` |
-| | `langMatches(lang, range)` | `langMatches(lang, range)` |
-| **Logical** | `and(...conds)` | `cond1 && cond2 && ...` |
-| | `or(...conds)` | `cond1 \|\| cond2 \|\| ...` |
-| | `not(cond)` | `!(cond)` |
-| | `exists(pattern)` | `EXISTS { pattern }` |
-| | `notExists(pattern)` | `NOT EXISTS { pattern }` |
-| **Conditional** | `ifElse(cond, then, else)` | `IF(cond, then, else)` |
-| | `coalesce(...vals)` | `COALESCE(...)` |
-| **IRI** | `iri(str)` | `IRI(str)` |
-| | `uri(iri)` | `<iri>` |
-| **Blank Nodes** | `bnode()` | `BNODE()` |
-| | `bnode(id)` | `_:id` |
-| **Special** | `undef()` | `?UNDEF` |
-| **Aggregates** | `count()` | `COUNT(*)` |
-| | `count(x)` | `COUNT(x)` |
-| | `countDistinct(x)` | `COUNT(DISTINCT x)` |
-| | `sum(x)` | `SUM(x)` |
-| | `avg(x)` | `AVG(x)` |
-| | `min(x)` | `MIN(x)` |
-| | `max(x)` | `MAX(x)` |
-| | `sample(x)` | `SAMPLE(x)` |
-| | `groupConcat(x, sep)` | `GROUP_CONCAT(x; separator=sep)` |
-
----
-
-## DX Enhancements Beyond SPARQL
-
-### 1. Fluent Chaining
-
-**Raw SPARQL:**
-```sparql
-FILTER(?age >= 18 && ?age < 65 && ?status = "active")
-```
-
-**Library (functional style):**
-```typescript
-filter(and(
-  gte(v('age'), 18),
-  lt(v('age'), 65),
-  eq(v('status'), 'active')
-))
-```
-
-**Library (fluent style - DX enhancement):**
-```typescript
-filter(
-  v('age').gte(18).and(v('age').lt(65)).and(v('status').eq('active'))
-)
-```
-
-### 2. Chainable Arithmetic
-
-**Raw SPARQL:**
-```sparql
-BIND(((?price * 1.2) + 5) AS ?total)
-```
-
-**Library (fluent - reads left to right):**
-```typescript
-bind(v('price').mul(1.2).add(5), 'total')
-```
-
-### 3. Pattern Composition
-
-**Raw SPARQL (repetitive):**
-```sparql
-?product a schema:Product .
-?product schema:name ?title .
-?product schema:publisher ?publisher .
-?publisher a schema:Organization .
-?publisher schema:name ?pubName .
-?publisher schema:location ?location .
-?location a schema:Place .
-?location schema:city ?city .
-```
-
-**Library (DRY nested structure):**
-```typescript
-node('product', 'schema:Product', {
-  'schema:name': v('title'),
-  'schema:publisher': node('publisher', 'schema:Organization', {
-    'schema:name': v('pubName'),
-    'schema:location': node('location', 'schema:Place', {
-      'schema:city': v('city')
-    })
-  })
-})
-```
-
-### 4. Multiple Pattern Styles
-
-**SPARQL (one way):**
-```sparql
-?product a schema:Product .
-?product schema:name ?title .
-?product schema:publisher ?publisher .
-```
-
-**Library (pick your style):**
-```typescript
-// Traditional triples
-triple('?product', 'rdf:type', 'schema:Product')
-triple('?product', 'schema:name', '?title')
-triple('?product', 'schema:publisher', '?publisher')
-
-// Semicolon syntax
-triples('?product', [
-  ['rdf:type', 'schema:Product'],
-  ['schema:name', v('title')],
-  ['schema:publisher', v('publisher')]
-])
-
-// Object syntax
-triples('?product', {
-  'rdf:type': 'schema:Product',
-  'schema:name': v('title'),
-  'schema:publisher': v('publisher')
-})
-
-// Nested nodes
-node('product', 'schema:Product', {
-  'schema:name': v('title'),
-  'schema:publisher': v('publisher')
-})
-
-// ASCII art (Cypher-inspired)
-cypher`${product}-[schema:publisher]->${publisher}`
-```
-
-### 5. Type Safety
-
-**SPARQL (no type checking):**
-```sparql
-FILTER(?age >= "eighteen")  -- Runtime error!
-```
-
-**Library (caught at compile time):**
-```typescript
-v('age').gte('eighteen')  // TypeScript error: Type 'string' is not assignable
-v('age').gte(18)          // ✓ Correct
-```
-
-### 6. Automatic Escaping
-
-**Raw SPARQL (manual escaping):**
-```sparql
-FILTER(?name = "O'Brien")  -- Breaks!
-FILTER(?name = "O\\'Brien")  -- Must escape manually
-```
-
-**Library (automatic):**
-```typescript
-filter(v('name').eq("O'Brien"))  // Escapes automatically
-```
-
-### 7. Query Composition
-
-**SPARQL (copy-paste to reuse):**
-```sparql
--- Can't easily compose queries
-```
-
-**Library (composable builders):**
-```typescript
-// Define base query
-const baseQuery = select(['?name', '?age'])
-  .where(triple('?person', 'foaf:name', '?name'))
-  .where(triple('?person', 'foaf:age', '?age'))
-
-// Branch for different use cases
-const adults = baseQuery.filter(v('age').gte(18))
-const children = baseQuery.filter(v('age').lt(18))
-const seniors = baseQuery.filter(v('age').gte(65))
-```
-
-### 8. Fluent Aggregations
-
-**SPARQL:**
-```sparql
-SELECT ?city (COUNT(*) AS ?total) (AVG(?age) AS ?avgAge)
-WHERE { ... }
-GROUP BY ?city
-HAVING(COUNT(*) >= 10)
-```
-
-**Library:**
-```typescript
-select([
-  v('city'),
-  count().as('total'),           // Aggregation with .as()
-  avg(v('age')).as('avgAge')
-])
-  .where(...)
-  .groupBy('?city')
-  .having(count().gte(10))        // Fluent comparison on aggregate
-```
-
-### 9. Reusable Patterns
-
-**SPARQL (copy-paste):**
-```sparql
--- Person pattern used in multiple places - must copy
-```
-
-**Library (DRY):**
-```typescript
-// Define once
-const personWithEmail = node('person', 'foaf:Person', {
-  'foaf:name': v('name'),
-  'foaf:mbox': v('email')
-})
-
-// Reuse everywhere
-query1.where(personWithEmail)
-query2.where(personWithEmail)
-query3.where(personWithEmail)
-```
-
-### 10. Intuitive Variable Handling
-
-**SPARQL (must remember ? prefix):**
-```sparql
-SELECT ?name ?age WHERE {
-  ?person foaf:name ?name .
-  ?person foaf:age ?age .
-  FILTER(?age >= 18)  -- Easy to forget ?
+```ts
+interface Queryable {
+  queryBindings(query, options?): Promise<AsyncIterable<BindingType>>
+  queryQuads(query, options?): Promise<AsyncIterable<rdf.Quad>>
+  queryBoolean(query, options?): Promise<boolean>
+  update(update, options?): Promise<void>
 }
 ```
 
-**Library (handles it):**
-```typescript
-select(['?name', '?age'])  // Accept with or without ?
-  .where(triple('?person', 'foaf:name', '?name'))
-  .filter(v('age').gte(18))  // v() function normalizes
+Use the result mode that matches the operation:
+
+```ts
+client.queryBindings(selectQuery)
+client.queryQuads(constructOrDescribeQuery)
+client.queryBoolean(askQuery)
+client.update(updateDocument)
 ```
 
----
+The public update method is `update()`.
 
-## Migration Examples
+`@okikio/comunica` internally adapts that method to Comunica's upstream `queryVoid()` API. The upstream name does not leak into the generic contract.
 
-### From Raw SPARQL to Library
+## HTTP client
 
-```sparql
--- Original SPARQL
-PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-PREFIX schema: <http://schema.org/>
+```ts
+import { createClient } from '@okikio/sparql/http'
 
-SELECT ?name ((?price * 1.2) + 5 AS ?total)
-WHERE {
-  ?person foaf:name ?name .
-  ?person schema:price ?price .
-  OPTIONAL { ?person foaf:email ?email }
-  FILTER(?price > 10 && ?price < 100)
-}
-ORDER BY DESC(?total)
-LIMIT 10
+const client = createClient({ endpoint: 'https://example.com/sparql' })
+const rows = await client.queryBindings(query)
 ```
 
-```typescript
-// Migrated to Library
-select([v('name'), v('price').mul(1.2).add(5).as('total')])
-  .where(triple('?person', 'foaf:name', '?name'))
-  .where(triple('?person', 'schema:price', '?price'))
-  .optional(triple('?person', 'foaf:email', '?email'))
-  .filter(v('price').gt(10).and(v('price').lt(100)))
-  .orderBy('?total', 'DESC')
-  .limit(10)
+The HTTP client owns endpoint transport, accepted media types, bounded response handling, protocol/result decoding, and request cancellation. Builders do not retain endpoint state.
+
+## Oxigraph and Comunica
+
+```ts
+import { createClient as createOxigraphClient } from '@okikio/oxigraph'
+import { createClient as createComunicaClient } from '@okikio/comunica'
 ```
 
-### From Library to Raw SPARQL
+Both adapters implement the same `Queryable` contract.
 
-```typescript
-// Library code
-const query = select(['?product', '?finalPrice'])
-  .where(
-    node('product', 'schema:Product', {
-      'schema:name': v('name'),
-      'schema:price': v('basePrice'),
-      'schema:inStock': v('inStock')
-    })
-  )
-  .bind(
-    ifElse(
-      v('inStock').eq(true),
-      v('basePrice').mul(0.9),
-      v('basePrice').add(10)
-    ).as('finalPrice')
-  )
-  .filter(v('finalPrice').gte(10))
+The caller creates and owns the engine. `@okikio/sparql` itself has no dependency on either engine package.
 
-// Get SPARQL string
-console.log(query.build().value)
-```
+## Syntax inspection
 
-```sparql
--- Generated SPARQL
-SELECT ?product ?finalPrice
-WHERE {
-  ?product a schema:Product .
-  ?product schema:name ?name .
-  ?product schema:price ?basePrice .
-  ?product schema:inStock ?inStock .
-  BIND(IF(?inStock = true, ?basePrice * 0.9, ?basePrice + 10) AS ?finalPrice)
-  FILTER(?finalPrice >= 10)
+`@okikio/sparql/syntax` provides source-ranged tokens, version events, feature events, and diagnostics without claiming a complete frozen SPARQL 1.2 AST:
+
+```ts
+import * as syntax from '@okikio/sparql/syntax'
+
+for await (const event of syntax.events(source)) {
+  console.log(event)
 }
 ```
 
----
-
-## Summary
-
-### Complete Coverage
-- ✅ **100%** of SPARQL 1.1 query language features
-- ✅ **100%** of SPARQL 1.1 update operations
-- ✅ **85+** built-in functions (all from spec)
-- ✅ **RDF-star** (quoted triples) support
-
-### DX Enhancements
-1. **Fluent chaining** - Methods return chainable values
-2. **Multiple pattern styles** - Triples, nested, ASCII art
-3. **Type safety** - TypeScript catches errors at compile time
-4. **Automatic escaping** - No injection vulnerabilities
-5. **Query composition** - Reusable, composable builders
-6. **Intuitive API** - Natural method names, autocomplete
-7. **Pattern reuse** - DRY principle applied
-8. **Bidirectional** - Generate SPARQL or use raw SPARQL
-9. **Progressive** - Start simple, add complexity as needed
-10. **Standard compliant** - 1:1 mapping to SPARQL 1.1
-
-Every library feature maps directly to standard SPARQL 1.1 - you're never locked in. Call `.build().value` to get the raw SPARQL string anytime.
+This lexical/event seam is intended for formatters, diagnostics, editors, and future grammar/algebra consumers while SPARQL 1.2 continues to evolve.
