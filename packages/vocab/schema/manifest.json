@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "generator": "@okikio/vocab/0.1.0",
+  "vocabulary": "Schema.org bootstrap",
+  "sources": [
+    {
+      "id": "schema.org-bootstrap",
+      "iri": "https://schema.org/",
+      "version": "bootstrap"
+    }
+  ],
+  "symbols": [
+    {
+      "iri": "https://schema.org/Boolean",
+      "kind": "datatype",
+      "name": "Boolean"
+    },
+    {
+      "iri": "https://schema.org/description",
+      "kind": "property",
+      "name": "description"
+    },
+    {
+      "iri": "https://schema.org/Intangible",
+      "kind": "class",
+      "name": "Intangible"
+    },
+    {
+      "iri": "https://schema.org/name",
+      "kind": "property",
+      "name": "name"
+    },
+    {
+      "iri": "https://schema.org/Number",
+      "kind": "datatype",
+      "name": "Number"
+    },
+    {
+      "iri": "https://schema.org/Offer",
+      "kind": "class",
+      "name": "Offer"
+    },
+    {
+      "iri": "https://schema.org/offers",
+      "kind": "property",
+      "name": "offers"
+    },
+    {
+      "iri": "https://schema.org/price",
+      "kind": "property",
+      "name": "price"
+    },
+    {
+      "iri": "https://schema.org/priceCurrency",
+      "kind": "property",
+      "name": "priceCurrency"
+    },
+    {
+      "iri": "https://schema.org/Product",
+      "kind": "class",
+      "name": "Product"
+    },
+    {
+      "iri": "https://schema.org/sku",
+      "kind": "property",
+      "name": "sku"
+    },
+    {
+      "iri": "https://schema.org/Text",
+      "kind": "datatype",
+      "name": "Text"
+    },
+    {
+      "iri": "https://schema.org/Thing",
+      "kind": "class",
+      "name": "Thing"
+    },
+    {
+      "iri": "https://schema.org/URL",
+      "kind": "datatype",
+      "name": "URL"
+    }
+  ],
+  "diagnostics": [
+    "This checked-in module is a bootstrap slice for generator/runtime validation, not the complete Schema.org release."
+  ]
+}

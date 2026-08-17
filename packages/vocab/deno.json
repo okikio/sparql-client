@@ -1,0 +1,12 @@
+{
+  "name": "@okikio/vocab",
+  "version": "0.1.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./mod.ts",
+    "./runtime": "./runtime.ts",
+    "./schema": "./schema/mod.ts",
+    "./compile": "./compile.ts",
+    "./standard": "./standard.ts"
+  }
+}

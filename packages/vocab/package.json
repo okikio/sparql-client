@@ -1,0 +1,26 @@
+{
+  "name": "@okikio/vocab",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./mod.ts",
+    "./runtime": "./runtime.ts",
+    "./schema": "./schema/mod.ts",
+    "./compile": "./compile.ts",
+    "./standard": "./standard.ts"
+  },
+  "description": "RDF ontology compiler and generated TypeScript vocabulary runtime.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okikio/sparql-client.git",
+    "directory": "packages/vocab"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@okikio/rdf": "0.1.0"
+  }
+}
