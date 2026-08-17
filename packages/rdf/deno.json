@@ -1,0 +1,26 @@
+{
+  "name": "@okikio/rdf",
+  "version": "0.1.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./mod.ts",
+    "./ntriples": "./ntriples/mod.ts",
+    "./nquads": "./nquads/mod.ts",
+    "./turtle": "./turtle/mod.ts",
+    "./trig": "./trig/mod.ts",
+    "./jsonld": "./jsonld/mod.ts",
+    "./canon": "./canon/mod.ts",
+    "./xml": "./xml/mod.ts",
+    "./rdfa": "./rdfa/mod.ts",
+    "./microdata": "./microdata/mod.ts",
+    "./shape": "./shape/mod.ts",
+    "./ontology": "./ontology/mod.ts"
+  },
+  "imports": {
+    "jsonld": "npm:jsonld@^9.0.0",
+    "rdf-canonize": "npm:rdf-canonize@^5.0.0",
+    "rdfxml-streaming-parser": "npm:rdfxml-streaming-parser@^3.2.0",
+    "rdfa-streaming-parser": "npm:rdfa-streaming-parser@^3.0.2",
+    "microdata-rdf-streaming-parser": "npm:microdata-rdf-streaming-parser@^3.0.0"
+  }
+}
