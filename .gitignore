@@ -257,3 +257,6 @@ infra/qlever/output
 # Assistant-only validation support must never be committed.
 .agents/
 *.zip
+
+# Local release evidence and downloaded standards suites
+.tmp/
