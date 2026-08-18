@@ -1,13 +1,17 @@
 /** Decision benchmark for N-Quads whole-source versus chunked streaming overhead. @module */
 
-import { bench, do_not_optimize, group, run } from 'mitata'
+import { bench, do_not_optimize, group } from 'mitata'
+import { report } from '../../../bench/report.ts'
 import { datasetKey } from '../dataset.ts'
 import { parse } from './mod.ts'
 
 const COUNT = 10_000
 const text = Array.from(
   { length: COUNT },
-  (_, index) => `<https://example.com/s/${index}> <https://example.com/p> "value-${index}" <https://example.com/g/${index % 8}> .`,
+  (_, index) =>
+    `<https://example.com/s/${index}> <https://example.com/p> "value-${index}" <https://example.com/g/${
+      index % 8
+    }> .`,
 ).join('\n')
 const chunks = split(text, 4096)
 const expected = await read(text)
@@ -20,7 +24,9 @@ if (chunked.length !== COUNT || datasetKey(chunked) !== expectedDigest) {
 /** Splits one deterministic fixture without adding work to the timed callback. */
 function split(value: string, size: number): string[] {
   const result: string[] = []
-  for (let offset = 0; offset < value.length; offset += size) result.push(value.slice(offset, offset + size))
+  for (let offset = 0; offset < value.length; offset += size) {
+    result.push(value.slice(offset, offset + size))
+  }
   return result
 }
 
@@ -43,4 +49,4 @@ group('N-Quads parse: 10k quads', () => {
   }).gc('inner')
 })
 
-await run()
+await report()

@@ -1,0 +1,4771 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@standard-schema/spec@1.1.0": "1.1.0",
+    "jsr:@std/assert@^1.0.19": "1.0.19",
+    "jsr:@std/expect@1.0.20": "1.0.20",
+    "jsr:@std/internal@^1.0.10": "1.0.14",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
+    "jsr:@std/internal@^1.0.14": "1.0.14",
+    "jsr:@std/path@1.1.2": "1.1.2",
+    "jsr:@std/path@^1.1.6": "1.1.6",
+    "npm:@comunica/query-sparql-rdfjs@5.3.0": "5.3.0",
+    "npm:@testcontainers/toxiproxy@12.0.4": "12.0.4",
+    "npm:fast-check@4.9.0": "4.9.0",
+    "npm:jsonld@9.0.0": "9.0.0",
+    "npm:microdata-rdf-streaming-parser@3": "3.0.0",
+    "npm:mitata@1.0.34": "1.0.34",
+    "npm:n3@2.1.1": "2.1.1",
+    "npm:oxigraph@0.5.9": "0.5.9",
+    "npm:rdf-canonize@5": "5.0.0",
+    "npm:rdfa-streaming-parser@3": "3.0.2",
+    "npm:rdfxml-streaming-parser@3": "3.3.0",
+    "npm:sparqljs@3.7.4": "3.7.4",
+    "npm:testcontainers@12.0.4": "12.0.4"
+  },
+  "jsr": {
+    "@standard-schema/spec@1.1.0": {
+      "integrity": "2ccd54513cd9c960bd155ab569b1a901bc99c6f9ad29559d3f38a28c91c1822d"
+    },
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.12"
+      ]
+    },
+    "@std/expect@1.0.20": {
+      "integrity": "ffc4f3c33f732417e3e9acf3d995818c89984313c37d933b9ebbb4571d2887e9",
+      "dependencies": [
+        "jsr:@std/assert",
+        "jsr:@std/internal@^1.0.14",
+        "jsr:@std/path@^1.1.6"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/path@1.1.2": {
+      "integrity": "c0b13b97dfe06546d5e16bf3966b1cadf92e1cc83e56ba5476ad8b498d9e3038",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.10"
+      ]
+    },
+    "@std/path@1.1.6": {
+      "integrity": "c68485c2a4dfbb5ae3cc74fae4e8c4e5d874cf8a8ed12927917235c758b46cbe",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.14"
+      ]
+    }
+  },
+  "npm": {
+    "@balena/dockerignore@1.0.2": {
+      "integrity": "sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q=="
+    },
+    "@bergos/jsonparse@1.4.2": {
+      "integrity": "sha512-qUt0QNJjvg4s1zk+AuLM6s/zcsQ8MvGn7+1f0vPuxvpCYa08YtTryuDInngbEyW5fNGGYe2znKt61RMGd5HnXg==",
+      "dependencies": [
+        "buffer@6.0.3"
+      ]
+    },
+    "@colors/colors@1.6.0": {
+      "integrity": "sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA=="
+    },
+    "@comunica/actor-abstract-mediatyped@4.5.0": {
+      "integrity": "sha512-KbLuhbTcfAQHJeLo3CDDdffCZdfA1qDu15XIdW+7P03UpUp9xMw4p1G0kYtoXwj9KzWguY704TUtpJVBO1GOnw==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0"
+      ]
+    },
+    "@comunica/actor-abstract-mediatyped@5.3.0": {
+      "integrity": "sha512-60+GYULL9d/jfsTsGodLwPTIZvlDeqLZwtYSaFbMV9ykzaZs5AJp7LDyA5DeNUBPN228fty0jX2FlAXGf7ZGdg==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-abstract-parse@4.5.0": {
+      "integrity": "sha512-THNdQsJ58HtkyeW9ghVyLrYEQfSPNfmVAJTDSqOxIujjCdimPbzS2LBXoDdw13GuxWWOATssbm1LwXDlX0xMIQ==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-abstract-path@5.3.0": {
+      "integrity": "sha512-exK0EcWyscuu7psF2U4Cm4iAlOW1fWRAqCZLJo0I7v+8hXtCHTLx2P2bV2LFUvt8Kry4ATzUrrm019RX4b0+hg==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-average@5.3.0": {
+      "integrity": "sha512-dsTR0dQPnisdX9xklFz/WcyA60t9SpDef1Bzryl/cETr9pnnD+HMF3aDZYvmfINUp3YjRP8cxJeWVHPv+kyluA==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-count@5.3.0": {
+      "integrity": "sha512-tLdoFX2poA0tKXXGAREMps0aI3x+MNEGbRftPFD24NbMybmCjSWyN0L3Az29eoWL4zIkmhMK9S/xaguB4k85pg==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-group-concat@5.3.0": {
+      "integrity": "sha512-dypWIfRmvr99qu/0MQWE0oCuhHRt/6NT68c/wctO1ZDb9WPzO24XsjYNcQHPer69uoZIY8s61/V3MJ4/we3dFQ==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-max@5.3.0": {
+      "integrity": "sha512-FlOY4BrSp0uhLCwEh4cHsFFwsiulr3CIfJ+r010WA/n+qwSSp/iGH9s4zmfbqC1tBRrFK9alCdxQJr0BY17MDA==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-min@5.3.0": {
+      "integrity": "sha512-9UGaNaDab76Po3XFOIIZm2RCZDc7Gbwcrr+2hgG5DuJjtxBwl7z3pMkHFYjaBikF9GFaZ1VjT0sW51S80Y8rbg==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-sample@5.3.0": {
+      "integrity": "sha512-ib4MpjNKyGRdKwNjRjoP/Chf5ba8hqDq/LTac8bry405EeimiCZvOmbWa6QQwIvkAtfjMmeydCclMmdnjS8hNQ==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-sum@5.3.0": {
+      "integrity": "sha512-KWS4sYMvYGEhuxVD12OmxGGf7ZU6vV9u4kdq8v9OTTKiEb3YzaQa7IlzsF94qHoek1xH5xp+N7dxaOG+H3z87w==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-bindings-aggregator-factory-wildcard-count@5.3.0": {
+      "integrity": "sha512-BlZLzCTT/FoMCLS+iGxRf0C3tNDjAoO6/ZcT+H0U+DZ/adhpcw6h90FsLKeolW7tSRVUHNV8BJN4UcLE4x9Czg==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-context-preprocess-convert-shortcuts@5.3.0": {
+      "integrity": "sha512-Jb17oQjiZrtvWcEfIWlzb7bVHWq0Buxl0YKj+Lpdd8yJMf2euRo7yW84CK0SWtcMa3zmWRR6iz11AVwoAxwvcg==",
+      "dependencies": [
+        "@comunica/bus-context-preprocess",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-context-preprocess-set-defaults@5.3.0": {
+      "integrity": "sha512-XUuCgi3pI3A+WK1f4IaL+EGKf+LRk8Tyh1W4f7l/66D7YhU7zT3dpSHQ0czywDgZGD8y8BB5avLHF/NlufEQHQ==",
+      "dependencies": [
+        "@comunica/bus-context-preprocess",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "@comunica/actor-context-preprocess-source-to-destination@5.3.0": {
+      "integrity": "sha512-SqlOUs6WiTg2/bGuU7nJdaz/YAZD/yInEsJ1yBXZuuZtgyLsbuFIyIkzce4Jc6WmHvyUklabRVygtVv1ToBAzQ==",
+      "dependencies": [
+        "@comunica/bus-context-preprocess",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-expression-evaluator-factory-default@5.3.0": {
+      "integrity": "sha512-DlPOGnaZzJQr3w1rMszrPLIGLJIPwQgtfyfLUcUhtYuMMTAzvfP4xpnA7RNW4CkvlJsynWf0QhDLECjMSw1+Cw==",
+      "dependencies": [
+        "@comunica/bus-expression-evaluator-factory",
+        "@comunica/bus-function-factory",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-expression-evaluator",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-bnode@5.3.0": {
+      "integrity": "sha512-ehEsR4UERdQGVq/uFyHpqV3egO9SkO/jGIESM8FngimoiMftPN71Qddgkz0AmS8r5mkNg9lADswR5mgQzUB0YA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-data-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-bound@5.3.0": {
+      "integrity": "sha512-b0Dg6K7clkaDTHZzzG5OzhZI5IEF+kUahl+uFI2iDXULNhEUnnZpI9yrNeCMqSDUa3HUq/M0mvrWg0kskv70Jg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-coalesce@5.3.0": {
+      "integrity": "sha512-pDqtK2e9qD1claWiCJ0pSYGCcAJQVM/JzdQEaGjbMIGJosDdJfPJ5NiWS7GeU2/nOUJVlsUocpURy7Pw+6h6Iw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-concat@5.3.0": {
+      "integrity": "sha512-4fHbURg9zA40zf3ZNo3Jh7f01K+xZoE8EBZMlT+f9sRN7hrV/486Nfc5Dg+wsDBPkjgWk4nkoXqFQr2O9Vkjow==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-extensions@5.3.0": {
+      "integrity": "sha512-eEB6A14IIetbZ3uCRtz2A3r2d4Lq/XtxNwT42oOBH1UxLu7fHBKL+8BobwSdp+pzzJVvzrv7keVy5lz4g84hnQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-if@5.3.0": {
+      "integrity": "sha512-YxTBMXUaqUAj8qKQrhCWQrygM1j20oDj3uwzWNUqPXd6JgSiXyGrlifxYD7Y8Pg9/6FLsn3aCprK/TQJqJUZLg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-in@5.3.0": {
+      "integrity": "sha512-SIgBJHHXwDZ0d8NAfWbnLHC76s9KV3SGeKbX7+oPvCvNsYh8aAfZqAHbIKddNQSqpTaKzeD5n46Eqh78uumyPA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-logical-and@5.3.0": {
+      "integrity": "sha512-mqIbZjsmt/ABJkuZ6WBXFkZigfj+dPcHw8tNDRHX4cqKflBJNtxbSd4p0aHcZo4pZkhbpuQO8XlL5C4NBTFR/A==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-logical-or@5.3.0": {
+      "integrity": "sha512-gqYJvIPTU6OY6QZpsA6z/Xxs9WmTy3rY6mxfZG7F8BfqgHzzKeTexa4fvd5GppcWZuaCIuRhbBVa5Z1zleffxA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-not-in@5.3.0": {
+      "integrity": "sha512-1K5sR8h8PrYOH/grF6FQBKGI2Be/VwM/kjJ8Hef5oBAYvf1hvYkAaxQ8TOGkLW8navDhoCR2b0I19D7EZoP7zA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-expression-same-term@5.3.0": {
+      "integrity": "sha512-BrYg/2YkC1R9DTZEdT6sWCwvoRICvLT+62DsdF4p8XZxe2T3VEQyAoQTivwkbTpRQnxiLSh3gTd2I3AXwQOw+w==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-abs@5.3.0": {
+      "integrity": "sha512-dTltBZjkgga9j4Q+BFqvEE+WvgEWKJtWjIxWs67KKikNIoIfZDCYWXMXlQMJNC4N09qNATEM7iyz6ttLfY3wHg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-addition@5.3.0": {
+      "integrity": "sha512-A5sEZKM+NJ2tiaFP6QN8oNY+0IF5JTVNuMrlpl8fsVmBzpUMmc+j7SzttQp9wmqo0JKmFdq/hSGhBbhmtqtpGQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "bignumber.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-ceil@5.3.0": {
+      "integrity": "sha512-ozUlZyJt7Ra34EDOmdxnrpnuH1fHGOBmvFUavD+0uR66PXPrsV6EFH/HW0VNfcVe/iPehN0lDFF+SyFeLml3Ug==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-contains@5.3.0": {
+      "integrity": "sha512-6dYnydAdwOfrcJRq9/R7sUqrmCXXZ5381KHtPgnw0va4K32D2QxArIlWO92dYZzDgJ1v+UNRXK5xmbOOg4qW+Q==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-datatype@5.3.0": {
+      "integrity": "sha512-z7SJgfJvElB+dR6CdnMgMkB+qK2DupXti7yiqI4DPADiHovipriz0ChAplGSWXzJ+O++1L5PHeeYiBqY8rpuzQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-day@5.3.0": {
+      "integrity": "sha512-jRYSd2lFENaqcRi0LGzr2JSG/I4zvzgBzlmvw4m8OXIZ75sDkCOPRguWPJoidq7AdmpK5mVNIEhrJJVNNDrotg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-division@5.3.0": {
+      "integrity": "sha512-vnVeRW2sAKa5KHY4AXlyYMF71DcAzr5zf7lCwPuUoXS+vKuAkO+tGztdEVjKxo4G0mzc3VVbmDuXO2MWIsOhrg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "bignumber.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-encode-for-uri@5.3.0": {
+      "integrity": "sha512-82nSJ9LhJqiCl9Aq0MDZa2ekUOeknMUJ6pHxnSYXeS9TYoA+xj5IiMw4tEsZIc7ziIuAQwcR10+mbHptYm3FPg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-equality@5.3.0": {
+      "integrity": "sha512-wxXJVrrNhsljCmenegig6JP+2MJQtx3GdbL1BmGT22OL14DRYr4/GKeCcUTJkKo7LTGQijapqgU3zolKtOICVA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-floor@5.3.0": {
+      "integrity": "sha512-Yxq3DqjD2ezAfnB9r//q32zVqqSsA6+AKNd37PO4BByQiShCO3RIysJGCeh5f986OP8f6E7/QCS2EhtzGVteKQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-greater-than-equal@5.3.0": {
+      "integrity": "sha512-QclM//r2ACVcJ4aUMD9aFf8DlPON/otvabvQDzqUs+f7ioOtd6j3aSOLSs96I64QCoo2BWRiAhWGLIQRRdhAjQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-greater-than@5.3.0": {
+      "integrity": "sha512-Qn8hwSntpwenHGBvoVkBST0nRFz6zEnuhI+5w0Hq/eo2qKb8MDtrpEWn3KjG0g8F+UTHDygAsjTwnTijYdtlOw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-has-lang@5.3.0": {
+      "integrity": "sha512-wcFcYd/Qd4UQd30N1+L5tGQADBjVv90lk2y9NvxwrBl0LnfdOOSyaeVMI8IjAu3zs8U9S1rZEQygg/94rs+WIg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-has-langdir@5.3.0": {
+      "integrity": "sha512-WlTohELdTI6vzozhAd6Lxs+e/AByvWD/enlT3ZrgyP2blZ/QEjAMik49rRKfRZkLymC+I7SIZQoljsH03SSVQA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-hours@5.3.0": {
+      "integrity": "sha512-84joaPb7/IOWxVeF5a2tdT4J2+bNCcT8OqLnw4rbqlnGVd0yXTe2eJIF4tb5jUvu06TYTkiF+TWf9fY48n5jsg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-inequality@5.3.0": {
+      "integrity": "sha512-AunuPU6IfkjqimfjbS8KcxjgeE2cYseBZ1FHs+dDCHq7nHxl8lnoul/CKliQPWtqAkJPicXNIAX8Y2SjAy8Tvw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-iri@5.3.0": {
+      "integrity": "sha512-qxdaqoAJmCNJ/u/XaU2hMxjo2mQ8vw5ZvBSNuMCbI+KXIKRLV9AidRvjKMnaSa2KE3maoxqA6r9+pJUHz+H3nw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "relative-to-absolute-iri"
+      ]
+    },
+    "@comunica/actor-function-factory-term-is-blank@5.3.0": {
+      "integrity": "sha512-q01xpJ9ms8+3Prz/UkMYOFJWQXZDSXYSY0EHgeAhSCpUMbpRNZFqwwJM5tJXMHbjB5AT4RiqEHGZ3mcW2jB+cg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-is-iri@5.3.0": {
+      "integrity": "sha512-5+kxYCn/FmPHFzLIqNosGftphXAuvUuY/xgpPYvUnTlh/gjM2BbCgQR6xiUmibnZPguJsCb3t7Nmygw45y2GMg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-is-literal@5.3.0": {
+      "integrity": "sha512-oqN1BeRjNlHpvSi0aFHPQH/2/heTFo0S4OFolQD6i5OADTPbQDMmlgkfLCv6Vd3vJDK0S+YD571xx/ull0gqRg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-is-numeric@5.3.0": {
+      "integrity": "sha512-mxLI9HiODJVxG7X58rCbSnOTTF0eT/6Ui5G2m0/UQJJPM/kEusNSBnbQcRbUM+npeJKpNCZkDDwMJyhFYDLwRw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-is-triple@5.3.0": {
+      "integrity": "sha512-IgToUw/6+FnbuCiR6JN99Phxbc8wdazIzGZtQVwA1XfSp00Prj1/i4ItuZKeqBZpntZbvyXHEafRSfa4SXzivQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-lang@5.3.0": {
+      "integrity": "sha512-L8kb+o8HPDy6VjQHpAjRBnn1C4BcTTJjJ0LhvNxJqPD5nVg5dD9BIWf2l6Vv3UMZX9CaUoDpRr0v5b1fULDJvg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-langdir@5.3.0": {
+      "integrity": "sha512-PPVlAVaVr2y+s9jz7LDC/6+P5GxeS2Q/NtAOc6+ISpTGvaN7dIinXK+3ECR1Ly0fGW9MgHWPkfPBCMnZjbMZIA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-langmatches@5.3.0": {
+      "integrity": "sha512-wSBLX2oP4Uj9Xz1uC0daTvrPePZ8cnEOr3B+MFENitQZOMfMQrxj56kqTDKlIP3ymWcnRSQo33mMUhjcMDNa7A==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-lcase@5.3.0": {
+      "integrity": "sha512-Cz1hwmBSQKp4jkk/pPZl2Hz+bWzcYX5sgPFrR+5VOT/1GoXXRhKGxCGrlNoIvwTVmg2TsdxEUHBFztyQwAqXJQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-lesser-than-equal@5.3.0": {
+      "integrity": "sha512-dZuNLI+cQGeSjq/DOzUQFvVMV7BjuiHzKiC2onOrjwy6ea7ewFBqepY5KMVjHbU+kjO+JChIglIVd9qmdet45g==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-lesser-than@5.3.0": {
+      "integrity": "sha512-93LdymVrC+9T5Wep6kiSbhL6Cu3orH4r/24FUFDlZcW+dSoPXQXeSPo315iTqpIALl0LOkXmrWONlq7YuqXRWw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-md5@5.3.0": {
+      "integrity": "sha512-ycyd5sjyfyxUyzg9xG62SSnm+xGXeCqmV57K7c6ecUezd5OrKZpW8PvobNQ8kYsF7NFMuJm6wxDBSxKkrGwpFQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "@types/spark-md5",
+        "spark-md5"
+      ]
+    },
+    "@comunica/actor-function-factory-term-minutes@5.3.0": {
+      "integrity": "sha512-sALHIQ/mhXrSJMpPE9IJDEZK4bCH5V9v8e/ofTjn06hqIRo3g/oNbDLKa9MEhqlL6LiHUVV14yLBuDuTYmEucQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-month@5.3.0": {
+      "integrity": "sha512-T4FUk5Nw7TMim5Ic0j69vz3uoXYPUBxLFyUgtAT33EbFPeKea/vphGhimP/BcV/344Pdhh1uUJuMPDsHC1mO4Q==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-multiplication@5.3.0": {
+      "integrity": "sha512-qidJiLwSt5+H9S/IQV/KoqW9bVhcw0qXY9pUqjWxrTDvOVwShHRzVBCXFbn0ru4DO4jt56CSMPRWZGdynPed8A==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "bignumber.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-not@5.3.0": {
+      "integrity": "sha512-/jpBfyCknSEKAhRYAxcxvGv5/uRr/A/A36sAGpwknqWkRDGV2sZ7XQdn9bqP1pQwz4vxLIUhMTalPspNsAl/cQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-now@5.3.0": {
+      "integrity": "sha512-18ZS0ysFKJwjGMBB9/xI5140DqW5sp45unDfURlNKLuRgQAqjK5kkjyr72otLNW1JwtlDDt5qun6kr9d84SFAg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-object@5.3.0": {
+      "integrity": "sha512-pgPS3sLt6lCZmQSuojuPArA5pOfXRjYwOQuqnl98/gkjdHgZaZhV+rLF2qYQYO0q5QxOUacp6l9yE7wfcoX25Q==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-predicate@5.3.0": {
+      "integrity": "sha512-zR+6OPTQGpl+XDs41+leFhBZuPTvLUIspKscLS8ujLuMsT9eZVf7PZm4Rkhg3cL0BW5S60SqCdkJVEFAi7TGVw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-rand@5.3.0": {
+      "integrity": "sha512-ln1CvevDInjP7w0sGdoYqKesW2FuQ/eM3VgPFbWC4l3kUP2xmiHGSO010eP6He4WDtsZsKBk+KfPsMMUGKXc2g==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-regex@5.3.0": {
+      "integrity": "sha512-zFHFkF3td+UqcM5vwLXTzRRkSSiyDPFqv9QPZADp5kiDYG9bh/dVYvEOgMGV5k3tbBAJOmm9QXcgLHLzEkmsQw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-replace@5.3.0": {
+      "integrity": "sha512-Pp15O8ebd88uV0s3CFQrd7SlVJ9XCD+Wd/ql3CB71Ak1tN1jY0XqrDRZsxqjGgG1dzotXExbAaSR5pe3G+BdGA==",
+      "dependencies": [
+        "@comunica/actor-function-factory-term-regex",
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-round@5.3.0": {
+      "integrity": "sha512-YSvkEeGorh5gb6QGL00TPrAxlTz8JOxLN0LTzo1ToQ/2WkMAWv/nhwNUaxuxPv+HuCMg7HWLd4SecQqSUWXhdg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-seconds@5.3.0": {
+      "integrity": "sha512-u0p4kRtIcCxL944AGEJzGbYk7JwurFGu4NrwnS8egBXeGISRjufoAU9ZECP7vIJza+TZv2ir5m3FP9RyWqpBUg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-sha1@5.3.0": {
+      "integrity": "sha512-GnsH0U+PfxhlCI3mVm5547t12IS94u4jk3aC4ZP6Oxw4WWoOFJoYg5e/aJrgwWw9F0e582YWV7C+oAcOa6QMeQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "hash.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-sha256@5.3.0": {
+      "integrity": "sha512-l4NxLQZ2pX8/8KunB8tS2GDCoR/H8L2e0TRuDnF4J9o0MkV5DyNhnGdpBb/46l8v97pSOceLXD6XeYUEYE3Rxw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "hash.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-sha384@5.3.0": {
+      "integrity": "sha512-Bis+CineidELoPZHHy9dw+YRrBhpVuMjH4LTouHy/KxqOefvcWFt7BBzrZX53HRWr8BNG1WWLhlOc9muGrGbNQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "hash.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-sha512@5.3.0": {
+      "integrity": "sha512-1Cuto34d1DNNP5C8EEzTsREAw3PKvjCJGxhBRaBr7WEoffMjpFQT1EJvSBSPezWYpLjdjj6sfyxowFOUV0bfkg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "hash.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-after@5.3.0": {
+      "integrity": "sha512-LiKZu97xsuHLTMkpADsxbFn2QZcdN5xLXmg5TCGdA4jYwhTD7IWecxrlT7UbpoXLPvgiD7aeBxNrEXwXOUQrog==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-before@5.3.0": {
+      "integrity": "sha512-P090fcLfnVwyC6iDJMGJ0av+jmUurV7SDsVPW7O1qUNW4cXiMZaj0lbP23XEa0x/5PPX26f8Nitveawv/ZzZUQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-dt@5.3.0": {
+      "integrity": "sha512-FTuepSrOU6SxJW1Y5MxdU5FJN9/2wIE58DcpvmVlipVMhjTpsWfw/MRPg3GYCampS4M+OMpKxFzbDVRGdXjtfQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-ends@5.3.0": {
+      "integrity": "sha512-oNPkw0ReAVGsXiZl5yMwwMgMOcv61Bs/prrFE5iIas9HjwmvQjlcJHT4S7WEH1s1I2fLFF8dl0nOJHNoO8cUDg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-lang@5.3.0": {
+      "integrity": "sha512-a5+7ccZYB3wrpC58UD1U4SM2jczZYpeGha8do7WMe9iapxat7XO95E6v44P3qcZOHlHv5HIOYgktVkLkt6oL2Q==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-langdir@5.3.0": {
+      "integrity": "sha512-6MoEM6ZzSussLJC2gi4+HqIg6dxpGJk2qTrBehp9vncmTsOlmGrIoruh9uStZ1Si0nrTeyvowtB853jQrKZGGw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-len@5.3.0": {
+      "integrity": "sha512-NYeG5TZrPqfUfVwb2Rf35QGF7e48r7yluDpqPWsLaPloGdifwtTJvx+r4P4drkxgRNGhej88RafayqeQF1Y/GQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-starts@5.3.0": {
+      "integrity": "sha512-HX120EomFPcDiGTzI/J5EsCEe2c+il3XEs3gSsqmFDP8bX6djHxK/N6so1lZzzTf15QAxJuSh86z5zojEeCq7g==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str-uuid@5.3.0": {
+      "integrity": "sha512-mQTLBTC0V5Eq9uIA7+MZSU34aiWA1nowMcVkk2EfX+1TbnApDH4wNEakTbonUFuTRkKG3SuYcoQFdlljMgMQRw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "@types/uuid",
+        "uuid"
+      ]
+    },
+    "@comunica/actor-function-factory-term-str@5.3.0": {
+      "integrity": "sha512-nrSGuAwFeF+5NXHsAIvoUgXbGZ46nUCCcqA1b8aKF+/074qb652ljb6P/nXv5ShLgsre+fQ0OFGe+z+wI9A9bQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-sub-str@5.3.0": {
+      "integrity": "sha512-eWwIKdz6878shFiiguRjkMzVu5X8r0+KnzkG9ulnmARDz3ISkXKIpQoQsIj8sZmUtxpl4wS9sEgVjvj5umlagA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-subject@5.3.0": {
+      "integrity": "sha512-pj0RCMF9oaYdXgxwh13c4c5x4YthuFfMnOMhat9FtmbN991gutTqdBHP4dxsML1iRyYfpk/WOl+DnEY6CSBxCA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-subtraction@5.3.0": {
+      "integrity": "sha512-j5uzCNw5EqJ9GjthhBlo4IpX8MSJvCbU3DbVGB1N/NZkGg5LMeHC3/CKfYurusgWCNbD7c7RXr65pAohj5X5ow==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/utils-expression-evaluator",
+        "bignumber.js"
+      ]
+    },
+    "@comunica/actor-function-factory-term-timezone@5.3.0": {
+      "integrity": "sha512-TtQNwQFzBuot0YtgnIr6uGjazblmJpvUYaIJmHxCZEhDxmLyidNS7pWvw45n3w/puwYArjzwn+tS4zSCZlwYVQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-triple@5.3.0": {
+      "integrity": "sha512-Cj4kSimz2e7/SRswnn8RuK2ccNWWT00Wwvz0stYBEGll6X+G/jGiOEnd8yx57G9GoeTh2/ggE8vG5wK+rBF+kg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-tz@5.3.0": {
+      "integrity": "sha512-OpGcbjrp5/L+efY/IouVX6x4UM2FbNtyUQhPon2UJPvg/JPzJlBKZCq2NwmjmAmXVyU2t1WPaaO7ZbuWHWaNBA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-ucase@5.3.0": {
+      "integrity": "sha512-bwdotNq4cemUE/ryFaqI0XTqE4mR7cthUjkZ+Y1NdFVX/7JbFXH92xSTwZp6e6wWNALVJXjcW7ilWjwC8WsQ3g==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-unary-minus@5.3.0": {
+      "integrity": "sha512-Iqs5SCMaSDCU60rkgDVDlXlSK1VSOVcCQojobdX5fwMpfLRNfTSk5kiZDsFYZZ7givTcWtrhzwJdpH0xbL3snA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-unary-plus@5.3.0": {
+      "integrity": "sha512-Vmrf4sKYZx/p3cHvolVXpNySBB8egFFsK5x0CBLkjWknFMAaLQgJ+/VHCpAX3S4Fa2BxzEzfiReLZdzJaWYD3w==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-uuid@5.3.0": {
+      "integrity": "sha512-pU1Bkb6wJaC9v+OFBQW5vPHztC7O0Z5qxyOvF1A+ACc70Cm+Vpf/dqQkTfGCw29J0QqtDvR+WDWcwzOpcGOw0g==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator",
+        "@types/uuid",
+        "uuid"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-boolean@5.3.0": {
+      "integrity": "sha512-epMZs8+BF24LiEfx+oESctP6Yz6l2iee4etwi3U63qT8GdLBQ+K8yBYB12HeXd9jUBcx4thUGFlg5QRKWH8RpQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-date@5.3.0": {
+      "integrity": "sha512-fV5W3gExau7dp6OTQjCROjDhcUU9+rEBuY+clNi06IKEoKeza61Mw8aGExe+uz5PbmXJlo9HU1n1sHjSXnLY1g==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-datetime@5.3.0": {
+      "integrity": "sha512-WhiWzCFFldi6ggYzIOBRHnLrXZXd7qnrXVwiH2b/qldaiCBpQ/S/OdaMWA3YeRuWj9UUyWQEJJfKDn6UOT8Hcg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-day-time-duration@5.3.0": {
+      "integrity": "sha512-Bnemng9tfPdEkt++vM9tnmkXAHy6ktcX5RbePK0V8lDxpyED8nwc/7fEMrYa2X0uFc40doxOOhiO5Nl3P0pMmw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-decimal@5.3.0": {
+      "integrity": "sha512-NrIwHXj1uLf7i+QgJMVnHqrSe0HGWhID/wBwORk6nrv+PFjI3ErBhvqzLapDbcmr0BlPaxyVx118lYzQZF5TQg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-double@5.3.0": {
+      "integrity": "sha512-Fhqy/BiEO4XvSkh6vaOEuE9bPZm+kw0kd5XK7WklwYcrTjA62kXlKeJnOHy5JyKXLxNhF+ii5hjJ51WIKnujAQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-duration@5.3.0": {
+      "integrity": "sha512-flpjFPFHL2Zmu3w+Re2AYvkAV5MK3JhysnRqeLR/+37wk4k113hf1UUCm8xt6rxg5fgSBlW7/7akfphEzGmHbQ==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-float@5.3.0": {
+      "integrity": "sha512-Dn9HLU13KkI0hnHoY2PRSLb8lj9fHA7ABHkhvHcg0s39SuI1VZva6GtdKOeDlJiUFOztjgDpyZXg6GpPW0c0KA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-integer@5.3.0": {
+      "integrity": "sha512-LbgcUNtZ1QVqS+cWUPH/tjeCpyhsWin3y2/5gt3susk2CgehBmt7XiDGm49V2hZwtfQRpTShBrkvDMM5fhTHXg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-string@5.3.0": {
+      "integrity": "sha512-vNXIcD2DCnGjPnaW58IMORI//bcfYTcHQlK/hvgbl/Ggrw3O/hGRwtMdrBt8wRQWbd9/ylBOrbIJe6dFer0Dcw==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-time@5.3.0": {
+      "integrity": "sha512-fCRzgcgY6aNn07fGw4YpsUsYcEASJewWGIK8M7XNJqt8ZlJmxEgLpviLuzYpJkMUq85gM0XlH1zfMUkEl17ViA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-xsd-to-year-month-duration@5.3.0": {
+      "integrity": "sha512-q+qKRm8Cni2x8GN+rNtTrPKzjv6eEWkMaR6KwGVdkt89/PKcj8exX/xEDlHuV3smUt8FwVUALL8zGGQ22wk2gA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-function-factory-term-year@5.3.0": {
+      "integrity": "sha512-/FLzdcP/sIdmOjaRqDwo8gfhp4CajNC/QEPxcvMaM5awjIgAJ77xxmgIBwIVBD5PUQMVTQQsZ8eeicm4TLSxaA==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/actor-hash-bindings-murmur@5.3.0": {
+      "integrity": "sha512-fd82PmyTl6B/XJT0Ny8y8Tm6D6dpCGNONfox5E07nA12won/ot7YDdE0UyygHvq1ypIWnWNmnO7HirVzGDJkkQ==",
+      "dependencies": [
+        "@comunica/bus-hash-bindings",
+        "@comunica/core@5.3.0",
+        "@types/imurmurhash",
+        "imurmurhash"
+      ]
+    },
+    "@comunica/actor-hash-quads-murmur@5.3.0": {
+      "integrity": "sha512-AhqeHlcfxTzOz3Y1EuaDlDi6/WqyCOQcnZ61TegIMlQXA+JjntMtefYkAdysdWEppB63LohAcp+hvClVsTh6mA==",
+      "dependencies": [
+        "@comunica/bus-hash-quads",
+        "@comunica/core@5.3.0",
+        "@types/imurmurhash",
+        "imurmurhash"
+      ]
+    },
+    "@comunica/actor-http-fetch@4.5.0": {
+      "integrity": "sha512-rhPBWOWe0tGDgwXbRgURwiGcbw1KY58oMByT7MVi5SLMpiK1Tjjb6KoMz5SOkZWsD1z6JY65J/VLxKFSj37ogQ==",
+      "dependencies": [
+        "@comunica/bus-http@4.5.0",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/mediatortype-time@4.5.0"
+      ]
+    },
+    "@comunica/actor-http-proxy@4.5.0": {
+      "integrity": "sha512-M5UQ+/IqXFNXLu9qSFNeeph/vaP349HQozqZzOY+HTO4TNWSIcB/XO6HgE3SC7r4G+KV+s9WbHwQO/8PxshBPQ==",
+      "dependencies": [
+        "@comunica/bus-http@4.5.0",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/mediatortype-time@4.5.0",
+        "@comunica/types@4.5.0"
+      ]
+    },
+    "@comunica/actor-http-proxy@5.3.0": {
+      "integrity": "sha512-XzIDfH5Jhg2Q63vpUb4gyltaHqWeg00Pa1Oc+qdOREzy71hi6lsqQPTXdfh2zrK7I61PGvBB9DKpMloY3MObkQ==",
+      "dependencies": [
+        "@comunica/bus-http@5.3.0",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-time@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-init-query@5.3.0": {
+      "integrity": "sha512-57nD6J9g4hPTM9XX8HA4F07q/KlW6YfbmIyqZuUdLz5IkT1my8ceoGkNdRBQyZmjN174ChZUCZkBuR+oPzBVWg==",
+      "dependencies": [
+        "@comunica/actor-http-proxy@5.3.0",
+        "@comunica/bus-http-invalidate",
+        "@comunica/bus-init@5.3.0",
+        "@comunica/bus-query-process",
+        "@comunica/bus-query-result-serialize",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/logger-pretty",
+        "@comunica/runner",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1",
+        "@types/yargs",
+        "asynciterator",
+        "negotiate",
+        "rdf-quad",
+        "readable-stream@4.7.0",
+        "yargs"
+      ],
+      "optionalDependencies": [
+        "process"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-assign-sources-exhaustive@5.3.0": {
+      "integrity": "sha512-PX42YLREzgZcZ5Lz0Kdxp2OZYM5qEIzFqK2tUZ4pmIdfqJD2nqss5fIDwWChO1XZVjFE55/+TvykCTyPWBddQg==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-bgp-to-join@5.3.0": {
+      "integrity": "sha512-n6ss2cRvdg3wyKdGC/kp/px+0geAvkk24Ob1dDdy4+7bosSubhbFmMH0azpwApvqWETdbZQznhw+MW+YN5JeVw==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-construct-distinct@5.3.0": {
+      "integrity": "sha512-bM1g6HC2+WKPrtjD5x1FOI0OYgqfN7d+0Ks+vW/uSFC5ag0e6mVH/GeSRjby2PSd+Vmi2EAs8xnshq45T9T7MA==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-describe-to-constructs-subject@5.3.0": {
+      "integrity": "sha512-+tg/JKfHZMVx5zRBH/taZP1J2zkJlPRWnwGTB6T7t15OXUN+zAcTMwf0v93QfN1wdlRY2hPqJMMi6BTUJMV+DA==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-distinct-terms-pushdown@5.3.0": {
+      "integrity": "sha512-1t2dXxAcFMNj+sltazjM2MawOKxPWjq7su6i7sSFVwU2iyBBF6FHGYq7AZHEcgeZZESepu1Wc1N6cfwIigiUUg==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-filter-pushdown@5.3.0": {
+      "integrity": "sha512-qEHY1gL5h6SdXi79s4JGPZKrDdzdtC3mXRX7JfRaxcaS6RvUT2Nfqf4HCEhz1VT5dca2NfV4bLMdVIHiHevdmw==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-group-file-sources@5.3.0": {
+      "integrity": "sha512-/7GTHmbimaAgWCnnuP6BH4wvhMWvUlgYiDyei6fjYtTlKG50oAhUmDcGbt3awsA/xgHfBhHLVXYghdNcTLn0jQ==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/bus-query-source-identify",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-group-sources@5.3.0": {
+      "integrity": "sha512-MYQG9QbSKkrxct4UH8Rrs9BV9F2KiXtJakApabZ4o5Nzn4cbQirhc1nZY2dMZyT9M5HLDauswfHUWBGsrto0zw==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-join-bgp@5.3.0": {
+      "integrity": "sha512-kImYzuGpH6FE6lJZPqP23tyfTiJzo46Wo6X3oiePri79tLmlVaulADqUKTRrOZHNFTQi4F0L3MI2yaMJkrHifw==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-join-connected@5.3.0": {
+      "integrity": "sha512-Iywr/GkLf/wmruAv9IGEnSDqEyzmNcZudHVR5kWS0YF2RLzSt4t0PX/VGd+iZoOu5nGpYiMbRONJr4EAOhoGRA==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-leftjoin-expression-pushdown@5.3.0": {
+      "integrity": "sha512-U1q9CeRNB0Gcdbhq87G5zMv9lyBL8W3qHi+PLn/K5KZIw2W6B2vMGbdmiXmYxOMeTxpHd6pJIK/sX8EBikdrug==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-prune-empty-source-operations@5.3.0": {
+      "integrity": "sha512-DWSgeL6y2ph5ia/8vlfj3TSIniCwyKT2LSPwsSIpVdn2MkCKw80p6jxDbpdTG1mLqEXqz0Kjp25jgVGoW/CdYg==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-query-source-identify@5.3.0": {
+      "integrity": "sha512-jvU5zrpJj/32F6fQ3G1VU3QhG7xpXlfBWk4tKKdbs+d4hbwBS0Nn34/utn6DWiTpOUIWuGpio9Z2uQ4VJMHpyA==",
+      "dependencies": [
+        "@comunica/bus-context-preprocess",
+        "@comunica/bus-http-invalidate",
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/bus-query-source-identify",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "lru-cache@11.5.2"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-query-source-skolemize@5.3.0": {
+      "integrity": "sha512-utQuZ0ED6Bc21/jblXi15Ec+dO4OrAtugZDpP2TKEeousDh3fCgnEGTAuAfcpbkdJ8/4Wft8mv68YaoqVWv13A==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-data-factory",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-rewrite-add@5.3.0": {
+      "integrity": "sha512-Uh+dZ+8BlUcyd9LBU6OmhmLNorNzv9VUc81BQhMAcEyJPjMUHZUDpGtBRqne4BdSYF0/08dxx52QerPcp1+13g==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1",
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-rewrite-copy@5.3.0": {
+      "integrity": "sha512-Y3oGFfn14K4J4MAMvuZss43N9MqdJhkCShaTFJk96bm4FWKRPhDNJvQ9sMf/lMprRIocOO+AP0gA+J1UWKg4rQ==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-optimize-query-operation-rewrite-move@5.3.0": {
+      "integrity": "sha512-4gHdgEvPNosME8ecYBAFGUd9jw6Cih1At6NdhoPIWG2To6RAyXbYNA4Lj+JymiFl/HDwz6pxC60o/Y17QvOIyw==",
+      "dependencies": [
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-query-operation-ask@5.3.0": {
+      "integrity": "sha512-9ozBM6K5VLQsD3mZkOoE6NH5jITghM6EtmB9+0DZlk/k9HF+TbhvXkh8h8NLo/mY05urrYsYyl8YgjN9X/ZtmQ==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-bgp-join@5.3.0": {
+      "integrity": "sha512-8veOnDvl6HZdHCCoy+VIX9WlQdZFlndCf2bZQaCBYt9Rgcu7maMfx19sDmwFK04fAly73dws35l2VZO7v6TD9A==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-query-operation-construct@5.3.0": {
+      "integrity": "sha512-I+V1jDXwWm6Pfxd4csbB0Gjjci/NCutKSr/GS1nu4SGdWxaL9oQDVjBtwaklnYA43iAUsl5vB9j5wuhtCyj/Kw==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/actor-query-operation-distinct-identity@5.3.0": {
+      "integrity": "sha512-xiTM6zAvaXOL2ubLpj59jNeBbcMXTGWl7oip/2zfyOwr5EA47jgRkHbitWlqrpIbOVJBjtOlGXJVGH2u3Hdf2A==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-query-operation-extend@5.3.0": {
+      "integrity": "sha512-Xv8lfdDRqOtoA06YBUgrCaXY66js7Lhll7v9D5Tvkso3Mszsk1GCLnVwWgiMIkWK5qd+ZD1yoo8+f/UIRe953w==",
+      "dependencies": [
+        "@comunica/bus-expression-evaluator-factory",
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-expression-evaluator",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-filter@5.3.0": {
+      "integrity": "sha512-KNHa3ESOY58EDp8MrknzBVirdYkgQa335jpz99edXoJ48YJSlsWUbQpVR3MwHri3aGjK9V6LV7cQn8oU5DrfbA==",
+      "dependencies": [
+        "@comunica/bus-expression-evaluator-factory",
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-expression-evaluator",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-from-quad@5.3.0": {
+      "integrity": "sha512-L+vl1QVIi+wPZMEb0Q6SWAJ2GYvPpsNPztU73EGTRsLuo5rePOCg47V8iz1Nj5psNv9IVW+e9bdA8R7ACY1FdQ==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-query-operation-group@5.3.0": {
+      "integrity": "sha512-TGBfjuVECdGCF+AUIPfc+Zv6c4EXSEKVQoXRcBuAhK7YxXd/U74uurar6KnoWjgc61IsNfuS7J3t567IKZ+oNg==",
+      "dependencies": [
+        "@comunica/bus-bindings-aggregator-factory",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-join@5.3.0": {
+      "integrity": "sha512-CcHxkuaVUg+5K2UkhrMOZ3m5V7cGhMgQsqu6N2N+Y+g+QjJ9Nsm5xsSRJuu5jGM8MS/40sXUXuBArJNj/Sx63g==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-metadata",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "@comunica/actor-query-operation-leftjoin@5.3.0": {
+      "integrity": "sha512-6NhfaXJGM480CSpFnjlJm1s51YJdzfVaRKkRLQ9shIPeWiDgQfVo+IJm/WMchYUFYs1RYAGUU4z0e7IEgcbhjg==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-join",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-minus@5.3.0": {
+      "integrity": "sha512-1pyEv8lNmbsZYxpbnAcyUjkSndgvkeTlyeyIyALhSrkbFo/y1c7cAC5HVD3F/CQVbDsM9Zjm8ZNi6eb0fspszw==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-nodes@5.3.0": {
+      "integrity": "sha512-QN4wnv7WDYC8QEyltEliDcqNpVYE2tgrLzW/zyp9DpnUDbwBJt2/29WcrXNfg2riS5UZ6z1EVjBRZ68h4kD3Jw==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-nop@5.3.0": {
+      "integrity": "sha512-nuhkZg3dWHSawedwQjMXzV+Ei6LoEyVuPHl6QvOdWyryJl1jc9onRvjmGqcWgNef4e68O4JDKkC2XcAJ2DyMNA==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-orderby@5.3.0": {
+      "integrity": "sha512-8Ytd/AWtrgG3yui1VI6AlE4dZNy1CSeOygh6aYvTJuGhEotmq0U/2rRvKgXJ0soRFCrjKiqVZH0hB0dOoPqMoQ==",
+      "dependencies": [
+        "@comunica/bus-expression-evaluator-factory",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-term-comparator-factory",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-expression-evaluator",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-path-alt@5.3.0": {
+      "integrity": "sha512-NgOB1qb+fVQlZyBF1NILvXwEY3cyOSNtFuGthTmbwnsEAbWtNyN6VRTnYLXwQE1MQiJmmIR/WBs9dcFEhCkYbg==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/actor-query-operation-union",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-metadata-accumulate",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-path-inv@5.3.0": {
+      "integrity": "sha512-trWKSWwyoOKxfSBqLxQ3q2CVkqDBX6RyZt34AUhtptuLCdCCeV8zzrrtDJOpQbXrZVJ/IAJNGsgype8aIKU3Vg==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-query-operation-path-link@5.3.0": {
+      "integrity": "sha512-rVioPKxpTx9VtIuwt6Ej9ws+plFtSGcqk/7QcjGt66MyZA1CHuCqdYOgY3CiKRuz74SW76Kp+fNpau/EpFw0cw==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-query-operation-path-nps@5.3.0": {
+      "integrity": "sha512-c1DoFCYUsejZBTR1i3zaLW68FQqVgrrVr0cmBGcApz4iBUTqGWP7Ygl/0Uu88GY/krUSPjuPB6m6Bl/DhXNO/g==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-path-one-or-more@5.3.0": {
+      "integrity": "sha512-JdhnJvRrzroyQMqokRBPWNQ6lSwNjpR5mh8nzvGSvMOxLqua9TXs8ZOksrJZiru1/L97SgNYzlDWm1LVmGmwlw==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-path-seq@5.3.0": {
+      "integrity": "sha512-ERERE7n+BJuw/wwWV8Kc2X2/vFWANLHkP/eGUO2tN+6fHgKsWSzNRRbJokhnjE4ldqNgs3qSZgDA9ioW5qxBcQ==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-join",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-path-zero-or-more@5.3.0": {
+      "integrity": "sha512-v/F3KwJFDGJhjr6oRmhYED9Ra2XZFa/982nTIIl3uOwP2lw0TDTPHR5hwIG65bv77IY8G/CZ7d8UDJq9jEu9HA==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-path-zero-or-one@5.3.0": {
+      "integrity": "sha512-P8aGi+DL7bqqF2mO4pZewTjxxL90CHRK/iIjwQzx6MHXBYY5+X5uoSrWMDx0GtIZ1kzX1HYZiLFS0SJNg+e29w==",
+      "dependencies": [
+        "@comunica/actor-abstract-path",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-project@5.3.0": {
+      "integrity": "sha512-5JlXX0+iH2dXIFN0mAA8r0iP6i5Sxd3yMNu1nJq2EaMNY+yUDkW0sanjDVqi+3c+vUP4CVaI3uwYjbgEPykf+w==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-data-factory",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-query-operation-reduced-hash@5.3.0": {
+      "integrity": "sha512-3OLKzcq0aO1Kyjz1qOWJEotiNPae29h2+v0uzTgbDzfsZxxVk0S85zl1AWQSTYs+A79PItKFYPaiDVzsYDiKtQ==",
+      "dependencies": [
+        "@comunica/bus-hash-bindings",
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "lru-cache@11.5.2"
+      ]
+    },
+    "@comunica/actor-query-operation-slice@5.3.0": {
+      "integrity": "sha512-A+aNV+wF7KT2f+GEprahjqNd6n2/KQZfbKNoDU/9ZJVEPkl8vT9zZ1ScM7iife/VVTeLybw3KIFJcqOrDveUvQ==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-query-operation-source@5.3.0": {
+      "integrity": "sha512-YyBseNXKnm5QuueihMeOui0hkNGTS7f4XqxDGxoILi9AgxQZIJI+UAhhLXN4Jt+wcvSyIqGMMhleYkpINemdZQ==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-metadata",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-union@5.3.0": {
+      "integrity": "sha512-btM/bNbtWh6LIlXgvpTgjFOqNXUfv7kW4izCVBx4uS+e4yb+7rTEi2jNJ9dsF2uXHltRW13m24NR82d/P92TUg==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-metadata-accumulate",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-metadata",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-update-clear@5.3.0": {
+      "integrity": "sha512-jfJG+p/1aZWqgvKfw5Wp6jdhQkpJZPD5WbK87RXR6guqxj6YPSeTNSrKtJncp8lUg3y99OPgAYTTNqVdFJPA8w==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-update-quads",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-query-operation-update-compositeupdate@5.3.0": {
+      "integrity": "sha512-6dfRIzfU65soQ99wBZLyEQ2vapG8wLaM7tIbL6c70zcsmT+FrvR8TyqbwE9J9udl4x7TdhZYFpltvCfkUewZ2Q==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-update-create@5.3.0": {
+      "integrity": "sha512-sesINoFuaEfUvysskio+E7rD34mSmYEwLhEn/CACrDb9dztdgqej/IatGFQWKZpw6PezDysBVYW5vp5MQS5Bhg==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-update-quads",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-update-deleteinsert@5.3.0": {
+      "integrity": "sha512-yorNuXAvhoWN8A4SmVvqaXREpEadNFPX5gZ97rxPel8auiOnICMCLP1LaRk4mp1RgVRx6b14caQnw8rXMQo1cg==",
+      "dependencies": [
+        "@comunica/actor-query-operation-construct",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-update-quads",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-operation-update-drop@5.3.0": {
+      "integrity": "sha512-FHWlHRHkNTqQWkudlgjXTtZlruwK/kRbZLyMU4kD1XyJMvYeyvJeXUxi+ZYBSJ0DBoZuYnfCupLw97xGcgYkkw==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-update-quads",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-query-operation-update-load@5.3.0": {
+      "integrity": "sha512-Qi+a6rI56UnSTY7vMJdDwo5x0JRvqBH6W5tNYFjcVSp4pBSJQyt5mgeGECh4nXPOhNSqCSmrwVIoL0YJpytl4w==",
+      "dependencies": [
+        "@comunica/bus-query-operation",
+        "@comunica/bus-query-source-identify",
+        "@comunica/bus-rdf-update-quads",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-query-operation-values@5.3.0": {
+      "integrity": "sha512-SbUXQvAbGrKH5s/6A2w1JuQDfssrPgJWXAoC3YfdNlEn8CKC2xGrzNmwGma97ldKZwhxZAQaIMPK0kMOKKst+w==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-query-parse-graphql@5.3.0": {
+      "integrity": "sha512-hWo9cQkHFrKZVwQDpgdnkzCdvF9JNyLdRNYTTdYD8T+h2tKryvxIfWQu3vCazFH0KW1taZc0krBpvSSmO9a4mQ==",
+      "dependencies": [
+        "@comunica/bus-query-parse",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "graphql-to-sparql"
+      ]
+    },
+    "@comunica/actor-query-parse-sparql@5.3.0": {
+      "integrity": "sha512-SiSf65f9I3NM4jvzHp8DjfvuLeTLoBemRl54BwdM/VF7LF3XcsqcRrtY/BKIcPNipEt21z6hP6UWrRyywjTrYA==",
+      "dependencies": [
+        "@comunica/bus-query-parse",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@traqula/algebra-sparql-1-2",
+        "@traqula/parser-sparql-1-2",
+        "@traqula/rules-sparql-1-2"
+      ]
+    },
+    "@comunica/actor-query-process-explain-logical@5.3.0": {
+      "integrity": "sha512-NiSiNJgfburkDNY23QKiNxhnlwNp0RGYe/J06RRhymhaPWv4av7AoZVTvzBpUHIOLbK55G9phPvZEYXJ+COpxw==",
+      "dependencies": [
+        "@comunica/bus-query-process",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/actor-query-process-explain-parsed@5.3.0": {
+      "integrity": "sha512-OO92YAiJ6dQ1T/x1hOkfNyODLTrE1grPw7L+7aQ2qubOm/OyP3iLmXPa9sjr269WCVUlmthaWbt176WjOKtPrQ==",
+      "dependencies": [
+        "@comunica/bus-query-process",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/actor-query-process-explain-physical@5.3.0": {
+      "integrity": "sha512-tFAF5ELPoK7CNHLg1Gtp9VsQmYreH9HqFlvLoie1K9L+2sBAi9It8/VgixVUQYmxjyvJCTFi27nKr7okhGuZrQ==",
+      "dependencies": [
+        "@comunica/bus-query-process",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-query-process-explain-query@5.3.0": {
+      "integrity": "sha512-msLbIIJiSwssWLxQFb9qZJVstkRu3TJAwdz8rDSlEhPNSpAiWJgl7xP0i/8DExifP3Uo8r15IfdYW4A2RfyOBg==",
+      "dependencies": [
+        "@comunica/bus-query-process",
+        "@comunica/bus-query-serialize",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-query-process-sequential@5.3.0": {
+      "integrity": "sha512-e7J6oAfs5OufRdCLY29jv/gNhLkNqWWUrbmJFFfZ6sKKfu1K/Jxqb5OT+jAC4DiMfcB1Z8WMUAKe6ptQkL7WeQ==",
+      "dependencies": [
+        "@comunica/bus-context-preprocess",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-optimize-query-operation",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-query-parse",
+        "@comunica/bus-query-process",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-json@5.3.0": {
+      "integrity": "sha512-HmUajWoV1disxavzN9w+xe1J0DyB/2FiIsS7AfxCL5vErXVf9uP/La131kTQ+j212nGZX0Yzt1YjCuO7+LqDHw==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "asynciterator",
+        "rdf-string",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-rdf@5.3.0": {
+      "integrity": "sha512-kEhuXXAk4a5dC1/01sEPGW+1gy0NrCZlEzUaSM8Fs6kskaBh9vIcnyxIoqiZoiMhGdOI1K/jRNGlC4Dwk75Flg==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/bus-rdf-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-simple@5.3.0": {
+      "integrity": "sha512-u47y97BbftZyXm3cuZj7mBwJTZYBtM1tb9fi6cgN99typ8s4kZTbWQhNSltcbPnw6N3ftEVNg+P1XddptkFJWg==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-string",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-sparql-csv@5.3.0": {
+      "integrity": "sha512-b3F5zY/YuhhIm9LLyALBh7B/4IlYTGUbdNJIgszl8wA92WVsixYmIGF64IzygZcfdg/OeZ3FR/cDQxStFlugIQ==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-sparql-json@5.3.0": {
+      "integrity": "sha512-/+uUdv0+nvmQOgequNliYi6IGGmARpctZwC0MX1DKirwW1fVwtCCov4Gpj+FKUccYoRQgya6BFkineIV4S7HYA==",
+      "dependencies": [
+        "@comunica/bus-http@5.3.0",
+        "@comunica/bus-http-invalidate",
+        "@comunica/bus-query-result-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-sparql-tsv@5.3.0": {
+      "integrity": "sha512-zah/xsrMAlbQ3gddGLaOjjtweptitPh9JzZSid/ulZttNrdK8NV2752qp2vRrvdwYMhx9k9+P/ifKJ1LNPGvDw==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "rdf-string-ttl",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-sparql-xml@5.3.0": {
+      "integrity": "sha512-+DeLA7dVPhL/ND5/WpyGlvdFJXwCNHzEGlr44Ci3xu7zp5b4dvmbPk+MzXP+LBu8AB6Q+Nf4If/6bBkPCSh5+A==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-stats@5.3.0": {
+      "integrity": "sha512-aF2tkP2YYomRx+1JHLZ6fDhNO4cL1rtGNQfV0BogjQjrZNrtgqlDeBfETlu9xhTliFRITPXUq6BnJmqekvrrGQ==",
+      "dependencies": [
+        "@comunica/bus-http@5.3.0",
+        "@comunica/bus-http-invalidate",
+        "@comunica/bus-query-result-serialize",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "asynciterator",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-table@5.3.0": {
+      "integrity": "sha512-nOMRkY1x3roDCICFCibeL7z3q2lWRrJ8p0deljW/4qf8CMWLA+1o6OoeF9Fe07KYY2Xa1eXrGpa4dAWVMGVTyg==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "rdf-string",
+        "rdf-terms",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-query-result-serialize-tree@5.3.0": {
+      "integrity": "sha512-R4sawCBx+ABt2NbAp8icqoKUGPYacd2uVzHEikQ29f4MgO+3YNyMKhkbjQxKPHSUo0fDL+iKl8OkSoBxOnv94A==",
+      "dependencies": [
+        "@comunica/bus-query-result-serialize",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "readable-stream@4.7.0",
+        "sparqljson-to-tree"
+      ]
+    },
+    "@comunica/actor-query-serialize-sparql@5.3.0": {
+      "integrity": "sha512-8a0r4dr6sMfLBM38uV3iB4EOfHSky1Pz8X56JWEXKEuKmH9SlHiBPdsR4yzPcxOjT/q/v2QqSBLF4pfCoITiEQ==",
+      "dependencies": [
+        "@comunica/bus-query-serialize",
+        "@comunica/core@5.3.0",
+        "@traqula/algebra-sparql-1-2",
+        "@traqula/core",
+        "@traqula/generator-sparql-1-2"
+      ]
+    },
+    "@comunica/actor-query-source-identify-hypermedia-sparql@5.3.0": {
+      "integrity": "sha512-LMDpKwB5rMA1ACYehtIhepza+fwKDXPrdMBFiMMVb9qymvHRTRSTRgQKoJgZb1SO3jEaMNNv0s75KaYvC/JbMQ==",
+      "dependencies": [
+        "@comunica/bus-http@5.3.0",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-serialize",
+        "@comunica/bus-query-source-identify-hypermedia",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "fetch-sparql-endpoint",
+        "lru-cache@11.5.2",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/actor-query-source-identify-hypermedia@5.3.0": {
+      "integrity": "sha512-GeI86/Knx0I3cEpDaHl57duLHyA7FnoyCbVSijT+/5FfzPkfgY/qnj9udmUv7pQUZq8AOwypvUmoRsXvnZPGNQ==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-source-dereference-link",
+        "@comunica/bus-query-source-identify",
+        "@comunica/bus-rdf-metadata-accumulate",
+        "@comunica/bus-rdf-resolve-hypermedia-links",
+        "@comunica/bus-rdf-resolve-hypermedia-links-queue",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "lru-cache@11.5.2"
+      ]
+    },
+    "@comunica/actor-query-source-identify-rdfjs@5.3.0": {
+      "integrity": "sha512-40YD/5Ole/BjVfsRqaaLaW/kW/NtuMCBKO8rqJXsCmVFDUoaFFOn4TQOE9T710hxRu3cZuadlaTuciPuEKLoUQ==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-source-identify",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/actor-rdf-join-entries-sort-cardinality@5.3.0": {
+      "integrity": "sha512-QnPoP58iijCZ5ES+24kPygP7sFaxInjYSiBtFn6RhVESe0lW5r2A7r5jeFGkwlAJuHXkJUOxw3mn0Nyn+z8qQw==",
+      "dependencies": [
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/actor-rdf-join-entries-sort-selectivity@5.3.0": {
+      "integrity": "sha512-AJienaS/Zdpl76KuT6uJ2hm3oF3+z5U843A4wY9j4/iuc/7W62orU2mGLHVG7EuE6ynRrG1jB5tQXZQKH7pEdg==",
+      "dependencies": [
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/bus-rdf-join-selectivity",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-hash@5.3.0": {
+      "integrity": "sha512-KGxul6J+cezhVkM73ivPaQyha8+1ghpN3kPbExN2K1/iUjU0Ew2Prh0DYdnhLaRTrHsd/rhtzcIPgE0Xx2bXZg==",
+      "dependencies": [
+        "@comunica/bus-hash-bindings",
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-bindings-index",
+        "@comunica/utils-iterator",
+        "asynciterator",
+        "asyncjoin",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-multi-bind-source@5.3.0": {
+      "integrity": "sha512-Kt7G31sbSdj5vexXAHnbtbW47idiZ/vbjWIm4SuUsvYCOm2jKpag2UeyFC0A+T1TPKFb32g5vt/OM0Snn616KQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-iterator",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-multi-bind@5.3.0": {
+      "integrity": "sha512-rmvWZEG8F4WKPqpiRMKYvMwA6wA10WkeZwhYoS5cUKl42ywemvNDExLA6JgtJ6Ib9smlZcyZWWQYav+5l09gHA==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-join",
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-multi-empty@5.3.0": {
+      "integrity": "sha512-h7W1/cZOb87f/vd7BowSWsvmW6r1CiBbkbSU9/R+PIn4oTIOiHQG+i6IaYee/6is7SLhnziVC5Kr4TgP5/C/CQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-multi-smallest-filter-bindings@5.3.0": {
+      "integrity": "sha512-LbFKEI6Fr0bqxm15esb+BbM2nYs6OKhf/2893wKoIoUEqWm4laGtZfsZaqFEE97ePPAYih5PoUyufSHrnpUUag==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-iterator",
+        "@comunica/utils-query-operation",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-multi-smallest@5.3.0": {
+      "integrity": "sha512-oLm0sYvlD6l80WwkDpqiieUbd2zOoR/QIdl7utcf9V/ZIdmoNubtoIhezWfcAwpcvTJ6YyIL0srX93dQ9mjiYA==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-nestedloop@5.3.0": {
+      "integrity": "sha512-/PrAyVVFrKxWMVu/SMXIpJzBo10W4rQCQI0adWi2b8/NV01CSjf9Lbo4Ikxkn17giZJHid8ni7bS1hRE3c14MQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "asyncjoin"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-none@5.3.0": {
+      "integrity": "sha512-uRbdlP4OjkcvIiAenU2Jxo2Sw1uOBo0QoGO/UcmJfFCMQWbvzFliVICJfgjwPazrpfZLtIBQ/8xpkTbzn7GjgQ==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-rdf-join",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-single@5.3.0": {
+      "integrity": "sha512-XTQXtQgTbjxMqwaXonWt0AdXHHQ49dDNeG5VUNdGsEYrY4uHio8m1zAfWV8ZBCwf8x371v2sXWl4Sz3rL5zNoQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients"
+      ]
+    },
+    "@comunica/actor-rdf-join-inner-symmetrichash@5.3.0": {
+      "integrity": "sha512-r09fO1Fwg6P9rud0Gv/vmt39KD8hmXT17zYlKn0mkg1cLhtmSFVNra1tW0PdQzdpYWXWNDxyAojerDW1HjZ8dQ==",
+      "dependencies": [
+        "@comunica/bus-hash-bindings",
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "asyncjoin"
+      ]
+    },
+    "@comunica/actor-rdf-join-minus-hash@5.3.0": {
+      "integrity": "sha512-836AXeggHS1NZ7/cE5jRpT4DGeBPzKnkOakJzzLzExeHp6+d33Qsa3okB9LrkJoptEgL7QGaoUreyfhOhJO1uA==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-bindings-index",
+        "@comunica/utils-iterator",
+        "@rdfjs/types@2.0.1",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-rdf-join-optional-bind@5.3.0": {
+      "integrity": "sha512-G+1CySU4KRuN16YTOENfEuE7Ba/CbIBDBXX9dpPUMDWTlxJQ787oHmK9keop6mtAgIvh1J8ukhpcAxG2QNPPrw==",
+      "dependencies": [
+        "@comunica/actor-rdf-join-inner-multi-bind",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/bus-rdf-join",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    "@comunica/actor-rdf-join-optional-hash@5.3.0": {
+      "integrity": "sha512-EExbPqR+N9ux07lewB9FJHACCINpz+b0hBw4fZDObjB3C7MzHUAlV3iJrEbiRQI8KtHGE0A2Dz1xcYWV66p0fw==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-bindings-index",
+        "@comunica/utils-iterator",
+        "asynciterator",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-rdf-join-optional-nestedloop@5.3.0": {
+      "integrity": "sha512-vsYkMqBbvoAgUBjgGQB4BxtO09l0T178OGqO33Np0RXEo3vuAkL+jjIUD4wL10Zr9F8XZ6OEAmrhT/di9FMqww==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "asyncjoin"
+      ]
+    },
+    "@comunica/actor-rdf-join-selectivity-variable-counting@5.3.0": {
+      "integrity": "sha512-1VG2rIYdE+zVpG3T3QtACffrFBFR3tDdXZNCnwMur+HTvDlBZB7ni4tRGl1ENnGnXw8JUKdJoJTPX0a7YiGYnQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-join-selectivity",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-accuracy",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/actor-rdf-metadata-accumulate-cardinality@5.3.0": {
+      "integrity": "sha512-vDNJOHoRO7Lhk+dmIT9ZWiUBjDBi5hbOJDMke0akZP5mc2rooVckKyWDlofxqyk6bI4bDGDfQs8T9LnFw9v9xg==",
+      "dependencies": [
+        "@comunica/bus-rdf-metadata-accumulate",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/actor-rdf-metadata-accumulate-pagesize@5.3.0": {
+      "integrity": "sha512-93ibAxT9DTXNWMsOB9NGCmBaDNMNnGHXW+n8BsqNnUeqX9SY1C96wxD34u8nNvfb8BAtwEopzsMqCA3a+9HCfA==",
+      "dependencies": [
+        "@comunica/bus-rdf-metadata-accumulate",
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/actor-rdf-metadata-accumulate-requesttime@5.3.0": {
+      "integrity": "sha512-TJ3mj+Y1l2CgfekoPdbx2w9yIbAwPam9mWL/YLaNkYkYEfQkcgAq+SN3eLPbIklRmjzcfkaXmE57QR1NZgTlng==",
+      "dependencies": [
+        "@comunica/bus-rdf-metadata-accumulate",
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/actor-rdf-parse-html-microdata@4.5.0": {
+      "integrity": "sha512-wxoXLS0nxV4ZqJEsx+zdZLjkRxZPFo+bXt+0fVEuDdBwL5WaJ6WPEL3fqbiH3QuaTu08k9klnsg2L1ncCeHhGg==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse-html",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0",
+        "microdata-rdf-streaming-parser@2.0.1"
+      ]
+    },
+    "@comunica/actor-rdf-parse-html-rdfa@4.5.0": {
+      "integrity": "sha512-o39tqHXAvKHnsa82Zm5FIbDRj+CSN46Nxj19TBSpCIsRlv5wJ9NpD6yxd7nGr1ovS5/5Ky7vDSdLcJ0MnJaNSQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse-html",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0",
+        "rdfa-streaming-parser@2.0.1"
+      ]
+    },
+    "@comunica/actor-rdf-parse-html-script@4.5.0": {
+      "integrity": "sha512-eobWYbV4w7o/NK+6GMVkcaoGEQbTq2RmDDN63J1I/U0sTSQX0qvtLr0L4buOzGliIUttBbpsYfOc5YtJX6PP0g==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse",
+        "@comunica/bus-rdf-parse-html",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0",
+        "@rdfjs/types@2.0.1",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri"
+      ]
+    },
+    "@comunica/actor-rdf-parse-html@4.5.0": {
+      "integrity": "sha512-43PrAVCdHLcbJtPqZOVB9/4Zm5EDwIZrzUJhFPx7y30lzda1LmchL5aPrn5OPyrP3/AxK6U0Y9ISDZOBguOAEw==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse",
+        "@comunica/bus-rdf-parse-html",
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0",
+        "@rdfjs/types@2.0.1",
+        "htmlparser2@10.1.0",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/actor-rdf-parse-jsonld@4.5.0": {
+      "integrity": "sha512-QuYhMRNH7oc2RjpDCUWNoZiEkwgOGgQvT+GnCZz2pd2kHuTcH3iBo5FvDTLornSVO0RVchcpWGItN9zA2dCNoQ==",
+      "dependencies": [
+        "@comunica/bus-http@4.5.0",
+        "@comunica/bus-rdf-parse",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0",
+        "@jeswr/stream-to-string",
+        "jsonld-context-parser@2.4.0",
+        "jsonld-streaming-parser"
+      ]
+    },
+    "@comunica/actor-rdf-parse-n3@4.5.0": {
+      "integrity": "sha512-rERwWLr+fiFWuzWJe5Zoh0JvlaZn9DkvFGRl/5DntnDuwI91/U/p/atXBKfz/abpPAUs4hRGj5gkqmfdZg/bBQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/types@4.5.0",
+        "n3@1.26.0"
+      ]
+    },
+    "@comunica/actor-rdf-parse-rdfxml@4.5.0": {
+      "integrity": "sha512-KDmXZ7w++eMO1HXaKwbkx6o5wKTtSMTCdhMGb/ewHinw4XVwesAy9nu/C5CAhi8LpCjdAxa7kf5POejBXUWd3Q==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse",
+        "@comunica/context-entries@4.5.0",
+        "rdfxml-streaming-parser@2.4.0"
+      ]
+    },
+    "@comunica/actor-rdf-parse-shaclc@4.5.0": {
+      "integrity": "sha512-YFYn9ml/eCfZhBTYeaYJ0Qk6HerBi0H4acZYppcMKdh/GPJklzW9LOLlEfEzYstrqwPIKZzqgoBg5yvVgbmXpA==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse",
+        "@comunica/types@4.5.0",
+        "@jeswr/stream-to-string",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "readable-stream@4.7.0",
+        "shaclc-parse"
+      ]
+    },
+    "@comunica/actor-rdf-parse-xml-rdfa@4.5.0": {
+      "integrity": "sha512-1uQuq3xsokT0wWf9O6d+SyuNEvGX+bgSSGBCQF9YDjc2RygiZATUdThDmh4VDUYJzUCxHb3YM1XyJ+U2Si6xpA==",
+      "dependencies": [
+        "@comunica/bus-rdf-parse",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/types@4.5.0",
+        "rdfa-streaming-parser@2.0.1"
+      ]
+    },
+    "@comunica/actor-rdf-serialize-jsonld@5.3.0": {
+      "integrity": "sha512-Je15V30IuGjHnJYt2/M0dpj7xF0bDaKK3q9QemrZUvfQUBUbt6gyYWzrwSzWoBnimYW5h3tsaTLoNBdl+vPGQg==",
+      "dependencies": [
+        "@comunica/bus-rdf-serialize",
+        "@comunica/types@5.3.0",
+        "jsonld-streaming-serializer"
+      ]
+    },
+    "@comunica/actor-rdf-serialize-n3@5.3.0": {
+      "integrity": "sha512-tbMgoM+5fBomE9ScW51FlQ0HuOzmC3aBTVCVTpQOl2s69Jnzeg32hd/pdw/m/WQvIjGRF29ggSRKpHnsydYInQ==",
+      "dependencies": [
+        "@comunica/bus-rdf-serialize",
+        "@comunica/context-entries@5.3.0",
+        "n3@2.1.1"
+      ]
+    },
+    "@comunica/actor-rdf-serialize-shaclc@5.3.0": {
+      "integrity": "sha512-zunOoIWCt7Droq2NWwpaapZKQFVqktv7CS+6ISmsiepOligk6Ps2D3F/cRq4IpmEZT9kcRofEXFAy0m9yxLR4A==",
+      "dependencies": [
+        "@comunica/bus-rdf-serialize",
+        "arrayify-stream",
+        "readable-stream@4.7.0",
+        "shaclc-write"
+      ]
+    },
+    "@comunica/actor-rdf-update-quads-rdfjs-store@5.3.0": {
+      "integrity": "sha512-NQd2F2MU5Wk6XjDTXHcV1P3Ttv6JzWfTEVpQM+9TcT0S55BTQWcMwJ03KhgHNwrCFFUOc3enQxMhwXL0g4ckIg==",
+      "dependencies": [
+        "@comunica/bus-rdf-update-quads",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-query-operation",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "event-emitter-promisify",
+        "rdf-string"
+      ]
+    },
+    "@comunica/actor-term-comparator-factory-expression-evaluator@5.3.0": {
+      "integrity": "sha512-Qg08JwUHQLjMYlQt5S07Basrd1dPJAIUlW9/NGtvPOrXCu8ukEfVjbPy7KIuz64okmLJUxS5IAcit6OqAl3OoQ==",
+      "dependencies": [
+        "@comunica/actor-expression-evaluator-factory-default",
+        "@comunica/bus-function-factory",
+        "@comunica/bus-term-comparator-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-bindings-aggregator-factory@5.3.0": {
+      "integrity": "sha512-SxMOl6Zd9jolBbOIOIqkgLCGIR/6rbL/pCwsDpBU+dcpQPECEQZW51N55/t9R3pSBci20ft8AIUjyv2HC6MkdQ==",
+      "dependencies": [
+        "@comunica/bus-expression-evaluator-factory",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-expression-evaluator",
+        "@rdfjs/types@2.0.1",
+        "rdf-string"
+      ]
+    },
+    "@comunica/bus-context-preprocess@5.3.0": {
+      "integrity": "sha512-zEXJE1fzbG652rGTsb4CVfvI+H9B+YwCAXQq6UtMJqelVFFBSYBXMsyzHbYYN5EafRUMyfwtxxETGd4q809/sw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-expression-evaluator-factory@5.3.0": {
+      "integrity": "sha512-5IxLzVAmwv9Aj30F17viNVFQT3EKDWXeTV1WFBLfkxFFiah5fX5gqOTKPVCYgf4n3uAjmcKtEkkRUpXU10a+Ig==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/bus-function-factory@5.3.0": {
+      "integrity": "sha512-s/zSlCwvFLiFqSS+qhYeorOEUD/5CUMm/dJilTZsy1Dct8VYCx6Rk0wbNYkgxlnd91K/xj1ZCgCMITA+m23J5g==",
+      "dependencies": [
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-expression-evaluator"
+      ]
+    },
+    "@comunica/bus-hash-bindings@5.3.0": {
+      "integrity": "sha512-Kapq4bVjWEhHm4+c/8K50UdiGMzcePyWeDv9nj9SBRIqu+lnu67Rzwb+zk9KmiHiQKlJqr4EIguaYJqJPuym3w==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-hash-quads@5.3.0": {
+      "integrity": "sha512-cPblIA/tIgl3Hr/zkEpnckxr9YP3u+8MovWCwOlQ/7qmO8CZQGyhj+g23gzzMstrLG3KtGnFinkXPiYqr1qytg==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "@comunica/bus-http-invalidate@5.3.0": {
+      "integrity": "sha512-RZw7IEYNLy2DY2fUvXA4CUxzrLeYYofr+soXdKKpvwDYyXqOoNGEZoJP962/RDFORm5hvgZyOWoau5Rg9MAkUg==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/bus-http@4.5.0": {
+      "integrity": "sha512-wWyPNNOl6shDbtibdBl/pa9OIcoEMemNIo/J4tUViXxYXZ8i1h4FZ6PqaLtAls6O+pV71mR4SKJzKEUuiZiXPg==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "@jeswr/stream-to-string",
+        "is-stream",
+        "readable-from-web",
+        "readable-stream-node-to-web"
+      ]
+    },
+    "@comunica/bus-http@5.3.0": {
+      "integrity": "sha512-/d8FS02Jb5gvFDw21ZiH2Bvt3PRkMN3kkowTRBIArB4wJjt1c7DRXCt2uS7zToNVa0mAdZmKIlC1vpY6g6o3SA==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@jeswr/stream-to-string",
+        "is-stream",
+        "readable-from-web",
+        "readable-stream-node-to-web"
+      ]
+    },
+    "@comunica/bus-init@4.5.0": {
+      "integrity": "sha512-9TYFLjirHDt7HPXj3eQW9KX3x5T3mZ1G/EKadL1gQxo0FAqs3y8TdicepCLhk3HY/egidlyv9WQYAPvJ+WAmAg==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/bus-init@5.3.0": {
+      "integrity": "sha512-d0Eyp1MhjTAttzBsglLJd3CLi+D7Z3Beat1a396+qdrqXWNV74TFazKMhymSmwwEUZMeyiIR/YttosOkl1ujkw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "@comunica/bus-merge-bindings-context@5.3.0": {
+      "integrity": "sha512-1o8i7aVxWkZhlSEFbbO5YsRvEtQcepRxbrcwovX9qhDpoaZgcEcOIG3cG56+McxD6hZcJoRIJAnOjggmL5rPiw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-optimize-query-operation@5.3.0": {
+      "integrity": "sha512-YsI+cfmW8Syblu50hs1HrSRZIkW/cZMmdjGlq02kRr9YUyexk05h1mzAblWP1/63VbvTVc42MPkm57JShp5Z0g==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/bus-query-operation@5.3.0": {
+      "integrity": "sha512-acJ87Hsw62NGSCKGbb/YN51zC4d+Tjin3V3DARjnbP7koyltInW8BkNbsZjPr+R5rhvEQbCfxLSuwuk7bg4IIQ==",
+      "dependencies": [
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-query-parse@5.3.0": {
+      "integrity": "sha512-DnklxCi7+HjsB/6zmVrupmjQxDEkWydWXBOp++suVjrrxaD0BbOXNwInD33Kr5j9pSMPrBUck0nk8+mHc8JiZA==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-query-process@5.3.0": {
+      "integrity": "sha512-NOpHUBA3qxF9Y4vmHaGlnGnGxPUNthT9GdkvT3jyH3ykU8RPIbrpeRZfS5Kdv2rj3Z/EvTlUXIEF63ENdAReAA==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra"
+      ]
+    },
+    "@comunica/bus-query-result-serialize@5.3.0": {
+      "integrity": "sha512-jWz0031xw1AfdgdpvDPAGV1s1jkK9wSMY5dm3kAAn9bzudLOQekvxyMDUiX5Wrk7nF4xDo/CZO1HsCX6eLCOtw==",
+      "dependencies": [
+        "@comunica/actor-abstract-mediatyped@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-query-serialize@5.3.0": {
+      "integrity": "sha512-WRFiNpaleI+XmAOnHvevuRT89Ei39B6od09ZN4rNLybHa7BzRvOBfnwyu2joeK9+VDc4rD2/cqjLnVIpDMbd7A==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-query-source-dereference-link@5.3.0": {
+      "integrity": "sha512-okwvE+pPcFc0Njt7VplV1sVREGSdPVlDqh2aMS0ESHx3O0lFBjWiPr0MwhhoBnzhplJ/WQfLyESZumDNFayehA==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-query-source-identify-hypermedia@5.3.0": {
+      "integrity": "sha512-tbu0dGoqJTLJF0eTFSdPY5uQOrvTYqbvlExzRWcUiF1NEHw3TH065QsDtL6PKlWCQWmyWRp/uzdgdPvPx1utaQ==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-query-source-identify@5.3.0": {
+      "integrity": "sha512-7tMFWemw1CojMqYwJpd42ojZA5QZQCN1/ITDTuUVTh1stny+siCTpAmqMLAwxpKs2AWeuj9ytkUGd/jk8zH6Ww==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@comunica/utils-iterator",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1",
+        "asynciterator",
+        "rdf-string",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/bus-rdf-join-entries-sort@5.3.0": {
+      "integrity": "sha512-J5ivYZTKWy61W0KwuxBCbgNlNaX+acJTUaS5s/pR5SLrrMDE19yBaJAgOAP8bPlW19IPnqjMuvmrAhGRes/qyA==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-rdf-join-selectivity@5.3.0": {
+      "integrity": "sha512-vH3RVitPhWEBGOPgA3Utq4eOT2YJXYAsLMShH9fmckW+Gyn8gHkn/bvUyX3XX3eC0eFhOno3reCUQWXjgcOmfw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-accuracy",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-rdf-join@5.3.0": {
+      "integrity": "sha512-frR1cwzcM6knfkxMB0kLgTc31N2dU3XhK4DeZhbkXtj8Nyu2g7YMhrU/HEOToNj/lrr4/utxsisg63c9e2/IUg==",
+      "dependencies": [
+        "@comunica/bus-rdf-join-entries-sort",
+        "@comunica/bus-rdf-join-selectivity",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-iterator",
+        "@comunica/utils-metadata",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-rdf-metadata-accumulate@5.3.0": {
+      "integrity": "sha512-qQFIhWFvqNVT3Lbfe+gF8pWFEyFGhZ4nHRBbSYuhfF53Uq4odEwx/NwFkbrPqH4QWAnKy+uqUCr1RTvNa/0Zyg==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-rdf-parse-html@4.5.0": {
+      "integrity": "sha512-yKsPuCIOLF5TXqoXXo+utZehG2diTCBnNleXrOI8Utr4Qu5rAU4oQ5+FC0UByMu5hr+g/TGm2A+IHSVzFRCUfw==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-rdf-parse@4.5.0": {
+      "integrity": "sha512-TnTS9F2GSbibuCd0Rep20C9WXU0KH0iWl2S2xycefMFrZK7noA8LeT/AHNshQlMPKejKxWME+jNsvcXgC++8zw==",
+      "dependencies": [
+        "@comunica/actor-abstract-mediatyped@4.5.0",
+        "@comunica/actor-abstract-parse",
+        "@comunica/core@4.5.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-rdf-resolve-hypermedia-links-queue@5.3.0": {
+      "integrity": "sha512-EbIeIYnhkKymvzsTviTZzTChMpjdKI3fI6v1LPZb0j+L0qGi/Xt5QjF87u9FCGIJgtbRzOdjSgSFP+FBwVcgLQ==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-rdf-resolve-hypermedia-links@5.3.0": {
+      "integrity": "sha512-r+MClePIZDCI37vr9eIPR9BGvH5MUVeC5EX6CXSAOlgqULCj4kIaW/KA5NxvShMi4lnw3ErGNjXVuixpxerOpw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/bus-rdf-serialize@5.3.0": {
+      "integrity": "sha512-kcGy/GkKL0/qh90VWJTORFt5HEUJ/g+VG/YElLxh7ZhAaeDcmm7XiTZ+lJM71l2x5k38NRLpzdAREnrLdxMBpQ==",
+      "dependencies": [
+        "@comunica/actor-abstract-mediatyped@5.3.0",
+        "@comunica/core@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/bus-rdf-update-quads@5.3.0": {
+      "integrity": "sha512-3GiRK60Cdnu0jnk7ux9EZBy/GlfsKCITReuFiAQEwUQs5nqRHq2MQ+f8gjaVICc9L50jICNGOXHRn095IFskpA==",
+      "dependencies": [
+        "@comunica/actor-optimize-query-operation-query-source-skolemize",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/bus-term-comparator-factory@5.3.0": {
+      "integrity": "sha512-Xk61lo643QXfH9f34M7vNdaOART32Gjp3R6IdOsLqgCmrwM0FtvUt8UB+FWgTV4G6n8aRJwFw2e8M9v3kw3obg==",
+      "dependencies": [
+        "@comunica/bus-function-factory",
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/bus-query-operation",
+        "@comunica/core@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/config-query-sparql@4.4.0": {
+      "integrity": "sha512-ZVK6eqpYLNa3MRLOWjRaudgfSdraJH/oZIkc5S2doJI2ZmnHROqQUtjPs13kwkI3hGZ6MVBtLm55oz+tKj2lKA=="
+    },
+    "@comunica/config-query-sparql@5.3.0": {
+      "integrity": "sha512-5snTR5p0yjQCIiRrNu6tzNAD1EfahkSNmQUB2AUI04S/lfz97HQ1ycvQroeJ7P08goyBtld2s0AReexUnNhcfw=="
+    },
+    "@comunica/context-entries@4.5.0": {
+      "integrity": "sha512-mgeSYFBcpMKLq34COpy129LVHigGUgA1uEI66WXmk3mdmlAKRQNe9D/W2Q924w0FZZmIOpeLMo+s358tFsodow==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0",
+        "@rdfjs/types@2.0.1",
+        "jsonld-context-parser@2.4.0",
+        "sparqlalgebrajs"
+      ]
+    },
+    "@comunica/context-entries@5.3.0": {
+      "integrity": "sha512-B4KXcYgYDrg1HCl1kCyhHM2I/xvyJsSbf8bxHY2xWnaqqytLJPyyMffKdHFRflHc1JmlqpYV6vyc4+5ZBUWzAw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1",
+        "jsonld-context-parser@2.4.0"
+      ]
+    },
+    "@comunica/core@4.5.0": {
+      "integrity": "sha512-UFHBboFaY0eESH0H8qJRIRuRfda2QduS886l2sRum/V4qhzJkMpf3zdOoZoBbRDU24PBmliWysi9TEsaPsyRwg==",
+      "dependencies": [
+        "@comunica/types@4.5.0",
+        "immutable"
+      ]
+    },
+    "@comunica/core@5.3.0": {
+      "integrity": "sha512-f3TIl78jS/Td4b7jcXm8Ps2aTz70yujgrMn2vYKg6YLcvumA7yVJ5yVvgDz+jhv7wnQfk8yJfnzi2PYwuM4UMw==",
+      "dependencies": [
+        "@comunica/types@5.3.0",
+        "immutable"
+      ]
+    },
+    "@comunica/logger-pretty@5.3.0": {
+      "integrity": "sha512-GcpITJMRzlnOCJ8XbiKWIFQZJ1a6SyCHo5Yb/aXW24JIS7F4DFmogKdywQSffPnxT+0qTFPJn8ZDPaMeLfp1Jg==",
+      "dependencies": [
+        "@comunica/types@5.3.0",
+        "object-inspect",
+        "process"
+      ]
+    },
+    "@comunica/logger-void@5.3.0": {
+      "integrity": "sha512-/AY/8lT7A33nEtJ1bKgecVF52zR8mj6WQKoEM2RDvDG3ZKjwVDy3uZd2rOiz18lN58YHL7sCN1bxyrVGgjc40g==",
+      "dependencies": [
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/mediator-all@5.3.0": {
+      "integrity": "sha512-Fl2VqjdMGZSdqxJ/QkShgTH+kO0m0J3wiMGI1nzB4eSxqcJi8vI/AFDmlEnlodGR8xQyRKTM54/PVF6HUdd96w==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/mediator-combine-pipeline@4.5.0": {
+      "integrity": "sha512-Z4uLxugl+Ls8oAwD0dAIQg+i1rkiXbpiFLhgv5h6nksnz9q6Nv14xItm6baivxAJ9p8XVHCOwPxW46YJBtWIoQ==",
+      "dependencies": [
+        "@comunica/core@4.5.0",
+        "@comunica/types@4.5.0"
+      ]
+    },
+    "@comunica/mediator-combine-pipeline@5.3.0": {
+      "integrity": "sha512-I3OzVq2HlFOREEUBm5r4Hs8J1gDGyL4Ms45e2gJfEfuQuMKIIdCeUkdLrqHhqA1xgryybFV2PZ2bD7L6V2/xVw==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/mediator-combine-union@4.5.0": {
+      "integrity": "sha512-aCoO3CiANssR8PEjad2aNuCcfhKdUFZWplTWq77cVUMVc4nsUWNleeEvN6kfOx51qdT8lFpH3b8X+S7bT8CABg==",
+      "dependencies": [
+        "@comunica/core@4.5.0"
+      ]
+    },
+    "@comunica/mediator-combine-union@5.3.0": {
+      "integrity": "sha512-us4Ficcn9dMfeMAWPYaM386hwsWzBjYF2VClSkCn3hQW8G702HOs384pxFA5CDaqUUpn2HZZdokM72S8JTMFCg==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/mediator-join-coefficients-fixed@5.3.0": {
+      "integrity": "sha512-oqMfzit7DD6vwGxxLtFf5gBZVrVvLRGe6scksmnp32aq4RWPv5/PLg2DmsCq8bRIzKnMG4kDJaFh9aSBAmXG8g==",
+      "dependencies": [
+        "@comunica/bus-rdf-join",
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/mediatortype-join-coefficients",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/mediator-number@4.5.0": {
+      "integrity": "sha512-fChc4gh+gtwPOS0F5eNeDuU4Kyb2fAuppN28d1/5s+OUr5v+1Wya7yZ1zbPHYxDMWZEpJBR06eX6djcI0gKlkQ==",
+      "dependencies": [
+        "@comunica/core@4.5.0"
+      ]
+    },
+    "@comunica/mediator-number@5.3.0": {
+      "integrity": "sha512-Mb21LNiMZfjN4fF9st7eBpupX+AdrPLSrzJ8jquv5N5jK3ss8ctAPU6Kqs8c6DLkTmdfGIqUt9lQMQ7fodgj1A==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/mediator-race@4.5.0": {
+      "integrity": "sha512-eAWjQolFMOxKoKuUMmcQzxwf/ZL9ooT0/OUWv1vbVfHIQb/eqDs/h8wDqwXMgEiK5dIF9ZQYaRL2vEaLq+U3Ew==",
+      "dependencies": [
+        "@comunica/core@4.5.0"
+      ]
+    },
+    "@comunica/mediator-race@5.3.0": {
+      "integrity": "sha512-m66N9pMJ5FHS4Pt8arLyIS85cfDsXmhAcUxUVbxQw1+hAfBoQKRmWfZdTqdW55d9xeMxZysGFV1w3k5aar4SKA==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/mediatortype-accuracy@5.3.0": {
+      "integrity": "sha512-+A9HiGR4iIu95xSGysrJSzKvCkxY7mXZOO96by0cr3ZqbaCuCcHNBlxQLQcPWHExLz7eo1t+43KLUB3DkzSRig==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/mediatortype-join-coefficients@5.3.0": {
+      "integrity": "sha512-v3iZCMrnjtBoXkYIdLg/9PDI0SZTVvk/txuMS9k4BNS9hp+e8FE73HmufH8oLdkQ8vxHCIY/G6cacqAn0eEMnA==",
+      "dependencies": [
+        "@comunica/core@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/mediatortype-time@4.5.0": {
+      "integrity": "sha512-HND+om4L0VW3VcQrLHHE4+7Nsg7soC98i7g7UqqzDkJ4fix2FnJs0i9WH4RP+oLcx+bPhBSl5mG1m44A6sV19g==",
+      "dependencies": [
+        "@comunica/core@4.5.0"
+      ]
+    },
+    "@comunica/mediatortype-time@5.3.0": {
+      "integrity": "sha512-5OF11XzzolSbD2L0pA9QQdrYa3VGCge0eH88uBD8wYh/7UChOmo3J6lVjWE9Ct2GEWosJc1kUa33iu7Dfy962g==",
+      "dependencies": [
+        "@comunica/core@5.3.0"
+      ]
+    },
+    "@comunica/query-sparql-rdfjs@5.3.0": {
+      "integrity": "sha512-isXNLwV1PB3hGXtcKXOfV134/X2q53J2ZELS82F07KbHVLoGCwF+DxfQ/gXvPxIatGKO2w0v3At3uAwVPzfZDA==",
+      "dependencies": [
+        "@comunica/actor-bindings-aggregator-factory-average",
+        "@comunica/actor-bindings-aggregator-factory-count",
+        "@comunica/actor-bindings-aggregator-factory-group-concat",
+        "@comunica/actor-bindings-aggregator-factory-max",
+        "@comunica/actor-bindings-aggregator-factory-min",
+        "@comunica/actor-bindings-aggregator-factory-sample",
+        "@comunica/actor-bindings-aggregator-factory-sum",
+        "@comunica/actor-bindings-aggregator-factory-wildcard-count",
+        "@comunica/actor-context-preprocess-convert-shortcuts",
+        "@comunica/actor-context-preprocess-set-defaults",
+        "@comunica/actor-context-preprocess-source-to-destination",
+        "@comunica/actor-expression-evaluator-factory-default",
+        "@comunica/actor-function-factory-expression-bnode",
+        "@comunica/actor-function-factory-expression-bound",
+        "@comunica/actor-function-factory-expression-coalesce",
+        "@comunica/actor-function-factory-expression-concat",
+        "@comunica/actor-function-factory-expression-extensions",
+        "@comunica/actor-function-factory-expression-if",
+        "@comunica/actor-function-factory-expression-in",
+        "@comunica/actor-function-factory-expression-logical-and",
+        "@comunica/actor-function-factory-expression-logical-or",
+        "@comunica/actor-function-factory-expression-not-in",
+        "@comunica/actor-function-factory-expression-same-term",
+        "@comunica/actor-function-factory-term-abs",
+        "@comunica/actor-function-factory-term-addition",
+        "@comunica/actor-function-factory-term-ceil",
+        "@comunica/actor-function-factory-term-contains",
+        "@comunica/actor-function-factory-term-datatype",
+        "@comunica/actor-function-factory-term-day",
+        "@comunica/actor-function-factory-term-division",
+        "@comunica/actor-function-factory-term-encode-for-uri",
+        "@comunica/actor-function-factory-term-equality",
+        "@comunica/actor-function-factory-term-floor",
+        "@comunica/actor-function-factory-term-greater-than",
+        "@comunica/actor-function-factory-term-greater-than-equal",
+        "@comunica/actor-function-factory-term-has-lang",
+        "@comunica/actor-function-factory-term-has-langdir",
+        "@comunica/actor-function-factory-term-hours",
+        "@comunica/actor-function-factory-term-inequality",
+        "@comunica/actor-function-factory-term-iri",
+        "@comunica/actor-function-factory-term-is-blank",
+        "@comunica/actor-function-factory-term-is-iri",
+        "@comunica/actor-function-factory-term-is-literal",
+        "@comunica/actor-function-factory-term-is-numeric",
+        "@comunica/actor-function-factory-term-is-triple",
+        "@comunica/actor-function-factory-term-lang",
+        "@comunica/actor-function-factory-term-langdir",
+        "@comunica/actor-function-factory-term-langmatches",
+        "@comunica/actor-function-factory-term-lcase",
+        "@comunica/actor-function-factory-term-lesser-than",
+        "@comunica/actor-function-factory-term-lesser-than-equal",
+        "@comunica/actor-function-factory-term-md5",
+        "@comunica/actor-function-factory-term-minutes",
+        "@comunica/actor-function-factory-term-month",
+        "@comunica/actor-function-factory-term-multiplication",
+        "@comunica/actor-function-factory-term-not",
+        "@comunica/actor-function-factory-term-now",
+        "@comunica/actor-function-factory-term-object",
+        "@comunica/actor-function-factory-term-predicate",
+        "@comunica/actor-function-factory-term-rand",
+        "@comunica/actor-function-factory-term-regex",
+        "@comunica/actor-function-factory-term-replace",
+        "@comunica/actor-function-factory-term-round",
+        "@comunica/actor-function-factory-term-seconds",
+        "@comunica/actor-function-factory-term-sha1",
+        "@comunica/actor-function-factory-term-sha256",
+        "@comunica/actor-function-factory-term-sha384",
+        "@comunica/actor-function-factory-term-sha512",
+        "@comunica/actor-function-factory-term-str",
+        "@comunica/actor-function-factory-term-str-after",
+        "@comunica/actor-function-factory-term-str-before",
+        "@comunica/actor-function-factory-term-str-dt",
+        "@comunica/actor-function-factory-term-str-ends",
+        "@comunica/actor-function-factory-term-str-lang",
+        "@comunica/actor-function-factory-term-str-langdir",
+        "@comunica/actor-function-factory-term-str-len",
+        "@comunica/actor-function-factory-term-str-starts",
+        "@comunica/actor-function-factory-term-str-uuid",
+        "@comunica/actor-function-factory-term-sub-str",
+        "@comunica/actor-function-factory-term-subject",
+        "@comunica/actor-function-factory-term-subtraction",
+        "@comunica/actor-function-factory-term-timezone",
+        "@comunica/actor-function-factory-term-triple",
+        "@comunica/actor-function-factory-term-tz",
+        "@comunica/actor-function-factory-term-ucase",
+        "@comunica/actor-function-factory-term-unary-minus",
+        "@comunica/actor-function-factory-term-unary-plus",
+        "@comunica/actor-function-factory-term-uuid",
+        "@comunica/actor-function-factory-term-xsd-to-boolean",
+        "@comunica/actor-function-factory-term-xsd-to-date",
+        "@comunica/actor-function-factory-term-xsd-to-datetime",
+        "@comunica/actor-function-factory-term-xsd-to-day-time-duration",
+        "@comunica/actor-function-factory-term-xsd-to-decimal",
+        "@comunica/actor-function-factory-term-xsd-to-double",
+        "@comunica/actor-function-factory-term-xsd-to-duration",
+        "@comunica/actor-function-factory-term-xsd-to-float",
+        "@comunica/actor-function-factory-term-xsd-to-integer",
+        "@comunica/actor-function-factory-term-xsd-to-string",
+        "@comunica/actor-function-factory-term-xsd-to-time",
+        "@comunica/actor-function-factory-term-xsd-to-year-month-duration",
+        "@comunica/actor-function-factory-term-year",
+        "@comunica/actor-hash-bindings-murmur",
+        "@comunica/actor-hash-quads-murmur",
+        "@comunica/actor-init-query",
+        "@comunica/actor-optimize-query-operation-assign-sources-exhaustive",
+        "@comunica/actor-optimize-query-operation-bgp-to-join",
+        "@comunica/actor-optimize-query-operation-construct-distinct",
+        "@comunica/actor-optimize-query-operation-describe-to-constructs-subject",
+        "@comunica/actor-optimize-query-operation-distinct-terms-pushdown",
+        "@comunica/actor-optimize-query-operation-filter-pushdown",
+        "@comunica/actor-optimize-query-operation-group-file-sources",
+        "@comunica/actor-optimize-query-operation-group-sources",
+        "@comunica/actor-optimize-query-operation-join-bgp",
+        "@comunica/actor-optimize-query-operation-join-connected",
+        "@comunica/actor-optimize-query-operation-leftjoin-expression-pushdown",
+        "@comunica/actor-optimize-query-operation-prune-empty-source-operations",
+        "@comunica/actor-optimize-query-operation-query-source-identify",
+        "@comunica/actor-optimize-query-operation-query-source-skolemize",
+        "@comunica/actor-optimize-query-operation-rewrite-add",
+        "@comunica/actor-optimize-query-operation-rewrite-copy",
+        "@comunica/actor-optimize-query-operation-rewrite-move",
+        "@comunica/actor-query-operation-ask",
+        "@comunica/actor-query-operation-bgp-join",
+        "@comunica/actor-query-operation-construct",
+        "@comunica/actor-query-operation-distinct-identity",
+        "@comunica/actor-query-operation-extend",
+        "@comunica/actor-query-operation-filter",
+        "@comunica/actor-query-operation-from-quad",
+        "@comunica/actor-query-operation-group",
+        "@comunica/actor-query-operation-join",
+        "@comunica/actor-query-operation-leftjoin",
+        "@comunica/actor-query-operation-minus",
+        "@comunica/actor-query-operation-nodes",
+        "@comunica/actor-query-operation-nop",
+        "@comunica/actor-query-operation-orderby",
+        "@comunica/actor-query-operation-path-alt",
+        "@comunica/actor-query-operation-path-inv",
+        "@comunica/actor-query-operation-path-link",
+        "@comunica/actor-query-operation-path-nps",
+        "@comunica/actor-query-operation-path-one-or-more",
+        "@comunica/actor-query-operation-path-seq",
+        "@comunica/actor-query-operation-path-zero-or-more",
+        "@comunica/actor-query-operation-path-zero-or-one",
+        "@comunica/actor-query-operation-project",
+        "@comunica/actor-query-operation-reduced-hash",
+        "@comunica/actor-query-operation-slice",
+        "@comunica/actor-query-operation-source",
+        "@comunica/actor-query-operation-union",
+        "@comunica/actor-query-operation-update-clear",
+        "@comunica/actor-query-operation-update-compositeupdate",
+        "@comunica/actor-query-operation-update-create",
+        "@comunica/actor-query-operation-update-deleteinsert",
+        "@comunica/actor-query-operation-update-drop",
+        "@comunica/actor-query-operation-update-load",
+        "@comunica/actor-query-operation-values",
+        "@comunica/actor-query-parse-graphql",
+        "@comunica/actor-query-parse-sparql",
+        "@comunica/actor-query-process-explain-logical",
+        "@comunica/actor-query-process-explain-parsed",
+        "@comunica/actor-query-process-explain-physical",
+        "@comunica/actor-query-process-explain-query",
+        "@comunica/actor-query-process-sequential",
+        "@comunica/actor-query-result-serialize-json",
+        "@comunica/actor-query-result-serialize-rdf",
+        "@comunica/actor-query-result-serialize-simple",
+        "@comunica/actor-query-result-serialize-sparql-csv",
+        "@comunica/actor-query-result-serialize-sparql-json",
+        "@comunica/actor-query-result-serialize-sparql-tsv",
+        "@comunica/actor-query-result-serialize-sparql-xml",
+        "@comunica/actor-query-result-serialize-stats",
+        "@comunica/actor-query-result-serialize-table",
+        "@comunica/actor-query-result-serialize-tree",
+        "@comunica/actor-query-serialize-sparql",
+        "@comunica/actor-query-source-identify-hypermedia",
+        "@comunica/actor-query-source-identify-hypermedia-sparql",
+        "@comunica/actor-query-source-identify-rdfjs",
+        "@comunica/actor-rdf-join-entries-sort-cardinality",
+        "@comunica/actor-rdf-join-entries-sort-selectivity",
+        "@comunica/actor-rdf-join-inner-hash",
+        "@comunica/actor-rdf-join-inner-multi-bind",
+        "@comunica/actor-rdf-join-inner-multi-bind-source",
+        "@comunica/actor-rdf-join-inner-multi-empty",
+        "@comunica/actor-rdf-join-inner-multi-smallest",
+        "@comunica/actor-rdf-join-inner-multi-smallest-filter-bindings",
+        "@comunica/actor-rdf-join-inner-nestedloop",
+        "@comunica/actor-rdf-join-inner-none",
+        "@comunica/actor-rdf-join-inner-single",
+        "@comunica/actor-rdf-join-inner-symmetrichash",
+        "@comunica/actor-rdf-join-minus-hash",
+        "@comunica/actor-rdf-join-optional-bind",
+        "@comunica/actor-rdf-join-optional-hash",
+        "@comunica/actor-rdf-join-optional-nestedloop",
+        "@comunica/actor-rdf-join-selectivity-variable-counting",
+        "@comunica/actor-rdf-metadata-accumulate-cardinality",
+        "@comunica/actor-rdf-metadata-accumulate-pagesize",
+        "@comunica/actor-rdf-metadata-accumulate-requesttime",
+        "@comunica/actor-rdf-serialize-jsonld",
+        "@comunica/actor-rdf-serialize-n3",
+        "@comunica/actor-rdf-serialize-shaclc",
+        "@comunica/actor-rdf-update-quads-rdfjs-store",
+        "@comunica/actor-term-comparator-factory-expression-evaluator",
+        "@comunica/bus-function-factory",
+        "@comunica/bus-http-invalidate",
+        "@comunica/bus-query-operation",
+        "@comunica/config-query-sparql@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/logger-void",
+        "@comunica/mediator-all",
+        "@comunica/mediator-combine-pipeline@5.3.0",
+        "@comunica/mediator-combine-union@5.3.0",
+        "@comunica/mediator-join-coefficients-fixed",
+        "@comunica/mediator-number@5.3.0",
+        "@comunica/mediator-race@5.3.0",
+        "@comunica/runner",
+        "@comunica/types@5.3.0"
+      ]
+    },
+    "@comunica/runner@5.3.0": {
+      "integrity": "sha512-RjbneWhBfD0TYQbDQ6hEfjAJQe2HhF7eVEA3CwJd8zHHMSUaypijK2ptERIi75prL5llN8Rvod9i/B4eYQ6FRA==",
+      "dependencies": [
+        "@comunica/bus-init@5.3.0",
+        "@comunica/core@5.3.0",
+        "componentsjs",
+        "process"
+      ],
+      "bin": true
+    },
+    "@comunica/types@4.5.0": {
+      "integrity": "sha512-XhnkspVgYilchErpSAELHRA7B4wRszDdvCkhbd52vjLrThzGUDfDoGx+56y4AeziWkxQLNug8AZbo/Q6J2vCzQ==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "@types/yargs",
+        "asynciterator",
+        "lru-cache@10.4.3",
+        "sparqlalgebrajs"
+      ]
+    },
+    "@comunica/types@5.3.0": {
+      "integrity": "sha512-kuEX8uPzCgkVFQRFBrIA7ZYYkiWmQ3BhLlhii9GL3PfbquU0V2QOsebcP21l3rOSNBV63G3IQiWFdhk1Lql2pw==",
+      "dependencies": [
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1",
+        "@types/yargs",
+        "asynciterator",
+        "lru-cache@11.5.2"
+      ]
+    },
+    "@comunica/utils-algebra@5.3.0": {
+      "integrity": "sha512-P/2qjAtuI/wk5RXDkrJuGlgwrRYh+vtl45ZzADs1YEeklzNM4AWT1Fbl501qnwi4MApr6xwPK6OxoQQ+ergB7g==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "@traqula/algebra-transformations-1-2",
+        "@traqula/core",
+        "rdf-terms"
+      ]
+    },
+    "@comunica/utils-bindings-factory@5.3.0": {
+      "integrity": "sha512-CFlQAMKg00a42S/bFKFNUUCyECXPhcqApV/VFcbh4lNWZ0y/9SqQ4Qq/JymH9R3DigshFjEgBCxQ0AIOzBV8Jw==",
+      "dependencies": [
+        "@comunica/bus-merge-bindings-context",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "immutable",
+        "rdf-string"
+      ]
+    },
+    "@comunica/utils-bindings-index@5.3.0": {
+      "integrity": "sha512-8k36woPeAEkSU/kcUvs9mgYIi7dawfPH9+si/nQlfST3NegUK8TPE0qAnzFQV/uvqDSg5+Cpo2cfl4/h0C4jWQ==",
+      "dependencies": [
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/utils-data-factory@5.0.0": {
+      "integrity": "sha512-F5nkZjDSDdydAItS19svrWdWdCTx7pLCGlVomePa1IiF117TOZZMyI9bcFmh9SoIpmoitfMPHre3Fhm8DSd0uQ==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@comunica/utils-expression-evaluator@5.3.0": {
+      "integrity": "sha512-moaI6ZA5G62dvxUzTjiw9xqoc+EKopIgSp/a+aBVu95gqj02zm0rHWVOAdgCLyu19l58uMK7MCR6hwDbLnbsDQ==",
+      "dependencies": [
+        "@comunica/context-entries@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@rdfjs/types@2.0.1",
+        "lru-cache@11.5.2",
+        "rdf-data-factory@2.0.2",
+        "rdf-string"
+      ]
+    },
+    "@comunica/utils-iterator@5.0.0": {
+      "integrity": "sha512-iognyhJ4kkwZe2zZTB9MbELiUKypVGWjLFSY+xnVqu7WjDAAkmj2KuD9jRKXdYsvMT43CUo7JXh+2vIxYGL68Q==",
+      "dependencies": [
+        "asynciterator"
+      ]
+    },
+    "@comunica/utils-metadata@5.3.0": {
+      "integrity": "sha512-4INJurpISwJQ37YjguK2+usOs5nLVbD3/cXiKE2Kc44QKMdX3ykySjmNvZRd3VSfd5G50ML8KtHeCZUR5C8CbQ==",
+      "dependencies": [
+        "@comunica/types@5.3.0",
+        "@rdfjs/types@2.0.1",
+        "asynciterator"
+      ]
+    },
+    "@comunica/utils-query-operation@5.3.0": {
+      "integrity": "sha512-gmqfXoo1G7UMKemyOYgp6yF8KEqb/PLiWX2MlRB8+YniswjotGSJ/IBY/24UEW6GnHqNMSQsNQ8LjKa5UxzrGw==",
+      "dependencies": [
+        "@comunica/context-entries@5.3.0",
+        "@comunica/core@5.3.0",
+        "@comunica/types@5.3.0",
+        "@comunica/utils-algebra",
+        "@comunica/utils-bindings-factory",
+        "@rdfjs/types@2.0.1",
+        "rdf-data-factory@2.0.2",
+        "rdf-string",
+        "rdf-terms"
+      ]
+    },
+    "@dabh/diagnostics@2.0.8": {
+      "integrity": "sha512-R4MSXTVnuMzGD7bzHdW2ZhhdPC/igELENcq5IjEverBvq5hn1SXCWcsi6eSsdWP0/Ur+SItRRjAktmdoX/8R/Q==",
+      "dependencies": [
+        "@so-ric/colorspace",
+        "enabled",
+        "kuler"
+      ]
+    },
+    "@digitalbazaar/http-client@4.4.0": {
+      "integrity": "sha512-ODhCGmElUPmR3IR+KZmBNkRAFyjJ01rxvk2E+/qQ2h2EGPJH5k6bz3N24ympGc5+i4YCGk/ipIpmkwc0+iSmRg==",
+      "dependencies": [
+        "ky",
+        "undici@6.28.0"
+      ]
+    },
+    "@grpc/grpc-js@1.14.4": {
+      "integrity": "sha512-k9Dj3DV/itK9D06Y8f190Qgop7/Ui+D0njFV3LHMPwPT75DpXLQohE9Wmz0QElrJnzsjB7KPWiKJbOl7IPDArQ==",
+      "dependencies": [
+        "@grpc/proto-loader@0.8.1",
+        "@js-sdsl/ordered-map"
+      ]
+    },
+    "@grpc/proto-loader@0.7.15": {
+      "integrity": "sha512-tMXdRCfYVixjuFK+Hk0Q1s38gV9zDiDJfWL3h1rv4Qc39oILCu1TRTDt7+fGUI8K4G1Fj125Hx/ru3azECWTyQ==",
+      "dependencies": [
+        "lodash.camelcase",
+        "long",
+        "protobufjs",
+        "yargs"
+      ],
+      "bin": true
+    },
+    "@grpc/proto-loader@0.8.1": {
+      "integrity": "sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg==",
+      "dependencies": [
+        "lodash.camelcase",
+        "long",
+        "protobufjs",
+        "yargs"
+      ],
+      "bin": true
+    },
+    "@isaacs/cliui@8.0.2": {
+      "integrity": "sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==",
+      "dependencies": [
+        "string-width@5.1.2",
+        "string-width-cjs@npm:string-width@4.2.3",
+        "strip-ansi@7.2.0",
+        "strip-ansi-cjs@npm:strip-ansi@6.0.1",
+        "wrap-ansi@8.1.0",
+        "wrap-ansi-cjs@npm:wrap-ansi@7.0.0"
+      ]
+    },
+    "@jeswr/prefixcc@1.2.1": {
+      "integrity": "sha512-kBBXbqsaeh3Irp416h/RbelqJgIOp6X/OJJlYmLyr/9qlBYKTKSCuEv5/xjZ0Yf8Yec+QFRYBaOQ2JkMBSH7KA==",
+      "dependencies": [
+        "cross-fetch"
+      ],
+      "optionalDependencies": [
+        "fsevents"
+      ]
+    },
+    "@jeswr/stream-to-string@2.0.0": {
+      "integrity": "sha512-VmoW6xYRjVzdMr2njBObVSlUc5KCJT+gyuuH+tea9ZLE59XhgfLNc8ufN5Md38STxCyAJUDUVcCBfaOo11BfuA==",
+      "dependencies": [
+        "event-emitter-promisify"
+      ]
+    },
+    "@js-sdsl/ordered-map@4.4.2": {
+      "integrity": "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="
+    },
+    "@kwsites/file-exists@1.1.1": {
+      "integrity": "sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==",
+      "dependencies": [
+        "debug"
+      ]
+    },
+    "@pkgjs/parseargs@0.11.0": {
+      "integrity": "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="
+    },
+    "@protobufjs/aspromise@1.1.2": {
+      "integrity": "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="
+    },
+    "@protobufjs/base64@1.1.2": {
+      "integrity": "sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg=="
+    },
+    "@protobufjs/codegen@2.0.5": {
+      "integrity": "sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g=="
+    },
+    "@protobufjs/eventemitter@1.1.1": {
+      "integrity": "sha512-vW1GmwMZNnL+gMRaovlh9yZX74kc+TTU3FObkkurpMaRtBfLP3ldjS9KQWlwZgraRE0+dheEEoAxdzcJQ8eXZg=="
+    },
+    "@protobufjs/fetch@1.1.1": {
+      "integrity": "sha512-GpptLrs57adMSuHi3VNj0mAF8dwh36LMaYF6XyJ6JMWlVsc+t42tm1HSEDmOs3A8fC9yyeisgLhsTVQokOZ0zw==",
+      "dependencies": [
+        "@protobufjs/aspromise"
+      ]
+    },
+    "@protobufjs/float@1.0.2": {
+      "integrity": "sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ=="
+    },
+    "@protobufjs/path@1.1.2": {
+      "integrity": "sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA=="
+    },
+    "@protobufjs/pool@1.1.0": {
+      "integrity": "sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw=="
+    },
+    "@protobufjs/utf8@1.1.2": {
+      "integrity": "sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug=="
+    },
+    "@rdfjs/types@1.1.2": {
+      "integrity": "sha512-wqpOJK1QCbmsGNtyzYnojPU8gRDPid2JO0Q0kMtb4j65xhCK880cnKAfEOwC+dX85VJcCByQx5zOwyyfCjDJsg==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "@rdfjs/types@2.0.1": {
+      "integrity": "sha512-uyAzpugX7KekAXAHq26m3JlUIZJOC0uSBhpnefGV5i15bevDyyejoB7I+9MKeUrzXD8OOUI3+4FeV1wwQr5ihA==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "@rubensworks/saxes@6.0.1": {
+      "integrity": "sha512-UW4OTIsOtJ5KSXo2Tchi4lhZqu+tlHrOAs4nNti7CrtB53kAZl3/hyrTi6HkMihxdbDM6m2Zc3swc/ZewEe1xw==",
+      "dependencies": [
+        "xmlchars"
+      ]
+    },
+    "@so-ric/colorspace@1.1.6": {
+      "integrity": "sha512-/KiKkpHNOBgkFJwu9sh48LkHSMYGyuTcSFK/qMBdnOAlrRJzRSXAOFB5qwzaVQuDl8wAvHVMkaASQDReTahxuw==",
+      "dependencies": [
+        "color",
+        "text-hex"
+      ]
+    },
+    "@testcontainers/toxiproxy@12.0.4": {
+      "integrity": "sha512-Ohku9bnXkwDCj7Ze2fXtADwig924tDSqTeVnowNhdit28/6Tt3zJHjNYJ6A+MWNLdYtJmtwzPryo3cQpGYlO2g==",
+      "dependencies": [
+        "testcontainers",
+        "toxiproxy-node-client"
+      ]
+    },
+    "@traqula/algebra-sparql-1-1@1.2.0": {
+      "integrity": "sha512-+0CH9csrlAvq6rLiW+t3eBp6ELFYANM96wrM3Afwh2c+yZm41TOGHQKqA17r+PHCDm7TCJKgSzJvVEuesCHe6Q==",
+      "dependencies": [
+        "@traqula/algebra-transformations-1-1",
+        "@traqula/core",
+        "@traqula/rules-sparql-1-1"
+      ]
+    },
+    "@traqula/algebra-sparql-1-2@1.2.0": {
+      "integrity": "sha512-dFZqnPUYlQpao9XeIjjtxV6ye9PNrPxfw7chmX9DzqqA6CWuklaVrmn2DftOUG7IzcvyvUxeXf5EYZ4S4KUz9Q==",
+      "dependencies": [
+        "@traqula/algebra-sparql-1-1",
+        "@traqula/algebra-transformations-1-1",
+        "@traqula/algebra-transformations-1-2",
+        "@traqula/core"
+      ]
+    },
+    "@traqula/algebra-transformations-1-1@1.2.0": {
+      "integrity": "sha512-lVztghs5wDL2KCVLqpxFlA2v9amexMjnh+rkrGTWgOqC3x/qZC9w6MoEpd/eLjZ9ShW7PK9pB3h2ZImBVnfXPQ==",
+      "dependencies": [
+        "@traqula/core",
+        "@traqula/rules-sparql-1-1",
+        "fast-deep-equal",
+        "rdf-data-factory@2.0.2",
+        "rdf-isomorphic",
+        "rdf-string"
+      ]
+    },
+    "@traqula/algebra-transformations-1-2@1.2.0": {
+      "integrity": "sha512-bTGh8oQbdPYBPHyMVjTj81Xs9Wf7oWLp9dqCPhEzD4MAgXn32UVF2mjUXJiD2pC9avZzo6Dn2Y6//s9VPX9f3Q==",
+      "dependencies": [
+        "@traqula/algebra-transformations-1-1",
+        "@traqula/rules-sparql-1-2",
+        "rdf-string"
+      ]
+    },
+    "@traqula/chevrotain@1.1.0": {
+      "integrity": "sha512-VpcoQKb2ZnsOQPlPO2mE9hfR0Aidp7drwTCtaXfpdRHGkXeQ5Nv4rnxmxwUoEDRzu6b/3z4n8oTd+sYhe4fAaA=="
+    },
+    "@traqula/core@1.2.0": {
+      "integrity": "sha512-4NEYjNKD31u1DMbccRNXBnpEQsoeVrTTrJfxbDU11/5zHQdcyrXYlJ7Dq2t3hlZgStMbVJrZbZJsr6p+lZBeZA==",
+      "dependencies": [
+        "@traqula/chevrotain"
+      ]
+    },
+    "@traqula/generator-sparql-1-1@1.2.0": {
+      "integrity": "sha512-n83fb2Geo7sb1dwhI+3XaNr4NCndh8LsGqpdrXvBtIkFRAbFK5aL+L92Sd6L81hHmQ7JDOlJfiHJhUVXEQ0U5A==",
+      "dependencies": [
+        "@traqula/core",
+        "@traqula/rules-sparql-1-1"
+      ]
+    },
+    "@traqula/generator-sparql-1-2@1.2.0": {
+      "integrity": "sha512-owyk5ZNsKVncQD+S8M45mvBdKg/7G5T3ucf5LU64+gp/WmWLnPs7fh7XG4FWlo10L/RcD6yBpNiUGn3Bb6DkyQ==",
+      "dependencies": [
+        "@traqula/core",
+        "@traqula/generator-sparql-1-1",
+        "@traqula/rules-sparql-1-1",
+        "@traqula/rules-sparql-1-2"
+      ]
+    },
+    "@traqula/parser-sparql-1-1@1.2.0": {
+      "integrity": "sha512-UsBEV03dxSfmiUYupvr2DJInGdnkgUCPBYbdp9IWgsbP43rIguhbllTHGwzzgYeuAtMd2SnhMc5kB93Asm/VuQ==",
+      "dependencies": [
+        "@traqula/core",
+        "@traqula/rules-sparql-1-1"
+      ]
+    },
+    "@traqula/parser-sparql-1-2@1.2.0": {
+      "integrity": "sha512-13wAa4k78e2ZOzMSTyI0vs9Mj3of3267pMmeY7NtstVLQkQVXYuzR9JF08U8Dbq8dezZHBEFZwUtpQd5MqYhhg==",
+      "dependencies": [
+        "@traqula/core",
+        "@traqula/parser-sparql-1-1",
+        "@traqula/rules-sparql-1-1",
+        "@traqula/rules-sparql-1-2",
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "@traqula/rules-sparql-1-1@1.2.0": {
+      "integrity": "sha512-akf/+UOVrurX9NREnupQfCyYj4seg305nmNuIcJJ6QN/V2ikb1WGwcUeS2iMELtY3MsRdb4A13xbY4GtblCYmQ==",
+      "dependencies": [
+        "@traqula/chevrotain",
+        "@traqula/core"
+      ]
+    },
+    "@traqula/rules-sparql-1-2@1.2.0": {
+      "integrity": "sha512-4NwxRSZnlxwoDuJmuMl+2ebZbEZEnZxkA5WI06o9NVRTLPn1BiWl/lxNVMI03Jx48xyFyuui0qifVqD0sU3UBQ==",
+      "dependencies": [
+        "@traqula/core",
+        "@traqula/rules-sparql-1-1"
+      ]
+    },
+    "@types/docker-modem@3.0.6": {
+      "integrity": "sha512-yKpAGEuKRSS8wwx0joknWxsmLha78wNMe9R2S3UNsVOkZded8UqOrV8KoeDXoXsjndxwyF3eIhyClGbO1SEhEg==",
+      "dependencies": [
+        "@types/node",
+        "@types/ssh2"
+      ]
+    },
+    "@types/dockerode@4.0.1": {
+      "integrity": "sha512-cmUpB+dPN955PxBEuXE3f6lKO1hHiIGYJA46IVF3BJpNsZGvtBDcRnlrHYHtOH/B6vtDOyl2kZ2ShAu3mgc27Q==",
+      "dependencies": [
+        "@types/docker-modem",
+        "@types/node",
+        "@types/ssh2"
+      ]
+    },
+    "@types/http-link-header@1.0.7": {
+      "integrity": "sha512-snm5oLckop0K3cTDAiBnZDy6ncx9DJ3mCRDvs42C884MbVYPP74Tiq2hFsSDRTyjK6RyDYDIulPiW23ge+g5Lw==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "@types/imurmurhash@0.1.4": {
+      "integrity": "sha512-Zo/QlTiAvOP3pd9nuPOw33k0l/QssLOBrriShWzUE4qhIZByIF3rCoyF8ZTxdyFTUM2mYljYLqMUeLvA3NJUmQ=="
+    },
+    "@types/minimist@1.2.5": {
+      "integrity": "sha512-hov8bUuiLiyFPGyFPE1lwWhmzYbirOXQNNo40+y3zow8aFVTeyn3VWL0VFFfdNddA8S4Vf0Tc062rzyNr7Paag=="
+    },
+    "@types/n3@1.26.1": {
+      "integrity": "sha512-TilYHzpU6ecXVJAbV+6o17Z8ZkWLWx6ZJD3IluaU4RiGHxqjU2or9fopxFHS6iXS6qcl5Mg1K3wSx9L8xxJaJQ==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "@types/node"
+      ]
+    },
+    "@types/node@18.19.130": {
+      "integrity": "sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
+    "@types/readable-stream@2.3.15": {
+      "integrity": "sha512-oM5JSKQCcICF1wvGgmecmHldZ48OZamtMxcGGVICOJA8o8cahXC1zEVAif8iwoc5j8etxFaRFnf095+CDsuoFQ==",
+      "dependencies": [
+        "@types/node",
+        "safe-buffer@5.1.2"
+      ]
+    },
+    "@types/readable-stream@4.0.24": {
+      "integrity": "sha512-NRvUNC/JFGPJvqdAfEve8oginbM6V08u5NzLWpG8MwA2kTPOLnqk+wpwuPT+mp3aUsxyuT6m2gnrPuHYCruzEg==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "@types/semver@7.8.0": {
+      "integrity": "sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ=="
+    },
+    "@types/spark-md5@3.0.5": {
+      "integrity": "sha512-lWf05dnD42DLVKQJZrDHtWFidcLrHuip01CtnC2/S6AMhX4t9ZlEUj4iuRlAnts0PQk7KESOqKxeGE/b6sIPGg=="
+    },
+    "@types/sparqljs@3.1.12": {
+      "integrity": "sha512-zg/sdKKtYI0845wKPSuSgunyU1o/+7tRzMw85lHsf4p/0UbA6+65MXAyEtv1nkaqSqrq/bXm7+bqXas+Xo5dpQ==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@types/ssh2-streams@0.1.13": {
+      "integrity": "sha512-faHyY3brO9oLEA0QlcO8N2wT7R0+1sHWZvQ+y3rMLwdY1ZyS1z0W3t65j9PqT4HmQ6ALzNe7RZlNuCNE0wBSWA==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "@types/ssh2@0.5.52": {
+      "integrity": "sha512-lbLLlXxdCZOSJMCInKH2+9V/77ET2J6NPQHpFI0kda61Dd1KglJs+fPQBchizmzYSOJBgdTajhPqBO1xxLywvg==",
+      "dependencies": [
+        "@types/node",
+        "@types/ssh2-streams"
+      ]
+    },
+    "@types/triple-beam@1.3.5": {
+      "integrity": "sha512-6WaYesThRMCl19iryMYP7/x2OVgCtbIVflDGFpWnb9irXI3UjYE4AzmYuiUKY1AJstGijoY+MgUszMgRxIYTYw=="
+    },
+    "@types/uuid@10.0.0": {
+      "integrity": "sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ=="
+    },
+    "@types/yargs-parser@21.0.3": {
+      "integrity": "sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ=="
+    },
+    "@types/yargs@17.0.35": {
+      "integrity": "sha512-qUHkeCyQFxMXg79wQfTtfndEC+N9ZZg76HJftDJp+qH2tV7Gj4OJi7l+PiWwJ+pWtW8GwSmqsDj/oymhrTWXjg==",
+      "dependencies": [
+        "@types/yargs-parser"
+      ]
+    },
+    "abort-controller@3.0.0": {
+      "integrity": "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==",
+      "dependencies": [
+        "event-target-shim"
+      ]
+    },
+    "ansi-regex@5.0.1": {
+      "integrity": "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="
+    },
+    "ansi-regex@6.3.0": {
+      "integrity": "sha512-WpDfL7NO6j7tH88IDBNVdUJxDh9nmCteAVW9dsep846XdwF4naCBK+/tGLX3KJgcpgMRXCFlTM2hKGoK9FsdrQ=="
+    },
+    "ansi-styles@4.3.0": {
+      "integrity": "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==",
+      "dependencies": [
+        "color-convert@2.0.1"
+      ]
+    },
+    "ansi-styles@6.2.3": {
+      "integrity": "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="
+    },
+    "archiver-utils@5.0.2": {
+      "integrity": "sha512-wuLJMmIBQYCsGZgYLTy5FIB2pF6Lfb6cXMSF8Qywwk3t20zWnAi7zLcQFdKQmIB8wyZpY5ER38x08GbwtR2cLA==",
+      "dependencies": [
+        "glob",
+        "graceful-fs",
+        "is-stream",
+        "lazystream",
+        "lodash",
+        "normalize-path",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "archiver@7.0.1": {
+      "integrity": "sha512-ZcbTaIqJOfCc03QwD468Unz/5Ir8ATtvAHsK+FdXbDIbGfihqh9mrvdcYunQzqn4HrvWWaFyaxJhGZagaJJpPQ==",
+      "dependencies": [
+        "archiver-utils",
+        "async",
+        "buffer-crc32",
+        "readable-stream@4.7.0",
+        "readdir-glob",
+        "tar-stream@3.2.0",
+        "zip-stream"
+      ]
+    },
+    "arrayify-stream@2.0.1": {
+      "integrity": "sha512-z8fB6PtmnewQpFB53piS2d1KlUi3BPMICH2h7leCOUXpQcwvZ4GbHHSpdKoUrgLMR6b4Qan/uDe1St3Ao3yIHg=="
+    },
+    "asn1@0.2.6": {
+      "integrity": "sha512-ix/FxPn0MDjeyJ7i/yoHGFt/EX6LyNbxSEhPPXODPL+KB0VPk86UYfL0lMdy+KCnv+fmvIzySwaK5COwqVbWTQ==",
+      "dependencies": [
+        "safer-buffer"
+      ]
+    },
+    "async-lock@1.4.1": {
+      "integrity": "sha512-Az2ZTpuytrtqENulXwO3GGv1Bztugx6TT37NIo7imr/Qo0gsYiGtSdBa2B6fsXhTpVZDNfu1Qn3pk531e3q+nQ=="
+    },
+    "async@3.2.6": {
+      "integrity": "sha512-htCUDlxyyCLMgaM3xXg0C0LW2xqfuQ6p05pCEIsXuyQ+a1koYKTuBMzRNwmybfLgvJDMd0r1LTn4+E0Ti6C2AA=="
+    },
+    "asynciterator@3.10.0": {
+      "integrity": "sha512-eDOBoUf2m+4ht0ETVn2SCfuBIZZ6UWyyQbP++LRPKoK7PmrCQq37pJ6vRvyef4o1Pn+CwWnzMlkXxGdh/krVIw==",
+      "dependencies": [
+        "tiny-set-immediate"
+      ]
+    },
+    "asyncjoin@1.2.4": {
+      "integrity": "sha512-7/1g5uV2/iTDQteJ/pxqZq6qkO5406V+vNyOCYtHJ+mo6bmvvQHHrZgd7AtU/rx+cnz08NPWlwk8daW61thnlA==",
+      "dependencies": [
+        "asynciterator"
+      ]
+    },
+    "b4a@1.8.1": {
+      "integrity": "sha512-aiqre1Nr0B/6DgE2N5vwTc+2/oQZ4Wh1t4NznYY4E00y8LCt6NqdRv81so00oo27D8MVKTpUa/MwUUtBLXCoDw=="
+    },
+    "balanced-match@1.0.2": {
+      "integrity": "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="
+    },
+    "bare-events@2.9.1": {
+      "integrity": "sha512-Z0oHEHAFDZkffN8Qc39zNZjQlMDkPJRyyyZieU1VH7u8c5S+qHZ2S8ixdKIAxEjfHO7FJxXmJWgteOghVanIsg=="
+    },
+    "bare-fs@4.7.4": {
+      "integrity": "sha512-y1kC+ffIx/tPLdTE693uNjHfzTfr+ravR5tvWlMXe25nELbkqV400S71qHDwbkAQ1FVEZobB1NFRzFbCCcyBCQ==",
+      "dependencies": [
+        "bare-events",
+        "bare-path",
+        "bare-stream",
+        "bare-url",
+        "fast-fifo"
+      ]
+    },
+    "bare-path@3.1.1": {
+      "integrity": "sha512-JprUlveX3QjApC1cTpsUOiscADftCGVWkzitbHsRqv84hzYwYHw2mbluddsq5TvI8mH/8Ov1f4BiMAdcB0oYnQ=="
+    },
+    "bare-stream@2.13.3_bare-events@2.9.1": {
+      "integrity": "sha512-Kc+brLqvEqGkjyfiwJmImAOqLZL7OsoLKuavx+hJjgVV3nLTOjloJyPMFxjUPerGGHrNH0fLU06jjykMLWrERQ==",
+      "dependencies": [
+        "b4a",
+        "bare-events",
+        "streamx",
+        "teex"
+      ],
+      "optionalPeers": [
+        "bare-events"
+      ]
+    },
+    "bare-url@2.4.6": {
+      "integrity": "sha512-iQxPClE07hETVpbRoX7JXX3v/ZQViCxe/SYCxylRLzdEx1xJAufPptfiOqR8tqiCtmbtMDANKWszzjLu1PMAZQ==",
+      "dependencies": [
+        "bare-path"
+      ]
+    },
+    "base64-js@1.5.1": {
+      "integrity": "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA=="
+    },
+    "bcrypt-pbkdf@1.0.2": {
+      "integrity": "sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==",
+      "dependencies": [
+        "tweetnacl"
+      ]
+    },
+    "bignumber.js@11.1.5": {
+      "integrity": "sha512-6WmzCNtUnfKpbozq+hOgWaZMMzORmYBwF1xZScyoIX3QRYWeKTtxxwDOW5tIz7C9BdjkIYHGTcelCLkXg0mndw=="
+    },
+    "bl@4.1.0": {
+      "integrity": "sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w==",
+      "dependencies": [
+        "buffer@5.7.1",
+        "inherits",
+        "readable-stream@3.6.2"
+      ]
+    },
+    "brace-expansion@2.1.4": {
+      "integrity": "sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==",
+      "dependencies": [
+        "balanced-match"
+      ]
+    },
+    "buffer-crc32@1.0.0": {
+      "integrity": "sha512-Db1SbgBS/fg/392AblrMJk97KggmvYhr4pB5ZIMTWtaivCPMWLkmb7m21cJvpvgK+J3nsU2CmmixNBZx4vFj/w=="
+    },
+    "buffer@5.7.1": {
+      "integrity": "sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==",
+      "dependencies": [
+        "base64-js",
+        "ieee754"
+      ]
+    },
+    "buffer@6.0.3": {
+      "integrity": "sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==",
+      "dependencies": [
+        "base64-js",
+        "ieee754"
+      ]
+    },
+    "buildcheck@0.0.7": {
+      "integrity": "sha512-lHblz4ahamxpTmnsk+MNTRWsjYKv965MwOrSJyeD588rR3Jcu7swE+0wN5F+PbL5cjgu/9ObkhfzEPuofEMwLA=="
+    },
+    "byline@5.0.0": {
+      "integrity": "sha512-s6webAy+R4SR8XVuJWt2V2rGvhnrhxN+9S15GNuTK3wKPOXFF6RNc+8ug2XhH+2s4f+uudG4kUVYmYOQWL2g0Q=="
+    },
+    "canonicalize@1.0.8": {
+      "integrity": "sha512-0CNTVCLZggSh7bc5VkX5WWPWO+cyZbNd07IHIsSXLia/eAq+r836hgk+8BKoEh7949Mda87VUOitx5OddVj64A=="
+    },
+    "canonicalize@2.1.0": {
+      "integrity": "sha512-F705O3xrsUtgt98j7leetNhTWPe+5S72rlL5O4jA1pKqBVQ/dT1O1D6PFxmSXvc0SUOinWS57DKx0I3CHrXJHQ==",
+      "bin": true
+    },
+    "chownr@1.1.4": {
+      "integrity": "sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg=="
+    },
+    "cliui@8.0.1": {
+      "integrity": "sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ==",
+      "dependencies": [
+        "string-width@4.2.3",
+        "strip-ansi@6.0.1",
+        "wrap-ansi@7.0.0"
+      ]
+    },
+    "color-convert@2.0.1": {
+      "integrity": "sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==",
+      "dependencies": [
+        "color-name@1.1.4"
+      ]
+    },
+    "color-convert@3.1.3": {
+      "integrity": "sha512-fasDH2ont2GqF5HpyO4w0+BcewlhHEZOFn9c1ckZdHpJ56Qb7MHhH/IcJZbBGgvdtwdwNbLvxiBEdg336iA9Sg==",
+      "dependencies": [
+        "color-name@2.1.1"
+      ]
+    },
+    "color-name@1.1.4": {
+      "integrity": "sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA=="
+    },
+    "color-name@2.1.1": {
+      "integrity": "sha512-p2FdgwVx1a9yWBHP2wI0VgShkDpgN4kZISkxdNipGBJWpa5G6b04OINlVWCyJj0JmfvcPrgqt95E9k8yvaOJFg=="
+    },
+    "color-string@2.1.4": {
+      "integrity": "sha512-Bb6Cq8oq0IjDOe8wJmi4JeNn763Xs9cfrBcaylK1tPypWzyoy2G3l90v9k64kjphl/ZJjPIShFztenRomi8WTg==",
+      "dependencies": [
+        "color-name@2.1.1"
+      ]
+    },
+    "color@5.0.3": {
+      "integrity": "sha512-ezmVcLR3xAVp8kYOm4GS45ZLLgIE6SPAFoduLr6hTDajwb3KZ2F46gulK3XpcwRFb5KKGCSezCBAY4Dw4HsyXA==",
+      "dependencies": [
+        "color-convert@3.1.3",
+        "color-string"
+      ]
+    },
+    "componentsjs@6.4.0": {
+      "integrity": "sha512-H3AmzWARyQB5V/XJ7brjnFVfqywedjVFX3n528GKjEpQvNY4HXu5CBOAWDADjeSC42cufVc7C+J+cGTsgeKRzg==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "@types/minimist",
+        "@types/node",
+        "@types/semver",
+        "jsonld-context-parser@3.1.0",
+        "minimist",
+        "rdf-data-factory@2.0.2",
+        "rdf-object",
+        "rdf-parse",
+        "rdf-quad",
+        "rdf-string",
+        "rdf-terms",
+        "semver",
+        "winston"
+      ],
+      "bin": true
+    },
+    "compress-commons@6.0.2": {
+      "integrity": "sha512-6FqVXeETqWPoGcfzrXb37E50NP0LXT8kAMu5ooZayhWWdgEY4lBEEcbQNXtkuKQsGduxiIcI4gOTsxTmuq/bSg==",
+      "dependencies": [
+        "crc-32",
+        "crc32-stream",
+        "is-stream",
+        "normalize-path",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "core-util-is@1.0.3": {
+      "integrity": "sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ=="
+    },
+    "cpu-features@0.0.10": {
+      "integrity": "sha512-9IkYqtX3YHPCzoVg1Py+o9057a3i0fp7S530UWokCSaFVTc7CwXPRiOjRjBQQ18ZCNafx78YfnG+HALxtVmOGA==",
+      "dependencies": [
+        "buildcheck",
+        "nan"
+      ],
+      "scripts": true
+    },
+    "crc-32@1.2.2": {
+      "integrity": "sha512-ROmzCKrTnOwybPcJApAA6WBWij23HVfGVNKqqrZpuyZOHqK2CwHSvpGuyt/UNNvaIjEd8X5IFGp4Mh+Ie1IHJQ==",
+      "bin": true
+    },
+    "crc32-stream@6.0.0": {
+      "integrity": "sha512-piICUB6ei4IlTv1+653yq5+KoqfBYmj9bw6LqXoOneTMDXk5nM1qt12mFW1caG3LlJXEKW1Bp0WggEmIfQB34g==",
+      "dependencies": [
+        "crc-32",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "cross-fetch@3.2.0": {
+      "integrity": "sha512-Q+xVJLoGOeIMXZmbUK4HYk+69cQH6LudR0Vu/pRm2YlU/hDV9CiS0gKUMaWY5f2NeUH9C1nV3bsTlCo0FsTV1Q==",
+      "dependencies": [
+        "node-fetch"
+      ]
+    },
+    "cross-spawn@7.0.6": {
+      "integrity": "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==",
+      "dependencies": [
+        "path-key",
+        "shebang-command",
+        "which"
+      ]
+    },
+    "debug@4.4.3": {
+      "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+      "dependencies": [
+        "ms"
+      ]
+    },
+    "docker-compose@1.4.2": {
+      "integrity": "sha512-rPHigTKGaEHpkUmfd69QgaOp+Os5vGJwG/Ry8lcr8W/382AmI+z/D7qoa9BybKIkqNppaIbs8RYeHSevdQjWww==",
+      "dependencies": [
+        "yaml"
+      ]
+    },
+    "docker-modem@5.0.7": {
+      "integrity": "sha512-XJgGhoR/CLpqshm4d3L7rzH6t8NgDFUIIpztYlLHIApeJjMZKYJMz2zxPsYxnejq5h3ELYSw/RBsi3t5h7gNTA==",
+      "dependencies": [
+        "debug",
+        "readable-stream@3.6.2",
+        "split-ca",
+        "ssh2"
+      ]
+    },
+    "dockerode@5.0.1": {
+      "integrity": "sha512-avsq/xk4YPIrn0CgleX5bjT9Y8IT1p9PxrNQ++RBQ2WEyFfHCTDsT9kmyxz+H/axnjAwg8wJWEIuPGOUuNupiA==",
+      "dependencies": [
+        "@balena/dockerignore",
+        "@grpc/grpc-js",
+        "@grpc/proto-loader@0.7.15",
+        "docker-modem",
+        "protobufjs",
+        "tar-fs@2.1.5"
+      ]
+    },
+    "dom-serializer@2.0.0": {
+      "integrity": "sha512-wIkAryiqt/nV5EQKqQpo3SToSOV9J0DnbJqwK7Wv/Trc92zIAYZ4FlMu+JPFW1DfGFt81ZTCGgDEabffXeLyJg==",
+      "dependencies": [
+        "domelementtype",
+        "domhandler",
+        "entities@4.5.0"
+      ]
+    },
+    "domelementtype@2.3.0": {
+      "integrity": "sha512-OLETBj6w0OsagBwdXnPdN0cnMfF9opN69co+7ZrbfPGrdpPVNBUj02spi6B1N7wChLQiPn4CSH/zJvXw56gmHw=="
+    },
+    "domhandler@5.0.3": {
+      "integrity": "sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==",
+      "dependencies": [
+        "domelementtype"
+      ]
+    },
+    "domutils@3.2.2": {
+      "integrity": "sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==",
+      "dependencies": [
+        "dom-serializer",
+        "domelementtype",
+        "domhandler"
+      ]
+    },
+    "eastasianwidth@0.2.0": {
+      "integrity": "sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA=="
+    },
+    "emoji-regex@8.0.0": {
+      "integrity": "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="
+    },
+    "emoji-regex@9.2.2": {
+      "integrity": "sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg=="
+    },
+    "enabled@2.0.0": {
+      "integrity": "sha512-AKrN98kuwOzMIdAizXGI86UFBoo26CL21UM763y1h/GMSJ4/OHU9k2YlsmBpyScFo/wbLzWQJBMCW4+IO3/+OQ=="
+    },
+    "end-of-stream@1.4.5": {
+      "integrity": "sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==",
+      "dependencies": [
+        "once"
+      ]
+    },
+    "entities@4.5.0": {
+      "integrity": "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="
+    },
+    "entities@7.0.1": {
+      "integrity": "sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA=="
+    },
+    "escalade@3.2.0": {
+      "integrity": "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA=="
+    },
+    "event-emitter-promisify@1.1.0": {
+      "integrity": "sha512-uyHG8gjwYGDlKoo0Txtx/u1HI1ubj0FK0rVqI4O0s1EymQm4iAEMbrS5B+XFlSaS8SZ3xzoKX+YHRZk8Nk/bXg=="
+    },
+    "event-target-shim@5.0.1": {
+      "integrity": "sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ=="
+    },
+    "events-universal@1.0.1": {
+      "integrity": "sha512-LUd5euvbMLpwOF8m6ivPCbhQeSiYVNb8Vs0fQ8QjXo0JTkEHpz8pxdQf0gStltaPpw0Cca8b39KxvK9cfKRiAw==",
+      "dependencies": [
+        "bare-events"
+      ]
+    },
+    "events@3.3.0": {
+      "integrity": "sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q=="
+    },
+    "fast-check@4.9.0": {
+      "integrity": "sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==",
+      "dependencies": [
+        "pure-rand"
+      ]
+    },
+    "fast-deep-equal@3.1.3": {
+      "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q=="
+    },
+    "fast-fifo@1.3.2": {
+      "integrity": "sha512-/d9sfos4yxzpwkDkuN7k2SqFKtYNmCTzgfEpz82x34IM9/zc8KGxQoXg1liNC/izpRM/MBdt44Nmx41ZWqk+FQ=="
+    },
+    "fecha@4.2.3": {
+      "integrity": "sha512-OP2IUU6HeYKJi3i0z4A19kHMQoLVs4Hc+DPqqxI2h/DPZHTm/vjsfC6P0b4jCMy14XizLBqvndQ+UilD7707Jw=="
+    },
+    "fetch-sparql-endpoint@7.1.1": {
+      "integrity": "sha512-OslECjEPhhTg2uXJpuKqucOFLkIaK2TkbUjW+fWgHKLsH4kTZ/J7UKid2w6f3dF0MOEqF0gEO5kiUh3pq3uhfA==",
+      "dependencies": [
+        "@traqula/parser-sparql-1-2",
+        "@traqula/rules-sparql-1-2",
+        "@types/n3",
+        "@types/readable-stream@4.0.24",
+        "is-stream",
+        "n3@2.1.1",
+        "rdf-string",
+        "readable-from-web",
+        "sparqljson-parse@3.3.0",
+        "sparqlxml-parse",
+        "stream-to-string",
+        "yargs"
+      ],
+      "bin": true
+    },
+    "fn.name@1.1.0": {
+      "integrity": "sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw=="
+    },
+    "foreground-child@3.3.1": {
+      "integrity": "sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==",
+      "dependencies": [
+        "cross-spawn",
+        "signal-exit@4.1.0"
+      ]
+    },
+    "fs-constants@1.0.0": {
+      "integrity": "sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow=="
+    },
+    "fsevents@2.3.3": {
+      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
+      "os": ["darwin"],
+      "scripts": true
+    },
+    "get-caller-file@2.0.5": {
+      "integrity": "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg=="
+    },
+    "get-port@5.1.1": {
+      "integrity": "sha512-g/Q1aTSDOxFpchXC4i8ZWvxA1lnPqx/JHqcpIw0/LX9T8x/GBbi6YnlN5nhaKIFkT8oFsscUKgDJYxfwfS6QsQ=="
+    },
+    "glob@10.5.0": {
+      "integrity": "sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==",
+      "dependencies": [
+        "foreground-child",
+        "jackspeak",
+        "minimatch@9.0.9",
+        "minipass",
+        "package-json-from-dist",
+        "path-scurry"
+      ],
+      "deprecated": true,
+      "bin": true
+    },
+    "graceful-fs@4.2.11": {
+      "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="
+    },
+    "graphql-to-sparql@6.1.0": {
+      "integrity": "sha512-AEHBVxnyTc5BzY3S5bIpIdOU6mHspn031ZsJ0+sdIeEcVwicr3tLZ77K0uzTNTD6ID35XZonp3mQRyfzhwVjQA==",
+      "dependencies": [
+        "@traqula/algebra-sparql-1-2",
+        "@traqula/algebra-transformations-1-2",
+        "@traqula/generator-sparql-1-2",
+        "graphql",
+        "jsonld-context-parser@3.1.0",
+        "minimist",
+        "rdf-data-factory@2.0.2"
+      ],
+      "bin": true
+    },
+    "graphql@17.0.2": {
+      "integrity": "sha512-FRWbddMxfkjiB7z+aQDWIR+E34xo9I8c9mtK2RPv8PmMzKRvrdsreHL/Ui/TmwHJfhHChEtsFPyMHKI+xuarQQ=="
+    },
+    "hash.js@1.1.7": {
+      "integrity": "sha512-taOaskGt4z4SOANNseOviYDvjEJinIkRgmp7LbKP2YTTmVxWBl87s/uzK9r+44BclBSp2X7K1hqeNfz9JbBeXA==",
+      "dependencies": [
+        "inherits",
+        "minimalistic-assert"
+      ]
+    },
+    "htmlparser2@10.1.0": {
+      "integrity": "sha512-VTZkM9GWRAtEpveh7MSF6SjjrpNVNNVJfFup7xTY3UpFtm67foy9HDVXneLtFVt4pMz5kZtgNcvCniNFb1hlEQ==",
+      "dependencies": [
+        "domelementtype",
+        "domhandler",
+        "domutils",
+        "entities@7.0.1"
+      ]
+    },
+    "htmlparser2@8.0.2": {
+      "integrity": "sha512-GYdjWKDkbRLkZ5geuHs5NY1puJ+PXwP7+fHPRz06Eirsb9ugf6d8kkXav6ADhcODhFFPMIXyxkxSuMf3D6NCFA==",
+      "dependencies": [
+        "domelementtype",
+        "domhandler",
+        "domutils",
+        "entities@4.5.0"
+      ]
+    },
+    "htmlparser2@9.1.0": {
+      "integrity": "sha512-5zfg6mHUoaer/97TxnGpxmbR7zJtPwIYFMZ/H5ucTlPZhKvtum05yiPK3Mgai3a0DyVxv7qYqoweaEd2nrYQzQ==",
+      "dependencies": [
+        "domelementtype",
+        "domhandler",
+        "domutils",
+        "entities@4.5.0"
+      ]
+    },
+    "http-link-header@1.1.4": {
+      "integrity": "sha512-xT3GPW6/ZbGuw4UvwHqErSCEjNUlwbQJuZn9/q5U4WEKfp2kENVCAlousG1zLxHeaQ/ffOHUNpWamvkbBW0eNw=="
+    },
+    "ieee754@1.2.1": {
+      "integrity": "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="
+    },
+    "immutable@5.1.9": {
+      "integrity": "sha512-m8nVez3rwrgmWxtLMt1ZYXB2Lv7OKYn/disyxAlSDYAlKSlFoPPfIAmAM/M5xqL4m4C/wAPw7S2/CNaUii1Hxg=="
+    },
+    "imurmurhash@0.1.4": {
+      "integrity": "sha512-JmXMZ6wuvDmLiHEml9ykzqO6lwFbof0GG4IkcGaENdCRDDmMVnny7s5HsIgHCbaq0w2MyPhDqkhTUgS2LU2PHA=="
+    },
+    "inherits@2.0.4": {
+      "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="
+    },
+    "is-fullwidth-code-point@3.0.0": {
+      "integrity": "sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg=="
+    },
+    "is-stream@2.0.1": {
+      "integrity": "sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg=="
+    },
+    "isarray@1.0.0": {
+      "integrity": "sha512-VLghIWNM6ELQzo7zwmcg0NmTVyWKYjvIeM83yjp0wRDTmUnrM678fQbcKBo6n2CJEF0szoG//ytg+TKla89ALQ=="
+    },
+    "isexe@2.0.0": {
+      "integrity": "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="
+    },
+    "jackspeak@3.4.3": {
+      "integrity": "sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==",
+      "dependencies": [
+        "@isaacs/cliui"
+      ],
+      "optionalDependencies": [
+        "@pkgjs/parseargs"
+      ]
+    },
+    "jsonld-context-parser@2.4.0": {
+      "integrity": "sha512-ZYOfvh525SdPd9ReYY58dxB3E2RUEU4DJ6ZibO8AitcowPeBH4L5rCAitE2om5G1P+HMEgYEYEr4EZKbVN4tpA==",
+      "dependencies": [
+        "@types/http-link-header",
+        "@types/node",
+        "cross-fetch",
+        "http-link-header",
+        "relative-to-absolute-iri"
+      ],
+      "bin": true
+    },
+    "jsonld-context-parser@3.1.0": {
+      "integrity": "sha512-BfgNJ/t9jjK7Lun9XRCJM6YeNqDk8B6/lg+KS8rzhXAOtS0FvoClSmtLvF24V1M2CDYRy2LcEBt0ilxqSX93WA==",
+      "dependencies": [
+        "@types/http-link-header",
+        "@types/node",
+        "http-link-header",
+        "relative-to-absolute-iri"
+      ],
+      "bin": true
+    },
+    "jsonld-streaming-parser@4.0.1": {
+      "integrity": "sha512-6M4y9YGgADk3nXJebbRrxEdMVBJ9bnz+peAvjTXUievopqaE8sg/qml/I6Sp1ln7rpOKffsNZWSre6B7N76szw==",
+      "dependencies": [
+        "@bergos/jsonparse",
+        "@rdfjs/types@2.0.1",
+        "@types/http-link-header",
+        "@types/readable-stream@4.0.24",
+        "buffer@6.0.3",
+        "canonicalize@1.0.8",
+        "http-link-header",
+        "jsonld-context-parser@3.1.0",
+        "rdf-data-factory@1.1.3",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "jsonld-streaming-serializer@4.0.0": {
+      "integrity": "sha512-YUg5Er7CSWB6+ZiHreBUoBILEttowto/fT654W5a+6iIiAI65Jz023Wtsi/XUCLUkItDWYe6ckYUbCV1aSQbtA==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "@types/readable-stream@4.0.24",
+        "buffer@6.0.3",
+        "jsonld-context-parser@3.1.0",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "jsonld@9.0.0": {
+      "integrity": "sha512-pjMIdkXfC1T2wrX9B9i2uXhGdyCmgec3qgMht+TDj+S0qX3bjWMQUfL7NeqEhuRTi8G5ESzmL9uGlST7nzSEWg==",
+      "dependencies": [
+        "@digitalbazaar/http-client",
+        "canonicalize@2.1.0",
+        "lru-cache@6.0.0",
+        "rdf-canonize"
+      ]
+    },
+    "kuler@2.0.0": {
+      "integrity": "sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A=="
+    },
+    "ky@1.14.3": {
+      "integrity": "sha512-9zy9lkjac+TR1c2tG+mkNSVlyOpInnWdSMiue4F+kq8TwJSgv6o8jhLRg8Ho6SnZ9wOYUq/yozts9qQCfk7bIw=="
+    },
+    "lazystream@1.0.1": {
+      "integrity": "sha512-b94GiNHQNy6JNTrt5w6zNyffMrNkXZb3KTkCZJb2V1xaEGCk093vkZ2jk3tpaeP33/OiXC+WvK9AxUebnf5nbw==",
+      "dependencies": [
+        "readable-stream@2.3.8"
+      ]
+    },
+    "lodash.camelcase@4.3.0": {
+      "integrity": "sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA=="
+    },
+    "lodash@4.18.1": {
+      "integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q=="
+    },
+    "logform@2.7.0": {
+      "integrity": "sha512-TFYA4jnP7PVbmlBIfhlSe+WKxs9dklXMTEGcBCIvLhE/Tn3H6Gk1norupVW7m5Cnd4bLcr08AytbyV/xj7f/kQ==",
+      "dependencies": [
+        "@colors/colors",
+        "@types/triple-beam",
+        "fecha",
+        "ms",
+        "safe-stable-stringify",
+        "triple-beam"
+      ]
+    },
+    "long@5.3.2": {
+      "integrity": "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA=="
+    },
+    "lru-cache@10.4.3": {
+      "integrity": "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="
+    },
+    "lru-cache@11.5.2": {
+      "integrity": "sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g=="
+    },
+    "lru-cache@6.0.0": {
+      "integrity": "sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==",
+      "dependencies": [
+        "yallist"
+      ]
+    },
+    "microdata-rdf-streaming-parser@2.0.1": {
+      "integrity": "sha512-oEEYP3OwPGOtoE4eIyJvX1eJXI7VkGR4gKYqpEufaRXc2ele/Tkid/KMU3Los13wGrOq6woSxLEGOYSHzpRvwA==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "htmlparser2@8.0.2",
+        "rdf-data-factory@1.1.3",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri"
+      ]
+    },
+    "microdata-rdf-streaming-parser@3.0.0": {
+      "integrity": "sha512-CgdDaKqKAc/4gVhzUX7b1H0dKtnydqNu7dCMcvUceCZpAxX/6EO9w/U1Po195/F9fZY/oQakEREz8U1X7yrhAQ==",
+      "dependencies": [
+        "htmlparser2@9.1.0",
+        "rdf-data-factory@2.0.2",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri"
+      ]
+    },
+    "minimalistic-assert@1.0.1": {
+      "integrity": "sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A=="
+    },
+    "minimatch@5.1.9": {
+      "integrity": "sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw==",
+      "dependencies": [
+        "brace-expansion"
+      ]
+    },
+    "minimatch@9.0.9": {
+      "integrity": "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==",
+      "dependencies": [
+        "brace-expansion"
+      ]
+    },
+    "minimist@1.2.8": {
+      "integrity": "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="
+    },
+    "minipass@7.1.3": {
+      "integrity": "sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A=="
+    },
+    "mitata@1.0.34": {
+      "integrity": "sha512-Mc3zrtNBKIMeHSCQ0XqRLo1vbdIx1wvFV9c8NJAiyho6AjNfMY8bVhbS12bwciUdd1t4rj8099CH3N3NFahaUA=="
+    },
+    "mkdirp-classic@0.5.3": {
+      "integrity": "sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A=="
+    },
+    "mkdirp@3.0.1": {
+      "integrity": "sha512-+NsyUUAZDmo6YVHzL/stxSu3t9YS1iljliy3BSDrXJ/dkn1KYdmtZODGGjLcc9XLgVVpH4KshHB8XmZgMhaBXg==",
+      "bin": true
+    },
+    "ms@2.1.3": {
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="
+    },
+    "n3@1.26.0": {
+      "integrity": "sha512-SQknS0ua90rN+3RHuk8BeIqeYyqIH/+ecViZxX08jR4j6MugqWRjtONl3uANG/crWXnOM2WIqBJtjIhVYFha+w==",
+      "dependencies": [
+        "buffer@6.0.3",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "n3@2.1.1": {
+      "integrity": "sha512-kqg8ers6Lc+uAmHeS+ycd3b8mC4x8wr8V8Fi6+w7l4hX6b0KZ5bT05Tf49qM2mujwaqZT3+08zcgtXgfxivbVQ==",
+      "dependencies": [
+        "buffer@6.0.3",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "nan@2.28.0": {
+      "integrity": "sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ=="
+    },
+    "negotiate@1.0.1": {
+      "integrity": "sha512-KBCIM4dAIT9j/pSXLHHQbZG74NmKNXTtxU2zHN0HG6uzzuFE01m1UdGoUmVHmACiBuCAOL7KwfqSW1oUQBj/vg=="
+    },
+    "node-fetch@2.7.0": {
+      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
+      "dependencies": [
+        "whatwg-url"
+      ]
+    },
+    "normalize-path@3.0.0": {
+      "integrity": "sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA=="
+    },
+    "object-inspect@1.13.4": {
+      "integrity": "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew=="
+    },
+    "once@1.4.0": {
+      "integrity": "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==",
+      "dependencies": [
+        "wrappy"
+      ]
+    },
+    "one-time@1.0.0": {
+      "integrity": "sha512-5DXOiRKwuSEcQ/l0kGCF6Q3jcADFv5tSmRaJck/OqkVFcOzutB134KRSfF0xDrL39MNnqxbHBbUUcjZIhTgb2g==",
+      "dependencies": [
+        "fn.name"
+      ]
+    },
+    "oxigraph@0.5.9": {
+      "integrity": "sha512-Oyxo/NE9imMvTPcK/TkQmAPALnJOns0XBk/r90SjnWg1fwBPSSZaNlVQ8YDKqeXHD2QISe1FfIVQtbgpKulqCQ=="
+    },
+    "package-json-from-dist@1.0.1": {
+      "integrity": "sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw=="
+    },
+    "path-key@3.1.1": {
+      "integrity": "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q=="
+    },
+    "path-scurry@1.11.1": {
+      "integrity": "sha512-Xa4Nw17FS9ApQFJ9umLiJS4orGjm7ZzwUrwamcGQuHSzDyth9boKDaycYdDcZDuqYATXw4HFXgaqWTctW/v1HA==",
+      "dependencies": [
+        "lru-cache@10.4.3",
+        "minipass"
+      ]
+    },
+    "process-nextick-args@2.0.1": {
+      "integrity": "sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag=="
+    },
+    "process@0.11.10": {
+      "integrity": "sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A=="
+    },
+    "promise-polyfill@1.1.6": {
+      "integrity": "sha512-7rrONfyLkDEc7OJ5QBkqa4KI4EBhCd340xRuIUPGCfu13znS+vx+VDdrT9ODAJHlXm7w4lbxN3DRjyv58EuzDg=="
+    },
+    "proper-lockfile@4.1.2": {
+      "integrity": "sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA==",
+      "dependencies": [
+        "graceful-fs",
+        "retry",
+        "signal-exit@3.0.7"
+      ]
+    },
+    "properties-reader@3.0.1": {
+      "integrity": "sha512-WPn+h9RGEExOKdu4bsF4HksG/uzd3cFq3MFtq8PsFeExPse5Ha/VOjQNyHhjboBFwGXGev6muJYTSPAOkROq2g==",
+      "dependencies": [
+        "@kwsites/file-exists",
+        "mkdirp"
+      ]
+    },
+    "protobufjs@7.6.5": {
+      "integrity": "sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==",
+      "dependencies": [
+        "@protobufjs/aspromise",
+        "@protobufjs/base64",
+        "@protobufjs/codegen",
+        "@protobufjs/eventemitter",
+        "@protobufjs/fetch",
+        "@protobufjs/float",
+        "@protobufjs/path",
+        "@protobufjs/pool",
+        "@protobufjs/utf8",
+        "@types/node",
+        "long"
+      ],
+      "scripts": true
+    },
+    "pump@3.0.4": {
+      "integrity": "sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==",
+      "dependencies": [
+        "end-of-stream",
+        "once"
+      ]
+    },
+    "pure-rand@8.4.2": {
+      "integrity": "sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng=="
+    },
+    "rdf-canonize@5.0.0": {
+      "integrity": "sha512-g8OUrgMXAR9ys/ZuJVfBr05sPPoMA7nHIVs8VEvg9QwM5W4GR2qSFEEHjsyHF1eWlBaf8Ev40WNjQFQ+nJTO3w==",
+      "dependencies": [
+        "setimmediate"
+      ]
+    },
+    "rdf-data-factory@1.1.3": {
+      "integrity": "sha512-ny6CI7m2bq4lfQQmDYvcb2l1F9KtGwz9chipX4oWu2aAtVoXjb7k3d8J1EsgAsEbMXnBipB/iuRen5H2fwRWWQ==",
+      "dependencies": [
+        "@rdfjs/types@1.1.2"
+      ]
+    },
+    "rdf-data-factory@2.0.2": {
+      "integrity": "sha512-WzPoYHwQYWvIP9k+7IBLY1b4nIDitzAK4mA37WumAF/Cjvu/KOtYJH9IPZnUTWNSd5K2+pq4vrcE9WZC4sRHhg==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "rdf-isomorphic@2.0.1": {
+      "integrity": "sha512-8pfA3PeDs1sVrZ2R3dCR4KRM69m3pQGhzviNQq5Az/+Zch4I+fKstjGxCZ5ADAFPsm9zxHk8zMEQ/BFcqlnLKw==",
+      "dependencies": [
+        "imurmurhash",
+        "rdf-string",
+        "rdf-terms"
+      ]
+    },
+    "rdf-literal@1.3.2": {
+      "integrity": "sha512-79Stlu3sXy0kq9/decHFLf3xNPuY6sfhFPhd/diWErgaFr0Ekyg38Vh9bnVcqDYu48CFRi0t+hrFii49n92Hbw==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "rdf-data-factory@1.1.3"
+      ]
+    },
+    "rdf-literal@2.0.0": {
+      "integrity": "sha512-jlQ+h7EvnXmncmk8OzOYR8T3gNfd4g0LQXbflHkEkancic8dh0Tdt5RiRq8vUFndjIeNHt1RWeA5TAj6rgrtng==",
+      "dependencies": [
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "rdf-object@3.0.0": {
+      "integrity": "sha512-qefryIRh1d9gqZUKp2qQwzIWLbmQspsc2bvVoOCCp126MZmKubcUTigHiMlCrUI9g7MDCrdTFAwcAal1lVR09A==",
+      "dependencies": [
+        "jsonld-context-parser@3.1.0",
+        "rdf-data-factory@2.0.2",
+        "rdf-string",
+        "streamify-array"
+      ]
+    },
+    "rdf-parse@4.0.0": {
+      "integrity": "sha512-lNVuUKPVAdX9lJYYrJFhdQHFulYjk95BYvuNsE+eUs/M93sdsovH/Ga8bTAxagmpsoQ4LzMPa2YqeHX8ysltOA==",
+      "dependencies": [
+        "@comunica/actor-http-fetch",
+        "@comunica/actor-http-proxy@4.5.0",
+        "@comunica/actor-rdf-parse-html",
+        "@comunica/actor-rdf-parse-html-microdata",
+        "@comunica/actor-rdf-parse-html-rdfa",
+        "@comunica/actor-rdf-parse-html-script",
+        "@comunica/actor-rdf-parse-jsonld",
+        "@comunica/actor-rdf-parse-n3",
+        "@comunica/actor-rdf-parse-rdfxml",
+        "@comunica/actor-rdf-parse-shaclc",
+        "@comunica/actor-rdf-parse-xml-rdfa",
+        "@comunica/bus-http@4.5.0",
+        "@comunica/bus-init@4.5.0",
+        "@comunica/bus-rdf-parse",
+        "@comunica/bus-rdf-parse-html",
+        "@comunica/config-query-sparql@4.4.0",
+        "@comunica/context-entries@4.5.0",
+        "@comunica/core@4.5.0",
+        "@comunica/mediator-combine-pipeline@4.5.0",
+        "@comunica/mediator-combine-union@4.5.0",
+        "@comunica/mediator-number@4.5.0",
+        "@comunica/mediator-race@4.5.0",
+        "@rdfjs/types@2.0.1",
+        "rdf-data-factory@1.1.3",
+        "readable-stream@4.7.0",
+        "stream-to-string"
+      ]
+    },
+    "rdf-quad@2.0.0": {
+      "integrity": "sha512-wR3x+ypdPh6jlFy+i/+U3jUlr5078GHfBkqf3TPPJa7zJVurkJY0J8ALKPWYd1V4oyYsqJCHr3xNM5RDlvH32A==",
+      "dependencies": [
+        "rdf-data-factory@2.0.2",
+        "rdf-literal@2.0.0",
+        "rdf-string"
+      ]
+    },
+    "rdf-string-ttl@2.0.1": {
+      "integrity": "sha512-xIZdC6uur9OwaCQrOsjuzLpnQCNGuJFWnYIAdF48tg3wzG5QzsgDMTJISCVh+M2p1e9ivIXlEauSdWokAhpZgA==",
+      "dependencies": [
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "rdf-string@2.0.1": {
+      "integrity": "sha512-SMW4ponnKNrsP9kYpOLyICeM4UJmEXIeS3zri7kPK9gzLFsHD88oiza8LnokNYxd76zW4JoYWD+v4x0g8rJBjw==",
+      "dependencies": [
+        "rdf-data-factory@2.0.2"
+      ]
+    },
+    "rdf-terms@2.0.0": {
+      "integrity": "sha512-9O+ifVcvY4ZktOr+uXKswoOV6airAsIKeqCr+C47kFZBB8X+NyPSqDRGgI6X+je8It6z2e9jZhWwjJiEZ8Yn5Q==",
+      "dependencies": [
+        "rdf-data-factory@2.0.2",
+        "rdf-string"
+      ]
+    },
+    "rdfa-streaming-parser@2.0.1": {
+      "integrity": "sha512-7Yyaj030LO7iQ38Wh/RNLVeYrVFJeyx3dpCK7C1nvX55eIN/gE4HWfbg4BYI9X7Bd+eUIUMVeiKYLmYjV6apow==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "htmlparser2@8.0.2",
+        "rdf-data-factory@1.1.3",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri"
+      ]
+    },
+    "rdfa-streaming-parser@3.0.2": {
+      "integrity": "sha512-1MEkALT5PYjucVo6lNHXd9DbkgW0hSfPOJOs/TpUFe9zoZvkoreKcGIFnMFkbMmYTNLCiGFo/74LviIUnWLkIw==",
+      "dependencies": [
+        "htmlparser2@9.1.0",
+        "rdf-data-factory@2.0.2",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri"
+      ]
+    },
+    "rdfxml-streaming-parser@2.4.0": {
+      "integrity": "sha512-f+tdI1wxOiPzMbFWRtOwinwPsqac0WIN80668yFKcVdFCSTGOWTM70ucQGUSdDZZo7pce/UvZgV0C3LDj0P7tg==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "@rubensworks/saxes",
+        "@types/readable-stream@2.3.15",
+        "buffer@6.0.3",
+        "rdf-data-factory@1.1.3",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri",
+        "validate-iri"
+      ]
+    },
+    "rdfxml-streaming-parser@3.3.0": {
+      "integrity": "sha512-ym3RO0T4K4NOF23BpsvrNyhIdevuZvY/1kYV5gQJ6z3s0m6Ui9ZH1QZIA/VyNEWHG0x1nTg1QzN/0i4KMVk3EA==",
+      "dependencies": [
+        "@rubensworks/saxes",
+        "@types/readable-stream@4.0.24",
+        "buffer@6.0.3",
+        "rdf-data-factory@2.0.2",
+        "readable-stream@4.7.0",
+        "relative-to-absolute-iri",
+        "validate-iri"
+      ]
+    },
+    "readable-from-web@1.0.0": {
+      "integrity": "sha512-tei03fQhxqLEklpIvocFUR9hO42hiyYvdhwoNHAjJztPAQ8QS1NqF2AhLwzGxIGidPBJ4MCqB48wn7OAFCfhsQ==",
+      "dependencies": [
+        "@types/readable-stream@4.0.24",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "readable-stream-node-to-web@1.0.1": {
+      "integrity": "sha512-OGzi2VKLa8H259kAx7BIwuRrXHGcxeHj4RdASSgEGBP9Q2wowdPvBc65upF4Q9O05qWgKqBw1+9PiLTtObl7uQ=="
+    },
+    "readable-stream@2.3.8": {
+      "integrity": "sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==",
+      "dependencies": [
+        "core-util-is",
+        "inherits",
+        "isarray",
+        "process-nextick-args",
+        "safe-buffer@5.1.2",
+        "string_decoder@1.1.1",
+        "util-deprecate"
+      ]
+    },
+    "readable-stream@3.6.2": {
+      "integrity": "sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==",
+      "dependencies": [
+        "inherits",
+        "string_decoder@1.3.0",
+        "util-deprecate"
+      ]
+    },
+    "readable-stream@4.7.0": {
+      "integrity": "sha512-oIGGmcpTLwPga8Bn6/Z75SVaH1z5dUut2ibSyAMVhmUggWpmDn2dapB0n7f8nwaSiRtepAsfJyfXIO5DCVAODg==",
+      "dependencies": [
+        "abort-controller",
+        "buffer@6.0.3",
+        "events",
+        "process",
+        "string_decoder@1.3.0"
+      ]
+    },
+    "readdir-glob@1.1.3": {
+      "integrity": "sha512-v05I2k7xN8zXvPD9N+z/uhXPaj0sUFCe2rcWZIpBsqxfP7xXFQ0tipAd/wjj1YxWyWtUS5IDJpOG82JKt2EAVA==",
+      "dependencies": [
+        "minimatch@5.1.9"
+      ]
+    },
+    "relative-to-absolute-iri@1.0.8": {
+      "integrity": "sha512-U1TmhrhCmXKkDL9mI8gBbF5TN6TKcuv28k5+H3gMCAjoz0TyyHAICHlaGDZsTEBSu2Y3HhDKc8e6X9n33qeIqA=="
+    },
+    "require-directory@2.1.1": {
+      "integrity": "sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q=="
+    },
+    "retry@0.12.0": {
+      "integrity": "sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow=="
+    },
+    "safe-buffer@5.1.2": {
+      "integrity": "sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g=="
+    },
+    "safe-buffer@5.2.1": {
+      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ=="
+    },
+    "safe-stable-stringify@2.5.0": {
+      "integrity": "sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA=="
+    },
+    "safer-buffer@2.1.2": {
+      "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="
+    },
+    "semver@7.8.5": {
+      "integrity": "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==",
+      "bin": true
+    },
+    "setimmediate@1.0.5": {
+      "integrity": "sha512-MATJdZp8sLqDl/68LfQmbP8zKPLQNV6BIZoIgrscFDQ+RsvK/BxeDQOgyxKKoh0y/8h3BqVFnCqQ/gd+reiIXA=="
+    },
+    "shaclc-parse@1.4.3": {
+      "integrity": "sha512-MQJWVFjfzzMUvieFO0STWjIo49ywy63UkVSsr0e8+8xHUns6X+i3yWYxNKd+GtSEJjBNZxxrUubog+hnd7PvRA==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "n3@1.26.0"
+      ]
+    },
+    "shaclc-write@1.6.3": {
+      "integrity": "sha512-R6rHiDov9kppjXTTaSwuaOUC3JXhJWvlrxR++Eng1jNdtD3oywkAagRu6mS5rzTcMA4WBxLUXdJxu4CbPOG04A==",
+      "dependencies": [
+        "@jeswr/prefixcc",
+        "n3@2.1.1",
+        "rdf-string-ttl"
+      ]
+    },
+    "shebang-command@2.0.0": {
+      "integrity": "sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==",
+      "dependencies": [
+        "shebang-regex"
+      ]
+    },
+    "shebang-regex@3.0.0": {
+      "integrity": "sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A=="
+    },
+    "signal-exit@3.0.7": {
+      "integrity": "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="
+    },
+    "signal-exit@4.1.0": {
+      "integrity": "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw=="
+    },
+    "spark-md5@3.0.2": {
+      "integrity": "sha512-wcFzz9cDfbuqe0FZzfi2or1sgyIrsDwmPwfZC4hiNidPdPINjeUwNfv5kldczoEAcjl9Y1L3SM7Uz2PUEQzxQw=="
+    },
+    "sparqlalgebrajs@5.0.2": {
+      "integrity": "sha512-Xz7byRqWqCMkbM+3ogGmKO/wsezQKQQNleoggP03sCTTFfCh/ZlN5CGt+HkrOenDSktZ93jpKFbbaIRjLOYtWw==",
+      "dependencies": [
+        "@types/sparqljs",
+        "fast-deep-equal",
+        "minimist",
+        "rdf-data-factory@2.0.2",
+        "rdf-isomorphic",
+        "rdf-string",
+        "rdf-terms",
+        "sparqljs"
+      ],
+      "bin": true
+    },
+    "sparqljs@3.7.4": {
+      "integrity": "sha512-hb4C84gf7KM7vz+iG595mPwvqxOvBJCm9L3dCxtV2zZDht6ZMmMG0tHeeqFeqwb9875yU9U4lhYe4LYRvWj0BQ==",
+      "dependencies": [
+        "rdf-data-factory@1.1.3"
+      ],
+      "deprecated": true,
+      "bin": true
+    },
+    "sparqljson-parse@2.2.0": {
+      "integrity": "sha512-2TfvNvUsaJyWfCrq3ExdDdbF9LBLzIUCricg+D1YCYbbmyTzscgCtRk4KcIyJF178DtfCt4BkKzbKl8IXMHp8w==",
+      "dependencies": [
+        "@bergos/jsonparse",
+        "@rdfjs/types@2.0.1",
+        "@types/readable-stream@2.3.15",
+        "rdf-data-factory@1.1.3",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "sparqljson-parse@3.3.0": {
+      "integrity": "sha512-XrmkCsrx4n69Ak63Ju7t91hVlWw7YhEPPdA+giW2GRTosQxPur0JWh7rQin/8aT0WjKZgBgGpsNnVBYyyWUq1w==",
+      "dependencies": [
+        "@bergos/jsonparse",
+        "@types/readable-stream@4.0.24",
+        "rdf-data-factory@2.0.2",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "sparqljson-to-tree@3.0.2": {
+      "integrity": "sha512-8h/ZEPPBhBlMbgMX1TOumJQku2mLYYdwd/octsDa/bdqdNcMeAcB7S2Qh4SEZ+0pPNed9CBk1d5TEUpwJlcdmw==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "rdf-literal@1.3.2",
+        "sparqljson-parse@2.2.0"
+      ]
+    },
+    "sparqlxml-parse@3.3.0": {
+      "integrity": "sha512-FUVgcUr2YePDtDuu/UcMTF2ODiKBQdZdcfTSvaR3QhWVAcBmIGX4r4apsePK1zCc1kkRR53JBHXHJho/Pk538g==",
+      "dependencies": [
+        "@rubensworks/saxes",
+        "@types/readable-stream@4.0.24",
+        "buffer@6.0.3",
+        "rdf-data-factory@2.0.2",
+        "readable-stream@4.7.0"
+      ]
+    },
+    "split-ca@1.0.1": {
+      "integrity": "sha512-Q5thBSxp5t8WPTTJQS59LrGqOZqOsrhDGDVm8azCqIBjSBd7nd9o2PM+mDulQQkh8h//4U6hFZnc/mul8t5pWQ=="
+    },
+    "ssh-remote-port-forward@1.0.4": {
+      "integrity": "sha512-x0LV1eVDwjf1gmG7TTnfqIzf+3VPRz7vrNIjX6oYLbeCrf/PeVY6hkT68Mg+q02qXxQhrLjB0jfgvhevoCRmLQ==",
+      "dependencies": [
+        "@types/ssh2",
+        "ssh2"
+      ]
+    },
+    "ssh2@1.17.0": {
+      "integrity": "sha512-wPldCk3asibAjQ/kziWQQt1Wh3PgDFpC0XpwclzKcdT1vql6KeYxf5LIt4nlFkUeR8WuphYMKqUA56X4rjbfgQ==",
+      "dependencies": [
+        "asn1",
+        "bcrypt-pbkdf"
+      ],
+      "optionalDependencies": [
+        "cpu-features",
+        "nan"
+      ],
+      "scripts": true
+    },
+    "stack-trace@0.0.10": {
+      "integrity": "sha512-KGzahc7puUKkzyMt+IqAep+TVNbKP+k2Lmwhub39m1AsTSkaDutx56aDCo+HLDzf/D26BIHTJWNiTG1KAJiQCg=="
+    },
+    "stream-to-string@1.2.1": {
+      "integrity": "sha512-WsvTDNF8UYs369Yko3pcdTducQtYpzEZeOV7cTuReyFvOoA9S/DLJ6sYK+xPafSPHhUMpaxiljKYnT6JSFztIA==",
+      "dependencies": [
+        "promise-polyfill"
+      ]
+    },
+    "streamify-array@1.0.1": {
+      "integrity": "sha512-ZnswaBcC6B1bhPLSQOlC6CdaDUSzU0wr2lvvHpbHNms8V7+DLd8uEAzDAWpsjxbFkijBHhuObFO/qqu52DZUMA=="
+    },
+    "streamx@2.28.0": {
+      "integrity": "sha512-1Yowhzjf0ivGMrTIkY9hav5TxobO9qIVqUE41fiCGMGgc3CLlf4MY+9AHmZqBWgDTue0fY9zWjYFVyf6Diuobw==",
+      "dependencies": [
+        "events-universal",
+        "fast-fifo",
+        "text-decoder"
+      ]
+    },
+    "string-width@4.2.3": {
+      "integrity": "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==",
+      "dependencies": [
+        "emoji-regex@8.0.0",
+        "is-fullwidth-code-point",
+        "strip-ansi@6.0.1"
+      ]
+    },
+    "string-width@5.1.2": {
+      "integrity": "sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA==",
+      "dependencies": [
+        "eastasianwidth",
+        "emoji-regex@9.2.2",
+        "strip-ansi@7.2.0"
+      ]
+    },
+    "string_decoder@1.1.1": {
+      "integrity": "sha512-n/ShnvDi6FHbbVfviro+WojiFzv+s8MPMHBczVePfUpDJLwoLT0ht1l4YwBCbi8pJAveEEdnkHyPyTP/mzRfwg==",
+      "dependencies": [
+        "safe-buffer@5.1.2"
+      ]
+    },
+    "string_decoder@1.3.0": {
+      "integrity": "sha512-hkRX8U1WjJFd8LsDJ2yQ/wWWxaopEsABU1XfkM8A+j0+85JAGppt16cr1Whg6KIbb4okU6Mql6BOj+uup/wKeA==",
+      "dependencies": [
+        "safe-buffer@5.2.1"
+      ]
+    },
+    "strip-ansi@6.0.1": {
+      "integrity": "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==",
+      "dependencies": [
+        "ansi-regex@5.0.1"
+      ]
+    },
+    "strip-ansi@7.2.0": {
+      "integrity": "sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==",
+      "dependencies": [
+        "ansi-regex@6.3.0"
+      ]
+    },
+    "tar-fs@2.1.5": {
+      "integrity": "sha512-OboTd8mmMhZDNPV+UjQcK9yKAatXu2aJ+r1w4im1Otd4M4fl2hwvdoXUxIYHFTHWK/3y3FarBP70v3vwmGlOxw==",
+      "dependencies": [
+        "chownr",
+        "mkdirp-classic",
+        "pump",
+        "tar-stream@2.2.0"
+      ]
+    },
+    "tar-fs@3.1.3": {
+      "integrity": "sha512-/hU4AXnIdZu+Gvl1pk0oI5f5HxWsCJRtY2aFaJdk9VvyL48DWU6iU5WAIPG+wIi1YvWA6eTJvIviP/tMAZZNwQ==",
+      "dependencies": [
+        "pump",
+        "tar-stream@3.2.0"
+      ],
+      "optionalDependencies": [
+        "bare-fs",
+        "bare-path"
+      ]
+    },
+    "tar-stream@2.2.0": {
+      "integrity": "sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==",
+      "dependencies": [
+        "bl",
+        "end-of-stream",
+        "fs-constants",
+        "inherits",
+        "readable-stream@3.6.2"
+      ]
+    },
+    "tar-stream@3.2.0": {
+      "integrity": "sha512-ojzvCvVaNp6aOTFmG7jaRD0meowIAuPc3cMMhSgKiVWws1GyHbGd/xvnyuRKcKlMpt3qvxx6r0hreCNITP9hIg==",
+      "dependencies": [
+        "b4a",
+        "bare-fs",
+        "fast-fifo",
+        "streamx"
+      ]
+    },
+    "teex@1.0.1": {
+      "integrity": "sha512-eYE6iEI62Ni1H8oIa7KlDU6uQBtqr4Eajni3wX7rpfXD8ysFx8z0+dri+KWEPWpBsxXfxu58x/0jvTVT1ekOSg==",
+      "dependencies": [
+        "streamx"
+      ]
+    },
+    "testcontainers@12.0.4": {
+      "integrity": "sha512-QIR/8xF1+F/26cIM+9B4yyxNTbKJxAv3hygZyhPRgZ8Q2AhlPZjDdpXRuk16V37X4bgJRI3hXFhoEICMBA7Adg==",
+      "dependencies": [
+        "@balena/dockerignore",
+        "@types/dockerode",
+        "archiver",
+        "async-lock",
+        "byline",
+        "debug",
+        "docker-compose",
+        "dockerode",
+        "get-port",
+        "proper-lockfile",
+        "properties-reader",
+        "ssh-remote-port-forward",
+        "tar-fs@3.1.3",
+        "tmp",
+        "undici@8.10.0"
+      ]
+    },
+    "text-decoder@1.2.7": {
+      "integrity": "sha512-vlLytXkeP4xvEq2otHeJfSQIRyWxo/oZGEbXrtEEF9Hnmrdly59sUbzZ/QgyWuLYHctCHxFF4tRQZNQ9k60ExQ==",
+      "dependencies": [
+        "b4a"
+      ]
+    },
+    "text-hex@1.0.0": {
+      "integrity": "sha512-uuVGNWzgJ4yhRaNSiubPY7OjISw4sw4E5Uv0wbjp+OzcbmVU/rsT8ujgcXJhn9ypzsgr5vlzpPqP+MBBKcGvbg=="
+    },
+    "tiny-set-immediate@1.0.2": {
+      "integrity": "sha512-EVbaM4zXFWS4CIqVoPzY7XIioQ5LU1p49AHizwPO1KyFyp/gxy5SA8mDmfDVl/2WLQiHgUL+esO6Ig+KhpUxUw=="
+    },
+    "tmp@0.2.7": {
+      "integrity": "sha512-e0votIpp4Uo2AJYSzVHV6xCcawuiez3DzqDAbrTc3YxBkplN6e+dM13ZeIcZnDg/QpSuU2zfZ3rzwY8ukEnaXw=="
+    },
+    "toxiproxy-node-client@4.1.0": {
+      "integrity": "sha512-hdCvgbS6fUtzxPzrbvvE7MZ7dl5dt+c4c0d4T2G1I+clz3QEmjEvIpzObyojUY3WNdDuoYI7sT4kcTqgUVyXAQ=="
+    },
+    "tr46@0.0.3": {
+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw=="
+    },
+    "triple-beam@1.4.1": {
+      "integrity": "sha512-aZbgViZrg1QNcG+LULa7nhZpJTZSLm/mXnHXnbAbjmN5aSa0y7V+wvv6+4WaBtpISJzThKy+PIPxc1Nq1EJ9mg=="
+    },
+    "tweetnacl@0.14.5": {
+      "integrity": "sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA=="
+    },
+    "undici-types@5.26.5": {
+      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA=="
+    },
+    "undici@6.28.0": {
+      "integrity": "sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA=="
+    },
+    "undici@8.10.0": {
+      "integrity": "sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ=="
+    },
+    "util-deprecate@1.0.2": {
+      "integrity": "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw=="
+    },
+    "uuid@11.1.1": {
+      "integrity": "sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==",
+      "bin": true
+    },
+    "validate-iri@1.0.1": {
+      "integrity": "sha512-gLXi7351CoyVVQw8XE5sgpYawRKatxE7kj/xmCxXOZS1kMdtcqC0ILIqLuVEVnAUQSL/evOGG3eQ+8VgbdnstA=="
+    },
+    "webidl-conversions@3.0.1": {
+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="
+    },
+    "whatwg-url@5.0.0": {
+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
+      "dependencies": [
+        "tr46",
+        "webidl-conversions"
+      ]
+    },
+    "which@2.0.2": {
+      "integrity": "sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==",
+      "dependencies": [
+        "isexe"
+      ],
+      "bin": true
+    },
+    "winston-transport@4.9.0": {
+      "integrity": "sha512-8drMJ4rkgaPo1Me4zD/3WLfI/zPdA9o2IipKODunnGDcuqbHwjsbB79ylv04LCGGzU0xQ6vTznOMpQGaLhhm6A==",
+      "dependencies": [
+        "logform",
+        "readable-stream@3.6.2",
+        "triple-beam"
+      ]
+    },
+    "winston@3.19.0": {
+      "integrity": "sha512-LZNJgPzfKR+/J3cHkxcpHKpKKvGfDZVPS4hfJCc4cCG0CgYzvlD6yE/S3CIL/Yt91ak327YCpiF/0MyeZHEHKA==",
+      "dependencies": [
+        "@colors/colors",
+        "@dabh/diagnostics",
+        "async",
+        "is-stream",
+        "logform",
+        "one-time",
+        "readable-stream@3.6.2",
+        "safe-stable-stringify",
+        "stack-trace",
+        "triple-beam",
+        "winston-transport"
+      ]
+    },
+    "wrap-ansi@7.0.0": {
+      "integrity": "sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==",
+      "dependencies": [
+        "ansi-styles@4.3.0",
+        "string-width@4.2.3",
+        "strip-ansi@6.0.1"
+      ]
+    },
+    "wrap-ansi@8.1.0": {
+      "integrity": "sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==",
+      "dependencies": [
+        "ansi-styles@6.2.3",
+        "string-width@5.1.2",
+        "strip-ansi@7.2.0"
+      ]
+    },
+    "wrappy@1.0.2": {
+      "integrity": "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="
+    },
+    "xmlchars@2.2.0": {
+      "integrity": "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw=="
+    },
+    "y18n@5.0.8": {
+      "integrity": "sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA=="
+    },
+    "yallist@4.0.0": {
+      "integrity": "sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A=="
+    },
+    "yaml@2.9.0": {
+      "integrity": "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==",
+      "bin": true
+    },
+    "yargs-parser@21.1.1": {
+      "integrity": "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="
+    },
+    "yargs@17.7.3": {
+      "integrity": "sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==",
+      "dependencies": [
+        "cliui",
+        "escalade",
+        "get-caller-file",
+        "require-directory",
+        "string-width@4.2.3",
+        "y18n",
+        "yargs-parser"
+      ]
+    },
+    "zip-stream@6.0.1": {
+      "integrity": "sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==",
+      "dependencies": [
+        "archiver-utils",
+        "compress-commons",
+        "readable-stream@4.7.0"
+      ]
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@standard-schema/spec@1.1.0",
+      "jsr:@std/expect@1.0.20",
+      "jsr:@std/path@1.1.2",
+      "npm:@comunica/query-sparql-rdfjs@5.3.0",
+      "npm:@testcontainers/toxiproxy@12.0.4",
+      "npm:fast-check@4.9.0",
+      "npm:jsonld@9.0.0",
+      "npm:microdata-rdf-streaming-parser@3",
+      "npm:mitata@1.0.34",
+      "npm:n3@2.1.1",
+      "npm:oxigraph@0.5.9",
+      "npm:rdf-canonize@5",
+      "npm:rdfa-streaming-parser@3",
+      "npm:rdfxml-streaming-parser@3",
+      "npm:sparqljs@3.7.4",
+      "npm:testcontainers@12.0.4"
+    ],
+    "members": {
+      "packages/comunica": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@okikio/rdf@0.1.0",
+            "npm:@okikio/sparql@0.1.0"
+          ]
+        }
+      },
+      "packages/oxigraph": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@okikio/rdf@0.1.0",
+            "npm:@okikio/sparql@0.1.0"
+          ]
+        }
+      },
+      "packages/sparql": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@okikio/rdf@0.1.0"
+          ]
+        }
+      },
+      "packages/triplestore": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@okikio/rdf@0.1.0"
+          ]
+        }
+      },
+      "packages/vocab": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@okikio/rdf@0.1.0"
+          ]
+        }
+      }
+    }
+  }
+}

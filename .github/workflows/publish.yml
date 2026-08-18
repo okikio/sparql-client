@@ -1,16 +1,25 @@
-name: Publish
+name: Release
+
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish after all release gates pass
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  publish:
+  release:
+    if: inputs.publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v6
-      - name: Publish package
-        run: npx jsr publish
+      - uses: jdx/mise-action@v3
+      - run: mise run release-check
+      - name: Publish JSR workspaces
+        run: deno publish

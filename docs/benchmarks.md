@@ -56,16 +56,16 @@ Replacing quad keys in index buckets with numeric IDs marginally improved isolat
 
 These values are not cross-runtime guarantees. They are retained so future changes can be compared to the same workload.
 
-| Case | Refreshed median |
-| --- | ---: |
-| Dataset full subject scan, 50k | ~0.447 ms |
-| Dataset indexed subject match, 50k | ~0.0024 ms |
-| N-Quads, 10k direct text | ~28.7 ms |
-| N-Quads, 10k 4 KiB chunks | ~28.3 ms |
-| Turtle, 10k equivalent quads | ~142 ms |
-| SPARQL syntax stream, 10k patterns | ~57 ms |
-| SPARQL syntax materialize, 10k patterns | ~63 ms |
-| Triplestore indexed match, 50k | ~0.0053 ms |
+| Case                                    | Refreshed median |
+| --------------------------------------- | ---------------: |
+| Dataset full subject scan, 50k          |        ~0.447 ms |
+| Dataset indexed subject match, 50k      |       ~0.0024 ms |
+| N-Quads, 10k direct text                |         ~28.7 ms |
+| N-Quads, 10k 4 KiB chunks               |         ~28.3 ms |
+| Turtle, 10k equivalent quads            |          ~142 ms |
+| SPARQL syntax stream, 10k patterns      |           ~57 ms |
+| SPARQL syntax materialize, 10k patterns |           ~63 ms |
+| Triplestore indexed match, 50k          |       ~0.0053 ms |
 
 Cold triplestore reopen remains much more expensive than warm lookup because it verifies, parses, and rebuilds in-memory indexes. Recovery profiling shows SHA-256 is only a few milliseconds; parsing plus index reconstruction dominates. Do not optimize hashing before those measured costs.
 
@@ -90,6 +90,20 @@ The first eight are in-process runtime benchmarks using Mitata. `bench/vocab/typ
 Two benchmark definitions were added during the completeness pass but were not executed on this host because the canonical benchmark runtime is Deno:
 
 - structured SPARQL builder versus equivalent direct string assembly
-- full vocabulary `read -> name plan -> emit` compilation and generated Standard Schema runtime validation
+- full vocabulary `inspect -> name plan -> emit` compilation and generated Standard Schema runtime validation
 
 Do not attach invented throughput numbers to those new cases until `deno task bench` runs on a Deno-capable host.
+
+## Competitive benchmark matrix
+
+The executable benchmark set now adds direct comparable baselines rather than timing only project implementations:
+
+- N-Triples, N-Quads, Turtle, and TriG parsing: `@okikio/rdf`, N3, and Oxigraph;
+- whole-buffer, 64 B, 1 KiB, 4 KiB, 64 KiB, deterministic hostile chunks, and first-result latency for streaming project parsers;
+- 100 / 10,000 / 100,000 quad parser scales, with 1,000,000 enabled by `BENCH_LARGE=1`;
+- Dataset exact/prefix-pattern lookup and construction against N3 Store plus a semantic scan oracle;
+- Oxigraph and Comunica direct-engine calls against their `@okikio/*` adapter paths.
+
+Every group executes a semantic oracle before Mitata registers timed work. Timed results are consumed with `do_not_optimize()`. Allocation-heavy construction/parsing groups use inner GC where appropriate.
+
+`deno task bench:report` selects Mitata's native JSON output through `run({ format: 'json' })` and stores one raw result per benchmark program plus runtime metadata under `.tmp/reports/bench/`. CI uploads that directory with the commit SHA in the artifact name so raw evidence survives the ephemeral runner without dirtying the source tree.

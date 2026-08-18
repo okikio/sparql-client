@@ -1,6 +1,7 @@
 /** Decision benchmark for structured SPARQL construction overhead. @module */
 
-import { bench, do_not_optimize, group, run } from 'mitata'
+import { bench, do_not_optimize, group } from 'mitata'
+import { report } from '../../bench/report.ts'
 import { select } from './builder.ts'
 import { triple } from './patterns/triples.ts'
 import { namedNode } from '@okikio/rdf'
@@ -14,7 +15,8 @@ const patterns = Array.from(
 const directPatterns = patterns.map((pattern) => pattern.value)
 
 const structured = (): string => select('*').where(...patterns).build().value
-const direct = (): string => `SELECT *\nWHERE {\n${directPatterns.map((value) => `  ${value}`).join('\n')}\n}`
+const direct = (): string =>
+  `SELECT *\nWHERE {\n${directPatterns.map((value) => `  ${value}`).join('\n')}\n}`
 
 if (structured() !== direct()) throw new Error('SPARQL builder benchmark oracle failed.')
 
@@ -28,4 +30,4 @@ group('sparql structured construction: 1k triple patterns', () => {
   })
 })
 
-await run()
+await report()

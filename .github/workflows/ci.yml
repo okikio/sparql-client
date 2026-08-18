@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
+      - run: mise run verify
+
+  package:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
+      - run: mise run package
+      - run: mise run distribution
+      - run: mise run consumer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-evidence
+          path: .tmp/reports/distribution.json
+
+  conformance:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
+      - run: mise run conformance-sync
+      - run: mise run conformance
+      - run: mise run support
+      - uses: actions/upload-artifact@v4
+        with:
+          name: conformance-evidence
+          path: .tmp/reports/conformance.json
+
+  integration:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
+      - run: mise run integration
+
+  benchmark:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
+      - run: mise run bench-report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-evidence-${{ github.sha }}
+          path: .tmp/reports/bench

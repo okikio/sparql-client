@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "rdf-n-triples-1.2",
+      "package": "@okikio/rdf/ntriples",
+      "kind": "native",
+      "evidence": "ntriples-1.2"
+    },
+    {
+      "id": "rdf-n-quads-1.2",
+      "package": "@okikio/rdf/nquads",
+      "kind": "native",
+      "evidence": "nquads-1.2"
+    },
+    {
+      "id": "rdf-turtle-1.2",
+      "package": "@okikio/rdf/turtle",
+      "kind": "native",
+      "evidence": "turtle-1.2"
+    },
+    {
+      "id": "rdf-trig-1.2",
+      "package": "@okikio/rdf/trig",
+      "kind": "native",
+      "evidence": "trig-1.2"
+    },
+    {
+      "id": "rdf-xml-1.2",
+      "package": "@okikio/rdf/xml",
+      "kind": "native",
+      "evidence": "rdfxml-1.2"
+    },
+    {
+      "id": "rdfc-1.0",
+      "package": "@okikio/rdf/canon",
+      "kind": "native",
+      "evidence": "RDFC-1.0"
+    },
+    {
+      "id": "json-ld-1.1-expand",
+      "package": "@okikio/rdf/jsonld",
+      "kind": "native",
+      "evidence": "JSON-LD 1.1 expand"
+    },
+    {
+      "id": "json-ld-1.1-compact",
+      "package": "@okikio/rdf/jsonld",
+      "kind": "native",
+      "evidence": "JSON-LD 1.1 compact"
+    },
+    {
+      "id": "json-ld-1.1-flatten",
+      "package": "@okikio/rdf/jsonld",
+      "kind": "native",
+      "evidence": "JSON-LD 1.1 flatten"
+    },
+    {
+      "id": "json-ld-1.1-to-rdf",
+      "package": "@okikio/rdf/jsonld",
+      "kind": "native",
+      "evidence": "JSON-LD 1.1 toRdf"
+    },
+    {
+      "id": "json-ld-1.1-from-rdf",
+      "package": "@okikio/rdf/jsonld",
+      "kind": "native",
+      "evidence": "JSON-LD 1.1 fromRdf"
+    },
+    {
+      "id": "json-ld-1.1-framing",
+      "package": "@okikio/rdf/jsonld",
+      "kind": "native",
+      "evidence": "JSON-LD 1.1 Framing"
+    },
+    {
+      "id": "rdfa-1.1-html5",
+      "package": "@okikio/rdf/rdfa",
+      "kind": "native",
+      "evidence": "RDFa 1.1 html5"
+    },
+    {
+      "id": "rdfa-1.1-xhtml5",
+      "package": "@okikio/rdf/rdfa",
+      "kind": "native",
+      "evidence": "RDFa 1.1 xhtml5"
+    },
+    {
+      "id": "rdfa-1.1-svg",
+      "package": "@okikio/rdf/rdfa",
+      "kind": "native",
+      "evidence": "RDFa 1.1 svg"
+    },
+    {
+      "id": "rdfa-1.1-xml",
+      "package": "@okikio/rdf/rdfa",
+      "kind": "native",
+      "evidence": "RDFa 1.1 xml"
+    },
+    {
+      "id": "microdata-rdf",
+      "package": "@okikio/rdf/microdata",
+      "kind": "native",
+      "evidence": "Microdata to RDF"
+    }
+  ],
+  "scopes": [
+    {
+      "id": "sparql-builder",
+      "package": "@okikio/sparql",
+      "kind": "builder",
+      "claim": "SPARQL construction with independent parser property checks; not a complete SPARQL evaluator."
+    },
+    {
+      "id": "sparql-syntax",
+      "package": "@okikio/sparql/syntax",
+      "kind": "inspection",
+      "claim": "Source-ranged lexical and feature inspection; not a complete SPARQL AST parser."
+    },
+    {
+      "id": "sparql-protocol",
+      "package": "@okikio/sparql/http",
+      "kind": "protocol",
+      "claim": "GET, URL-encoded POST, direct POST, query/update dataset parameters, cancellation, limits, and result decoding."
+    },
+    {
+      "id": "graph-store",
+      "package": "@okikio/sparql/graph-store",
+      "kind": "protocol",
+      "claim": "SPARQL GraphTermType Store GET, PUT, POST, and DELETE for default and named graphs."
+    },
+    {
+      "id": "shacl",
+      "package": "@okikio/rdf/shape",
+      "kind": "ir-inspect",
+      "claim": "Loss-preserving SHACL shape IR. No SHACL validation claim."
+    },
+    {
+      "id": "owl",
+      "package": "@okikio/rdf/ontology",
+      "kind": "ir-inspect",
+      "claim": "Loss-preserving RDFS/OWL ontology projection. No OWL reasoning claim."
+    },
+    {
+      "id": "streaming-json-ld",
+      "kind": "unsupported",
+      "claim": "The JSON-LD facade is batch processing and does not claim Streaming JSON-LD conformance."
+    },
+    {
+      "id": "shex",
+      "kind": "unsupported",
+      "claim": "ShEx is not implemented."
+    },
+    {
+      "id": "yaml-ld",
+      "kind": "unsupported",
+      "claim": "YAML-LD is not implemented."
+    },
+    {
+      "id": "rdf-json",
+      "kind": "unsupported",
+      "claim": "RDF/JSON is not implemented."
+    }
+  ]
+}

@@ -2,24 +2,52 @@
 deno = "2"
 node = "26"
 pnpm = "11"
+bun = "1"
+
+[tasks.fmt]
+run = "deno task fmt --check"
+
+[tasks.lint]
+run = "deno task lint"
+
+[tasks.check]
+run = "deno task check"
+
+[tasks.test]
+run = "deno task test"
 
 [tasks.verify]
 depends = ["fmt", "lint", "check", "test"]
 
-[tasks.fmt]
-run = "deno fmt --check packages bench examples .mise/tasks docs README.md VALIDATION.md"
+[tasks.integration]
+run = "deno task integration"
 
-[tasks.lint]
-run = "deno lint packages bench examples .mise/tasks"
+[tasks.conformance-sync]
+run = "deno task conformance:sync"
 
-[tasks.check]
-run = "deno check packages/*/mod.ts packages/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts"
+[tasks.conformance]
+run = "deno task conformance"
 
-[tasks.test]
-run = "deno test packages --allow-read --allow-write"
+[tasks.package]
+run = "deno task package"
+
+[tasks.consumer]
+run = "deno task consumer"
 
 [tasks.bench]
-run = "deno bench bench packages --allow-read --allow-write"
+run = "deno task bench"
+
+[tasks.bench-report]
+run = "deno task bench:report"
 
 [tasks.vocab-schema]
-run = "deno run --allow-net=raw.githubusercontent.com --allow-write .mise/tasks/schema.ts"
+run = "deno task vocab:schema"
+
+[tasks.release-check]
+run = "deno task release-check"
+
+[tasks.support]
+run = "deno task support"
+
+[tasks.distribution]
+run = "deno task distribution"

@@ -11,6 +11,11 @@ packages/rdf/**/*_test.ts
 packages/sparql/**/*_test.ts
 packages/vocab/**/*_test.ts
 packages/triplestore/**/*_test.ts
+packages/jsonld-js/**/*_test.ts
+packages/rdf-canonize/**/*_test.ts
+packages/rdfxml-streaming-parser/**/*_test.ts
+packages/rdfa-streaming-parser/**/*_test.ts
+packages/microdata-rdf-streaming-parser/**/*_test.ts
 packages/oxigraph/**/*_test.ts
 packages/comunica/**/*_test.ts
 ```
@@ -22,7 +27,7 @@ A test belongs beside the capability it specifies. Do not create a permanent cen
 Examples of ownership:
 
 ```text
-RDF/XML cancellation        packages/rdf/xml/mod_test.ts
+RDF/XML cancellation        packages/rdfxml-streaming-parser/mod_test.ts
 SPARQL Update grammar       packages/sparql/update_test.ts
 vocabulary compilation      packages/vocab/compile_test.ts
 store recovery              packages/triplestore/store_test.ts
@@ -62,7 +67,7 @@ deno task bench:all
 deno task verify
 ```
 
-`verify` runs the formatting check, lint, strict type check, and permanent tests.
+`verify` runs the formatting check, lint, strict type check, core dependency firewall, documentation lint, and permanent tests.
 
 The root npm scripts are only aliases to the Deno tasks. They do not define a second Node project lifecycle.
 
@@ -125,7 +130,7 @@ The permanent suite should cover at least these categories as the implementation
 
 - generated RDF vocabulary terms inside SPARQL
 - structured SPARQL query/update documents through engine adapters
-- external processor option forwarding
+- native processor options, limits, cancellation, and standards semantics
 - RDF/JS conversion
 - generated TypeScript compilation
 
@@ -177,3 +182,19 @@ external fallback:  not run / pass / fail
 ```
 
 Never turn fallback success into a claim that Deno formatting, linting, JSR resolution, or Deno runtime behavior passed.
+
+## Release evidence tasks
+
+The normal package tests stay co-located with their implementation. Cross-package release evidence has separate ownership:
+
+```text
+conformance/             official standards runners and comparison oracles
+integration/             real engine and Testcontainers tests
+support.json             machine-readable public support claims
+.mise/tasks/support.ts   claim-to-report verification
+.mise/tasks/distribution.ts  optional-dependency/tree-shaking audit
+```
+
+`deno task conformance` is strict: a skipped official case is a release failure, not a quiet success. `deno task support` additionally requires at least one passing case for every standards profile advertised in `support.json`.
+
+See `conformance/source.ts` for immutable suite revisions and `docs/conformance.md` for the complete evidence flow.

@@ -1,27 +1,32 @@
 {
   "workspace": [
-    "./packages/rdf",
-    "./packages/sparql",
-    "./packages/vocab",
-    "./packages/triplestore",
-    "./packages/oxigraph",
-    "./packages/comunica"
+    "./packages/*"
   ],
   "tasks": {
-    "fmt": "deno fmt packages bench examples .mise/tasks docs README.md VALIDATION.md",
-    "lint": "deno lint packages bench examples .mise/tasks",
-    "check": "deno check packages/*/mod.ts packages/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts",
-    "test": "deno test packages --allow-read",
-    "bench": "deno run --allow-read=packages --allow-run .mise/tasks/bench.ts",
-    "verify": "deno task fmt --check && deno task lint && deno task check && deno task test",
+    "fmt": "deno fmt packages conformance integration bench examples .mise/tasks docs README.md VALIDATION.md",
+    "lint": "deno lint packages conformance integration bench examples .mise/tasks",
+    "check": "deno check packages/*/mod.ts packages/**/*.ts conformance/**/*.ts integration/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts",
+    "test": "deno test packages conformance --allow-read --allow-write",
+    "integration": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/integration.ts",
+    "conformance:sync": "deno run --allow-read --allow-write --allow-net --allow-run .mise/tasks/conformance-sync.ts",
+    "conformance": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/conformance.ts",
+    "bench": "deno run --allow-read=packages,bench --allow-run .mise/tasks/bench.ts",
+    "bench:report": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/bench-report.ts",
+    "package": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/package.ts",
+    "consumer": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/consumer.ts",
     "vocab": "deno run --allow-read --allow-write .mise/tasks/vocab.ts",
     "vocab:schema": "deno run --allow-net=raw.githubusercontent.com --allow-write .mise/tasks/schema.ts",
     "bench:types": "deno run --allow-read --allow-write --allow-env --allow-run bench/vocab/types.ts",
-    "bench:all": "deno task bench && deno task bench:types"
+    "bench:all": "deno task bench && deno task bench:types",
+    "verify": "deno task fmt --check && deno task lint && deno task check && deno task deps && deno task docs && deno task test",
+    "release-check": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/release-check.ts",
+    "support": "deno run --allow-read .mise/tasks/support.ts",
+    "distribution": "deno run --allow-read --allow-write --allow-run .mise/tasks/distribution.ts",
+    "deps": "deno run --allow-read .mise/tasks/deps.ts",
+    "docs": "deno run --allow-read --allow-run .mise/tasks/docs.ts"
   },
   "compilerOptions": {
     "strict": true,
-    "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": false,
     "lib": [
@@ -47,8 +52,25 @@
     }
   },
   "imports": {
-    "@std/expect": "jsr:@std/expect@^1.0.20",
+    "@std/expect": "jsr:@std/expect@1.0.20",
     "mitata": "npm:mitata@1.0.34",
-    "@standard-schema/spec": "jsr:@standard-schema/spec@1.1.0"
+    "@standard-schema/spec": "jsr:@standard-schema/spec@1.1.0",
+    "fast-check": "npm:fast-check@4.9.0",
+    "n3": "npm:n3@2.1.1",
+    "testcontainers": "npm:testcontainers@12.0.4",
+    "oxigraph": "npm:oxigraph@0.5.9",
+    "@comunica/query-sparql-rdfjs": "npm:@comunica/query-sparql-rdfjs@5.3.0",
+    "sparqljs": "npm:sparqljs@3.7.4",
+    "@testcontainers/toxiproxy": "npm:@testcontainers/toxiproxy@12.0.4",
+    "@std/path": "jsr:@std/path@1.1.2",
+    "jsonld": "npm:jsonld@9.0.0",
+    "rdf-canonize": "npm:rdf-canonize@^5.0.0",
+    "rdfxml-streaming-parser": "npm:rdfxml-streaming-parser@^3",
+    "rdfa-streaming-parser": "npm:rdfa-streaming-parser@^3",
+    "microdata-rdf-streaming-parser": "npm:microdata-rdf-streaming-parser@^3"
+  },
+  "allowScripts": {
+    "allow": [],
+    "deny": ["npm:cpu-features@0.0.10", "npm:fsevents@2.3.3", "npm:protobufjs@7.6.5", "npm:ssh2@1.17.0"]
   }
 }

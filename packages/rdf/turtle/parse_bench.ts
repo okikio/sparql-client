@@ -1,6 +1,7 @@
 /** Decision benchmark for compact Turtle syntax versus explicit N-Quads representation. @module */
 
-import { bench, do_not_optimize, group, run } from 'mitata'
+import { bench, do_not_optimize, group } from 'mitata'
+import { report } from '../../../bench/report.ts'
 import { datasetKey } from '../dataset.ts'
 import { parse as parseNQuads } from '../nquads/mod.ts'
 import { parse as parseTurtle } from './mod.ts'
@@ -40,4 +41,4 @@ group('RDF text parse representation cost: 10k equivalent quads', () => {
   }).gc('inner')
 })
 
-await run()
+await report()
