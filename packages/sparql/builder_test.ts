@@ -2,11 +2,11 @@ import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { namedNode, namespace } from '@okikio/rdf'
 import {
-  SPARQL_PATTERN_BRAND,
-  SPARQL_QUERY_BRAND,
   construct,
   describe as describeQuery,
   select,
+  SPARQL_PATTERN_BRAND,
+  SPARQL_QUERY_BRAND,
   strlit,
   subquery,
   triple,
@@ -40,7 +40,11 @@ describe('@okikio/sparql query builder', () => {
       triple('?s', 'schema:name', '?name'),
       triple('?s', 'schema:sku', '?sku'),
     ).build()
-    expect(query.value.includes('{\n    ?s schema:name ?name .\n  }\n  UNION\n  {\n    ?s schema:sku ?sku .\n  }')).toBe(true)
+    expect(
+      query.value.includes(
+        '{\n    ?s schema:name ?name .\n  }\n  UNION\n  {\n    ?s schema:sku ?sku .\n  }',
+      ),
+    ).toBe(true)
   })
 
   it('accepts RDF namespace functions and named nodes directly', () => {
@@ -56,7 +60,6 @@ describe('@okikio/sparql query builder', () => {
     expect(query.value.includes('FROM <urn:graph:products>')).toBe(true)
     expect(query.value.includes('?product <https://schema.org/name> ?name .')).toBe(true)
   })
-
 
   it('rejects non-IRI terms from dataset graph clauses', () => {
     expect(() => select('*').from(strlit('not a graph'))).toThrow()

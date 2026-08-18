@@ -8,22 +8,28 @@
  */
 
 import { isTerm as isRdfTerm, type NamedNode as RdfNamedNode } from '@okikio/rdf'
-import { rdfTerm, rawPattern, toPredicateName, type PatternValue, type SparqlTerm } from '../sparql.ts'
+import {
+  type PatternValueType,
+  rawPattern,
+  rdfTerm,
+  type SparqlTermType,
+  toPredicateName,
+} from '../sparql.ts'
 import { Node } from './objects.ts'
 
 /** Predicate values accepted inside a cypher relationship placeholder. */
-type CypherTermType = SparqlTerm | RdfNamedNode
+type CypherTermType = SparqlTermType | RdfNamedNode
 
 /**
  * Builds graph patterns from `node-[predicate]->node` visual relationships.
  *
- * Direction is semantic: `a-[p]->b` emits `a p b`, while `a<-[p]-b`
+ * DirectionType is semantic: `a-[p]->b` emits `a p b`, while `a<-[p]-b`
  * emits `b p a`. Interpolated RDF NamedNodes are preserved as full IRIs.
  */
 export function cypher(
   strings: TemplateStringsArray,
   ...values: Array<Node | CypherTermType>
-): PatternValue {
+): PatternValueType {
   let source = strings[0] ?? ''
   const nodes: Node[] = []
   const terms = new Map<string, CypherTermType>()

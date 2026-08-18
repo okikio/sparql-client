@@ -19,37 +19,41 @@
  * @module
  */
 
-import { isTerm as isRdfTerm, type NamedNode as RdfNamedNode, type Term as RdfTerm } from '@okikio/rdf'
+import {
+  isTerm as isRdfTerm,
+  type NamedNode as RdfNamedNode,
+  type Term as RdfTerm,
+} from '@okikio/rdf'
 
 import {
   convertValue,
+  type IriInputType,
+  isIRIRefToken,
   isSparqlValue,
   normalizeVariableName,
+  type PatternValueType,
+  type PredicateInputType,
+  type PrefixNameType,
   raw,
   rawPattern,
   rawTerm,
+  SPARQL_EXPR_BRAND,
+  SPARQL_PATTERN_BRAND,
+  SPARQL_TERM_BRAND,
+  SPARQL_VALUE_BRAND,
+  type SparqlExprType,
+  type SparqlInterpolatableType,
+  type SparqlTermType,
+  type SparqlValueType,
   strlit,
-  validateVariableName,
-  variable,
   toPredicateToken,
   toVarOrIriRef,
   toVarToken,
-  validatePrefixName,
   validateIRI,
-  isIRIRefToken,
-  SPARQL_VALUE_BRAND,
-  SPARQL_EXPR_BRAND,
-  SPARQL_TERM_BRAND,
-  SPARQL_PATTERN_BRAND,
-  type PrefixName,
-  type VariableName,
-  type SparqlValue,
-  type SparqlInterpolatable,
-  type SparqlExpr,
-  type SparqlTerm,
-  type PatternValue,
-  type IriInput,
-  type PredicateInput,
+  validatePrefixName,
+  validateVariableName,
+  variable,
+  type VariableNameType,
 } from './sparql.ts'
 
 // ============================================================================
@@ -76,9 +80,9 @@ import {
  * ```
  */
 export function values(
-  varName: VariableName,
-  items: SparqlInterpolatable[]
-): PatternValue {
+  varName: VariableNameType,
+  items: SparqlInterpolatableType[],
+): PatternValueType {
   const _var = toVarToken(varName)
   const converted = items.map((item) => convertValue(item)).join(' ')
   return rawPattern(`VALUES ${_var} { ${converted} }`)
@@ -106,7 +110,7 @@ export function values(
  * // FILTER(?age >= 18 && REGEX(?name, "^Spider"))
  * ```
  */
-export function filter(expression: SparqlExpr): PatternValue {
+export function filter(expression: SparqlExprType): PatternValueType {
   return rawPattern(`FILTER(${expression.value})`)
 }
 
@@ -131,7 +135,7 @@ export function filter(expression: SparqlExpr): PatternValue {
  * ]))
  * ```
  */
-export function optional(pattern: PatternValue): PatternValue {
+export function optional(pattern: PatternValueType): PatternValueType {
   return rawPattern(`OPTIONAL { ${pattern.value} }`)
 }
 
@@ -154,7 +158,10 @@ export function optional(pattern: PatternValue): PatternValue {
  * // BIND(2024 - ?birthYear AS ?age)
  * ```
  */
-export function bind(expression: SparqlExpr | SparqlTerm, varName: VariableName): PatternValue {
+export function bind(
+  expression: SparqlExprType | SparqlTermType,
+  varName: VariableNameType,
+): PatternValueType {
   const normalized = toVarToken(varName)
   return rawPattern(`BIND(${expression.value} AS ${normalized})`)
 }
@@ -171,7 +178,7 @@ export function bind(expression: SparqlExpr | SparqlTerm, varName: VariableName)
  * // EXISTS { ?person foaf:email ?anyEmail }
  * ```
  */
-export function exists(pattern: PatternValue): SparqlExpr {
+export function exists(pattern: PatternValueType): SparqlExprType {
   return raw(`EXISTS { ${pattern.value} }`)
 }
 
@@ -186,10 +193,9 @@ export function exists(pattern: PatternValue): SparqlExpr {
  * // NOT EXISTS { ?person foaf:email ?email }
  * ```
  */
-export function notExists(pattern: PatternValue): SparqlExpr {
+export function notExists(pattern: PatternValueType): SparqlExprType {
   return raw(`NOT EXISTS { ${pattern.value} }`)
 }
-
 
 // ============================================================================
 // Expression Helpers
@@ -199,9 +205,9 @@ export function notExists(pattern: PatternValue): SparqlExpr {
  * Values that can be used in SPARQL expressions.
  *
  * These are the building blocks: literals, numbers, dates, and already-constructed
- * SparqlValue objects. Most expression helpers accept these types.
+ * SparqlValueType objects. Most expression helpers accept these types.
  */
-export type ExpressionPrimitive =
+export type ExpressionPrimitiveType =
   | string
   | number
   | boolean
@@ -213,15 +219,15 @@ export type ExpressionPrimitive =
 /**
  * Convert a value to SPARQL for use in expressions.
  *
- * - SparqlValue objects pass through unchanged
+ * - SparqlValueType objects pass through unchanged
  * - Primitives are converted using convertValue (escaped and typed)
  *
  * This is the key function that ensures data values are properly escaped
- * while syntax elements (already wrapped as SparqlValue) pass through.
+ * while syntax elements (already wrapped as SparqlValueType) pass through.
  */
 export function exprTerm(
-  value: SparqlValue | ExpressionPrimitive,
-): SparqlValue {
+  value: SparqlValueType | ExpressionPrimitiveType,
+): SparqlValueType {
   if (isSparqlValue(value)) {
     return value
   }
@@ -232,7 +238,7 @@ export function exprTerm(
  * Get the raw SPARQL string for a value.
  */
 export function exprTermString(
-  value: SparqlValue | ExpressionPrimitive,
+  value: SparqlValueType | ExpressionPrimitiveType,
 ): string {
   return exprTerm(value).value
 }
@@ -247,14 +253,14 @@ export function exprTermString(
  * For now we focus on triple positions; you can extend this later if
  * you want to validate GRAPH names etc.
  */
-export type TermPosition = 'subject' | 'object' | 'graph'
+export type TermPositionType = 'subject' | 'object' | 'graph'
 
 /**
  * Very small SPARQL-style validator for GraphNode/VarOrTerm lexicals.
  *
  * We lean on the fact that `exprTerm()` has already:
  * - turned primitives into valid literals/IRIs
- * - left SparqlValue.value as-is when it represents syntax
+ * - left SparqlValueType.value as-is when it represents syntax
  *
  * So here we just check that the lexical form looks like:
  * - variable (?x, $x)
@@ -363,17 +369,17 @@ export function isGraphNodeLexical(lex: string): boolean {
  *         a valid SPARQL term (e.g. STR(...), CONCAT(...), BNODE()).
  */
 export function termString(
-  value: SparqlTerm | ExpressionPrimitive,
-  position: TermPosition = 'object',
+  value: SparqlTermType | ExpressionPrimitiveType,
+  position: TermPositionType = 'object',
 ): string {
   const lex = exprTermString(value)
 
   if (!isGraphNodeLexical(lex)) {
     throw new Error(
       `Invalid ${position} term "${lex}". Triple ${position}s must be variables, ` +
-      `IRIs, blank node labels, literals, prefixed names, or SPARQL 1.2 triple forms. ` +
-      `Use BIND(...) / FILTER(...) to compute a value (e.g. STR(), CONCAT(), ` +
-      `BNODE()) and then use the bound variable in the triple.`,
+        `IRIs, blank node labels, literals, prefixed names, or SPARQL 1.2 triple forms. ` +
+        `Use BIND(...) / FILTER(...) to compute a value (e.g. STR(), CONCAT(), ` +
+        `BNODE()) and then use the bound variable in the triple.`,
     )
   }
 
@@ -398,13 +404,13 @@ export function termString(
  * ```
  */
 export function concat(
-  ...args: Array<SparqlValue | ExpressionPrimitive>
-): FluentExpr {
+  ...args: Array<SparqlValueType | ExpressionPrimitiveType>
+): FluentExprType {
   if (args.length === 0) {
     return fluent(strlit(''))
   }
 
-  const inner = args.map(a => exprTermString(a)).join(', ')
+  const inner = args.map((a) => exprTermString(a)).join(', ')
   return fluent(raw(`CONCAT(${inner})`))
 }
 
@@ -414,7 +420,7 @@ export function concat(
  * Forces conversion to string representation. Useful when you need to ensure
  * a value is treated as a string for comparison or manipulation.
  */
-export function str(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function str(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`STR(${exprTermString(value)})`))
 }
 
@@ -424,22 +430,22 @@ export function str(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * Returns the character count. Note that this counts Unicode characters, not bytes.
  */
 export function strlen(
-  value: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  value: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`STRLEN(${exprTermString(value)})`))
 }
 
 /**
  * Convert string to uppercase.
  */
-export function ucase(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function ucase(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`UCASE(${exprTermString(value)})`))
 }
 
 /**
  * Convert string to lowercase.
  */
-export function lcase(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function lcase(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`LCASE(${exprTermString(value)})`))
 }
 
@@ -456,9 +462,9 @@ export function lcase(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * ```
  */
 export function contains(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  pattern: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(
     `CONTAINS(${exprTermString(text)}, ${exprTermString(pattern)})`,
   )
@@ -470,9 +476,9 @@ export function contains(
  * Case-sensitive prefix check.
  */
 export function startsWith(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  pattern: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(
     `STRSTARTS(${exprTermString(text)}, ${exprTermString(pattern)})`,
   )
@@ -480,9 +486,9 @@ export function startsWith(
 
 /** Alias for {@link startsWith} (matches SPARQL function name). */
 export function strstarts(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  pattern: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return startsWith(text, pattern)
 }
 
@@ -492,9 +498,9 @@ export function strstarts(
  * Case-sensitive suffix check.
  */
 export function endsWith(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  pattern: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(
     `STRENDS(${exprTermString(text)}, ${exprTermString(pattern)})`,
   )
@@ -502,9 +508,9 @@ export function endsWith(
 
 /** Alias for {@link endsWith} (matches SPARQL function name). */
 export function strends(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  pattern: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return endsWith(text, pattern)
 }
 
@@ -526,10 +532,10 @@ export function strends(
  * ```
  */
 export function regex(
-  text: SparqlValue | ExpressionPrimitive,
+  text: SparqlValueType | ExpressionPrimitiveType,
   pattern: string,
   flags?: string,
-): SparqlExpr {
+): SparqlExprType {
   const textStr = exprTermString(text)
   const patternStr = exprTermString(pattern)
 
@@ -560,10 +566,10 @@ export function regex(
  * ```
  */
 export function substr(
-  text: SparqlValue | ExpressionPrimitive,
-  start: SparqlValue | ExpressionPrimitive,
-  length?: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  start: SparqlValueType | ExpressionPrimitiveType,
+  length?: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   const textStr = exprTermString(text)
   const startStr = exprTermString(start)
 
@@ -594,11 +600,11 @@ export function substr(
  * ```
  */
 export function replaceStr(
-  text: SparqlValue | ExpressionPrimitive,
-  pattern: SparqlValue | ExpressionPrimitive,
-  replacement: SparqlValue | ExpressionPrimitive,
+  text: SparqlValueType | ExpressionPrimitiveType,
+  pattern: SparqlValueType | ExpressionPrimitiveType,
+  replacement: SparqlValueType | ExpressionPrimitiveType,
   flags?: string,
-): FluentExpr {
+): FluentExprType {
   const textStr = exprTermString(text)
   const patternStr = exprTermString(pattern)
   const replacementStr = exprTermString(replacement)
@@ -630,9 +636,9 @@ export function replaceStr(
  * ```
  */
 export function strBefore(
-  text: SparqlValue | ExpressionPrimitive,
-  match: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  match: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   const textTerm = exprTermString(text)
   const matchTerm = exprTermString(match)
   return fluent(raw(`STRBEFORE(${textTerm}, ${matchTerm})`))
@@ -657,9 +663,9 @@ export function strBefore(
  * ```
  */
 export function strAfter(
-  text: SparqlValue | ExpressionPrimitive,
-  match: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  text: SparqlValueType | ExpressionPrimitiveType,
+  match: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   const textTerm = exprTermString(text)
   const matchTerm = exprTermString(match)
   return fluent(raw(`STRAFTER(${textTerm}, ${matchTerm})`))
@@ -678,11 +684,11 @@ export function strAfter(
  * ```
  */
 export function ifElse(
-  condition: SparqlValue,
-  whenTrue: SparqlValue | ExpressionPrimitive,
-  whenFalse: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
-  const trueTerm = exprTermString(whenTrue);
+  condition: SparqlValueType,
+  whenTrue: SparqlValueType | ExpressionPrimitiveType,
+  whenFalse: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
+  const trueTerm = exprTermString(whenTrue)
   const falseTerm = exprTermString(whenFalse)
   return fluent(raw(
     `IF(${condition.value}, ${trueTerm}, ${falseTerm})`,
@@ -695,69 +701,69 @@ export function ifElse(
 
 /** Add two numbers. */
 export function add(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`${exprTermString(left)} + ${exprTermString(right)}`))
 }
 
 /** Subtract two numbers. */
 export function sub(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`${exprTermString(left)} - ${exprTermString(right)}`))
 }
 
 /** Multiply two numbers. */
 export function mul(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`${exprTermString(left)} * ${exprTermString(right)}`))
 }
 
 /** Divide two numbers. */
 export function div(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`${exprTermString(left)} / ${exprTermString(right)}`))
 }
 
 /** Modulo operation (remainder after division). */
 export function mod(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`(${exprTermString(left)} % ${exprTermString(right)})`))
 }
 
 /** Absolute value. */
 export function abs(
-  value: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  value: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`ABS(${exprTermString(value)})`))
 }
 
 /** Round to nearest integer. */
 export function round(
-  value: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  value: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`ROUND(${exprTermString(value)})`))
 }
 
 /** Round up to next integer. */
 export function ceil(
-  value: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  value: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`CEIL(${exprTermString(value)})`))
 }
 
 /** Round down to previous integer. */
 export function floor(
-  value: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  value: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`FLOOR(${exprTermString(value)})`))
 }
 
@@ -767,49 +773,49 @@ export function floor(
 
 /** Equal to. */
 export function eq(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(`${exprTermString(left)} = ${exprTermString(right)}`)
 }
 
 /** Not equal to. */
 export function neq(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(`${exprTermString(left)} != ${exprTermString(right)}`)
 }
 
 /** Greater than. */
 export function gt(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(`${exprTermString(left)} > ${exprTermString(right)}`)
 }
 
 /** Greater than or equal to. */
 export function gte(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(`${exprTermString(left)} >= ${exprTermString(right)}`)
 }
 
 /** Less than. */
 export function lt(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(`${exprTermString(left)} < ${exprTermString(right)}`)
 }
 
 /** Less than or equal to. */
 export function lte(
-  left: SparqlValue | ExpressionPrimitive,
-  right: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  left: SparqlValueType | ExpressionPrimitiveType,
+  right: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   return raw(`${exprTermString(left)} <= ${exprTermString(right)}`)
 }
 
@@ -830,8 +836,8 @@ export function lte(
  * ```
  */
 export function isNull(
-  value: SparqlValue,
-): SparqlExpr {
+  value: SparqlValueType,
+): SparqlExprType {
   return raw(`!BOUND(${value.value})`)
 }
 
@@ -841,36 +847,36 @@ export function isNull(
  * Opposite of isNull - checks if a variable has a value.
  */
 export function isNotNull(
-  value: SparqlValue,
-): SparqlExpr {
+  value: SparqlValueType,
+): SparqlExprType {
   return raw(`BOUND(${value.value})`)
 }
 
 /** Check if a variable is bound. Basically the same thing as {@link isNotNull} */
 export function bound(
-  variable: SparqlValue,
-): SparqlExpr {
+  variable: SparqlValueType,
+): SparqlExprType {
   return raw(`BOUND(${variable.value})`)
 }
 
 /** Check if a term is an IRI. */
 export function isIri(
-  term: SparqlValue,
-): SparqlExpr {
+  term: SparqlValueType,
+): SparqlExprType {
   return raw(`isIRI(${term.value})`)
 }
 
 /** Check if a term is a blank node. */
 export function isBlank(
-  term: SparqlValue,
-): SparqlExpr {
+  term: SparqlValueType,
+): SparqlExprType {
   return raw(`isBlank(${term.value})`)
 }
 
 /** Check if a term is a literal. */
 export function isLiteral(
-  term: SparqlValue,
-): SparqlExpr {
+  term: SparqlValueType,
+): SparqlExprType {
   return raw(`isLiteral(${term.value})`)
 }
 
@@ -895,12 +901,12 @@ export function isLiteral(
  * ```
  */
 export function and(
-  ...conditions: SparqlValue[]
-): SparqlExpr {
+  ...conditions: SparqlValueType[]
+): SparqlExprType {
   const filtered = conditions.filter(Boolean)
 
   if (filtered.length === 0) throw new Error('and() requires at least one condition')
-  if (filtered.length === 1) return filtered[0] as SparqlExpr
+  if (filtered.length === 1) return filtered[0] as SparqlExprType
 
   return raw(filtered.map((c) => `(${c.value})`).join(' && '))
 }
@@ -921,12 +927,12 @@ export function and(
  * ```
  */
 export function or(
-  ...conditions: SparqlValue[]
-): SparqlExpr {
+  ...conditions: SparqlValueType[]
+): SparqlExprType {
   const filtered = conditions.filter(Boolean)
 
   if (filtered.length === 0) throw new Error('or() requires at least one condition')
-  if (filtered.length === 1) return filtered[0] as SparqlExpr
+  if (filtered.length === 1) return filtered[0] as SparqlExprType
 
   return raw(conditions.map((c) => `(${c.value})`).join(' || '))
 }
@@ -936,7 +942,7 @@ export function or(
  *
  * Flips true to false and false to true.
  */
-export function not(condition: SparqlValue): SparqlExpr {
+export function not(condition: SparqlValueType): SparqlExprType {
   return raw(`!(${condition.value})`)
 }
 
@@ -956,9 +962,9 @@ export function not(condition: SparqlValue): SparqlExpr {
  * ```
  */
 export function inList(
-  expr: SparqlValue | ExpressionPrimitive,
-  values: Array<SparqlValue | ExpressionPrimitive>,
-): SparqlExpr {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+  values: Array<SparqlValueType | ExpressionPrimitiveType>,
+): SparqlExprType {
   if (values.length === 0) {
     return raw('false')
   }
@@ -972,9 +978,9 @@ export function inList(
  * Opposite of inList - returns true if the value doesn't match any list item.
  */
 export function notInList(
-  expr: SparqlValue | ExpressionPrimitive,
-  values: Array<SparqlValue | ExpressionPrimitive>,
-): SparqlExpr {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+  values: Array<SparqlValueType | ExpressionPrimitiveType>,
+): SparqlExprType {
   if (values.length === 0) {
     return raw('true')
   }
@@ -994,10 +1000,10 @@ export function notInList(
  * ```
  */
 export function between(
-  expr: SparqlValue | ExpressionPrimitive,
-  low: SparqlValue | ExpressionPrimitive,
-  high: SparqlValue | ExpressionPrimitive,
-): SparqlExpr {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+  low: SparqlValueType | ExpressionPrimitiveType,
+  high: SparqlValueType | ExpressionPrimitiveType,
+): SparqlExprType {
   const exprTerm = exprTermString(expr)
   const lowTerm = exprTermString(low)
   const highTerm = exprTermString(high)
@@ -1017,8 +1023,8 @@ export function between(
  * ```
  */
 export function coalesce(
-  ...values: Array<SparqlValue | ExpressionPrimitive>
-): FluentExpr {
+  ...values: Array<SparqlValueType | ExpressionPrimitiveType>
+): FluentExprType {
   if (values.length === 0) {
     return fluent(strlit(''))
   }
@@ -1032,7 +1038,7 @@ export function coalesce(
  * - Represents the SPARQL `BNODE()` function, which creates
  *   a fresh blank node per evaluation.
  */
-export function bnodeFn(): SparqlExpr {
+export function bnodeFn(): SparqlExprType {
   return raw('BNODE()')
 }
 
@@ -1071,66 +1077,110 @@ export function bnodeFn(): SparqlExpr {
  * )
  * ```
  */
-export interface FluentExpr extends SparqlExpr {
+export interface FluentExprType extends SparqlExprType {
   // Comparison operators
-  eq(other: SparqlValue | ExpressionPrimitive): SparqlExpr
-  neq(other: SparqlValue | ExpressionPrimitive): SparqlExpr
-  lt(other: SparqlValue | ExpressionPrimitive): SparqlExpr
-  lte(other: SparqlValue | ExpressionPrimitive): SparqlExpr
-  gt(other: SparqlValue | ExpressionPrimitive): SparqlExpr
-  gte(other: SparqlValue | ExpressionPrimitive): SparqlExpr
+  /** Builds an equality expression between this expression and the supplied value. */
+  eq(other: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds an inequality expression between this expression and the supplied value. */
+  neq(other: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds a less-than comparison expression. */
+  lt(other: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds a less-than-or-equal comparison expression. */
+  lte(other: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds a greater-than comparison expression. */
+  gt(other: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds a greater-than-or-equal comparison expression. */
+  gte(other: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
 
   // Arithmetic operators
-  add(other: SparqlValue | ExpressionPrimitive): FluentExpr
-  sub(other: SparqlValue | ExpressionPrimitive): FluentExpr
-  mul(other: SparqlValue | ExpressionPrimitive): FluentExpr
-  div(other: SparqlValue | ExpressionPrimitive): FluentExpr
-  mod(other: SparqlValue | ExpressionPrimitive): FluentExpr
+  /** Adds  to FluentExprType while maintaining its indexes and semantic invariants. */
+  add(other: SparqlValueType | ExpressionPrimitiveType): FluentExprType
+  /** Builds numeric subtraction with this expression on the left. */
+  sub(other: SparqlValueType | ExpressionPrimitiveType): FluentExprType
+  /** Builds numeric multiplication with this expression on the left. */
+  mul(other: SparqlValueType | ExpressionPrimitiveType): FluentExprType
+  /** Builds numeric division with this expression on the left. */
+  div(other: SparqlValueType | ExpressionPrimitiveType): FluentExprType
+  /** Builds the SPARQL remainder expression for this value. */
+  mod(other: SparqlValueType | ExpressionPrimitiveType): FluentExprType
 
   // String functions
-  concat(...others: Array<SparqlValue | ExpressionPrimitive>): FluentExpr
-  contains(substring: SparqlValue | ExpressionPrimitive): SparqlExpr
-  startsWith(prefix: SparqlValue | ExpressionPrimitive): SparqlExpr
-  endsWith(suffix: SparqlValue | ExpressionPrimitive): SparqlExpr
-  regex(pattern: string, flags?: string): SparqlExpr
-  strlen(): FluentExpr
-  ucase(): FluentExpr
-  lcase(): FluentExpr
-  substr(start: SparqlValue | ExpressionPrimitive, length?: SparqlValue | ExpressionPrimitive): FluentExpr
-  replace(pattern: SparqlValue | ExpressionPrimitive, replacement: SparqlValue | ExpressionPrimitive, flags?: string): FluentExpr
-  strBefore(match: SparqlValue | ExpressionPrimitive): FluentExpr
-  strAfter(match: SparqlValue | ExpressionPrimitive): FluentExpr
+  /** Builds CONCAT with this expression as the first argument. */
+  concat(...others: Array<SparqlValueType | ExpressionPrimitiveType>): FluentExprType
+  /** Builds a CONTAINS string predicate for this expression. */
+  contains(substring: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds STRSTARTS for this expression and the supplied prefix. */
+  startsWith(prefix: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds STRENDS for this expression and the supplied suffix. */
+  endsWith(suffix: SparqlValueType | ExpressionPrimitiveType): SparqlExprType
+  /** Builds a REGEX predicate with optional SPARQL regular-expression flags. */
+  regex(pattern: string, flags?: string): SparqlExprType
+  /** Builds STRLEN for this expression. */
+  strlen(): FluentExprType
+  /** Builds UCASE for this expression. */
+  ucase(): FluentExprType
+  /** Builds LCASE for this expression. */
+  lcase(): FluentExprType
+  /** Builds SUBSTR using SPARQL one-based start and optional length arguments. */
+  substr(
+    start: SparqlValueType | ExpressionPrimitiveType,
+    length?: SparqlValueType | ExpressionPrimitiveType,
+  ): FluentExprType
+  /** Builds REPLACE with the supplied pattern, replacement, and optional flags. */
+  replace(
+    pattern: SparqlValueType | ExpressionPrimitiveType,
+    replacement: SparqlValueType | ExpressionPrimitiveType,
+    flags?: string,
+  ): FluentExprType
+  /** Builds STRBEFORE for this expression and the supplied delimiter. */
+  strBefore(match: SparqlValueType | ExpressionPrimitiveType): FluentExprType
+  /** Builds STRAFTER for this expression and the supplied delimiter. */
+  strAfter(match: SparqlValueType | ExpressionPrimitiveType): FluentExprType
 
   // Type checking
-  isNull(): SparqlExpr
-  isNotNull(): SparqlExpr
-  isIri(): SparqlExpr
-  isBlank(): SparqlExpr
-  isLiteral(): SparqlExpr
-  bound(): SparqlExpr
+  /** Builds the project null-test expression used by object-pattern helpers. */
+  isNull(): SparqlExprType
+  /** Builds the negated project null-test expression used by object-pattern helpers. */
+  isNotNull(): SparqlExprType
+  /** Builds ISIRI for this expression. */
+  isIri(): SparqlExprType
+  /** Builds ISBLANK for this expression. */
+  isBlank(): SparqlExprType
+  /** Builds ISLITERAL for this expression. */
+  isLiteral(): SparqlExprType
+  /** Builds BOUND for this variable-compatible expression. */
+  bound(): SparqlExprType
 
   // Logical operators
-  and(other: SparqlValue): SparqlExpr
-  or(other: SparqlValue): SparqlExpr
-  not(): SparqlExpr
+  /** Builds logical conjunction with this expression on the left. */
+  and(other: SparqlValueType): SparqlExprType
+  /** Builds logical disjunction with this expression on the left. */
+  or(other: SparqlValueType): SparqlExprType
+  /** Builds logical negation of this expression. */
+  not(): SparqlExprType
 
   // Math functions
-  abs(): FluentExpr
-  round(): FluentExpr
-  ceil(): FluentExpr
-  floor(): FluentExpr
+  /** Builds ABS for this numeric expression. */
+  abs(): FluentExprType
+  /** Builds ROUND for this numeric expression. */
+  round(): FluentExprType
+  /** Builds CEIL for this numeric expression. */
+  ceil(): FluentExprType
+  /** Builds FLOOR for this numeric expression. */
+  floor(): FluentExprType
 
   // Utility
-  as(variable: VariableName): SparqlExpr
+  /** Aliases this expression to the supplied SPARQL variable for projection. */
+  as(variable: VariableNameType): SparqlExprType
 }
 
 /**
  * Create a fluent value with chainable methods.
  *
- * Wraps any SparqlValue to add method chaining. This lets you write expressions
+ * Wraps any SparqlValueType to add method chaining. This lets you write expressions
  * more naturally with dot notation instead of nested function calls.
  *
- * @param value SparqlValue to enhance
+ * @param value SparqlValueType to enhance
  * @returns FluentValue with chainable methods
  *
  * @example
@@ -1144,11 +1194,12 @@ export interface FluentExpr extends SparqlExpr {
  * fluent(v('price')).mul(1.1).add(5)
  * ```
  */
-export function fluent(value: SparqlTerm | SparqlExpr): FluentExpr {
-  if (SPARQL_PATTERN_BRAND in value && value[SPARQL_PATTERN_BRAND])
-    throw new Error(`Cannot convert pattern value "${value}" to a fluent expression`);
+export function fluent(value: SparqlTermType | SparqlExprType): FluentExprType {
+  if (SPARQL_PATTERN_BRAND in value && value[SPARQL_PATTERN_BRAND]) {
+    throw new Error(`Cannot convert pattern value "${value}" to a fluent expression`)
+  }
 
-  const result: FluentExpr = {
+  const result: FluentExprType = {
     ...Object.assign(value, { [SPARQL_TERM_BRAND]: false }),
 
     [SPARQL_EXPR_BRAND]: true,
@@ -1178,7 +1229,8 @@ export function fluent(value: SparqlTerm | SparqlExpr): FluentExpr {
     ucase: () => fluent(ucase(result)),
     lcase: () => fluent(lcase(result)),
     substr: (start, length) => fluent(substr(result, start, length)),
-    replace: (pattern, replacement, flags) => fluent(replaceStr(result, pattern, replacement, flags)),
+    replace: (pattern, replacement, flags) =>
+      fluent(replaceStr(result, pattern, replacement, flags)),
     strBefore: (match) => fluent(strBefore(result, match)),
     strAfter: (match) => fluent(strAfter(result, match)),
 
@@ -1207,7 +1259,7 @@ export function fluent(value: SparqlTerm | SparqlExpr): FluentExpr {
       validateVariableName(varName)
       // Use the *current* expression and wrap as required by SPARQL
       return raw(`(${result.value} AS ?${varName})`)
-    }
+    },
   }
 
   return result
@@ -1250,21 +1302,21 @@ export function fluent(value: SparqlTerm | SparqlExpr): FluentExpr {
  * )
  * ```
  */
-export function v(name: string): FluentExpr {
+export function v(name: string): FluentExprType {
   return fluent(variable(name))
 }
 
 /** Get the language tag of a literal. */
 export function getlang(
-  literal: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  literal: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`LANG(${exprTermString(literal)})`))
 }
 
 /** Get the datatype IRI of a literal. */
 export function datatype(
-  literal: SparqlValue | ExpressionPrimitive,
-): FluentExpr {
+  literal: SparqlValueType | ExpressionPrimitiveType,
+): FluentExprType {
   return fluent(raw(`DATATYPE(${exprTermString(literal)})`))
 }
 
@@ -1279,27 +1331,31 @@ export function datatype(
  * used with GROUP BY clauses. The `.as()` method lets you assign the result
  * to a variable.
  */
-export interface AggregationExpression extends SparqlExpr {
-  as(variable: string): SparqlExpr
+export interface AggregationExpressionType extends SparqlExprType {
+  /** Aliases this aggregate expression to the supplied SPARQL variable for projection. */
+  as(variable: string): SparqlExprType
 }
 
 /**
  * Internal helper to create aggregation expressions.
  */
-function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPrimitive): AggregationExpression {
+function createAggregation(
+  sparqlFunc: string,
+  expr?: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   const exprStr = expr ? exprTermString(expr) : '*'
   const baseValue = `${sparqlFunc}(${exprStr})`
 
-  const result: AggregationExpression = {
+  const result: AggregationExpressionType = {
     [SPARQL_VALUE_BRAND]: true,
     [SPARQL_EXPR_BRAND]: true,
     value: baseValue,
     /** Wraps this aggregation as `(expression AS ?variable)` for SELECT projection grammar. */
-    as(variable: string): SparqlExpr {
+    as(variable: string): SparqlExprType {
       const varName = toVarToken(variable)
       // SPARQL 1.1 requires (Expression AS ?var) in SELECT
       return raw(`(${baseValue} AS ${varName})`)
-    }
+    },
   }
 
   return result
@@ -1324,8 +1380,8 @@ function createAggregation(sparqlFunc: string, expr?: SparqlValue | ExpressionPr
  * ```
  */
 export function count(
-  expr?: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr?: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   return createAggregation('COUNT', expr)
 }
 
@@ -1341,8 +1397,8 @@ export function count(
  * ```
  */
 export function countDistinct(
-  expr: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   const exprStr = exprTermString(expr)
   // Treat DISTINCT … as raw SPARQL, not a literal
   return createAggregation('COUNT', raw(`DISTINCT ${exprStr}`))
@@ -1360,29 +1416,29 @@ export function countDistinct(
  * ```
  */
 export function sum(
-  expr: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   return createAggregation('SUM', expr)
 }
 
 /** Calculate average of numeric values. */
 export function avg(
-  expr: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   return createAggregation('AVG', expr)
 }
 
 /** Find minimum value. */
 export function min(
-  expr: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   return createAggregation('MIN', expr)
 }
 
 /** Find maximum value. */
 export function max(
-  expr: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   return createAggregation('MAX', expr)
 }
 
@@ -1393,8 +1449,8 @@ export function max(
  * Useful for properties that should be the same across a group.
  */
 export function sample(
-  expr: SparqlValue | ExpressionPrimitive,
-): AggregationExpression {
+  expr: SparqlValueType | ExpressionPrimitiveType,
+): AggregationExpressionType {
   return createAggregation('SAMPLE', expr)
 }
 
@@ -1411,13 +1467,11 @@ export function sample(
  * ```
  */
 export function groupConcat(
-  expr: SparqlValue | ExpressionPrimitive,
+  expr: SparqlValueType | ExpressionPrimitiveType,
   separator?: string,
-): AggregationExpression {
+): AggregationExpressionType {
   const exprStr = exprTermString(expr)
-  const baseValue = separator
-    ? `${exprStr}; SEPARATOR=${exprTermString(separator)}`
-    : exprStr
+  const baseValue = separator ? `${exprStr}; SEPARATOR=${exprTermString(separator)}` : exprStr
 
   return createAggregation('GROUP_CONCAT', raw(baseValue))
 }
@@ -1425,7 +1479,6 @@ export function groupConcat(
 // ============================================================================
 // GRAPH Patterns
 // ============================================================================
-
 
 // ============================================================================
 // GRAPH Patterns
@@ -1441,7 +1494,7 @@ export function groupConcat(
  * That means the graph identifier can be:
  * - A variable: `"g"`, `"?g"`, or `$g` → normalised to `?g`
  * - An IRI: `"http://example.org/data"` → `<http://example.org/data>`
- * - A prefixed name: `"ex:Graph"`
+ * - A prefixed name: `"ex:GraphTermType"`
  *
  * It will *not* accept GraphRefAll keywords like DEFAULT/NAMED/ALL here,
  * because those belong to the update grammar (`GraphRefAll`), not to
@@ -1476,9 +1529,9 @@ export function groupConcat(
  * ```
  */
 export function graph(
-  graphIri: IriInput,
-  pattern: PatternValue,
-): PatternValue {
+  graphIri: IriInputType,
+  pattern: PatternValueType,
+): PatternValueType {
   const graphRef = toVarOrIriRef(graphIri)
   return rawPattern(`GRAPH ${graphRef} { ${pattern.value} }`)
 }
@@ -1493,7 +1546,7 @@ export function graph(
  * `UNDEF` is valid in VALUES data blocks. It is not a general expression value
  * and must not be rewritten as a variable such as `?UNDEF`.
  */
-export function undef(): SparqlTerm {
+export function undef(): SparqlTermType {
   return rawTerm('UNDEF')
 }
 
@@ -1523,7 +1576,7 @@ export function undef(): SparqlTerm {
  * // Finds everyone in the org (including CEO themselves due to zero matches)
  * ```
  */
-export function zeroOrMore(property: PredicateInput): SparqlTerm {
+export function zeroOrMore(property: PredicateInputType): SparqlTermType {
   const prop = toPredicateToken(property)
   return rawTerm(`${prop}*`)
 }
@@ -1532,7 +1585,7 @@ export function zeroOrMore(property: PredicateInput): SparqlTerm {
  * One or more path.
  *
  * Matches the property one or more times. Like + in regular expressions.
- * Subject and object must be different (at least one hop required).
+ * SubjectTermType and object must be different (at least one hop required).
  *
  * @param property Property IRI
  *
@@ -1549,7 +1602,7 @@ export function zeroOrMore(property: PredicateInput): SparqlTerm {
  * // Finds parents, grandparents, great-grandparents, etc.
  * ```
  */
-export function oneOrMore(property: PredicateInput): SparqlTerm {
+export function oneOrMore(property: PredicateInputType): SparqlTermType {
   const prop = toPredicateToken(property)
   return rawTerm(`${prop}+`)
 }
@@ -1570,7 +1623,7 @@ export function oneOrMore(property: PredicateInput): SparqlTerm {
  * // Matches married and unmarried people
  * ```
  */
-export function zeroOrOne(property: PredicateInput): SparqlTerm {
+export function zeroOrOne(property: PredicateInputType): SparqlTermType {
   const prop = toPredicateToken(property)
   return rawTerm(`${prop}?`)
 }
@@ -1596,7 +1649,7 @@ export function zeroOrOne(property: PredicateInput): SparqlTerm {
  * // Navigate: product → manufacturer → location → city
  * ```
  */
-export function sequence(...properties: PredicateInput[]): SparqlTerm {
+export function sequence(...properties: PredicateInputType[]): SparqlTermType {
   const props = properties.map(toPredicateToken)
   return rawTerm(props.join('/'))
 }
@@ -1622,7 +1675,7 @@ export function sequence(...properties: PredicateInput[]): SparqlTerm {
  * // Gets name from any of these properties
  * ```
  */
-export function alternative(...properties: PredicateInput[]): SparqlTerm {
+export function alternative(...properties: PredicateInputType[]): SparqlTermType {
   const props = properties.map(toPredicateToken)
   return rawTerm(`(${props.join('|')})`)
 }
@@ -1647,7 +1700,7 @@ export function alternative(...properties: PredicateInput[]): SparqlTerm {
  * // Reverse of: ?author schema:author ?book
  * ```
  */
-export function inverse(property: PredicateInput): SparqlTerm {
+export function inverse(property: PredicateInputType): SparqlTermType {
   const prop = toPredicateToken(property)
   return rawTerm(`^${prop}`)
 }
@@ -1673,7 +1726,7 @@ export function inverse(property: PredicateInput): SparqlTerm {
  * // Gets data properties, not metadata
  * ```
  */
-export function negatedPropertySet(...properties: PredicateInput[]): SparqlTerm {
+export function negatedPropertySet(...properties: PredicateInputType[]): SparqlTermType {
   const props = properties.map(toPredicateToken)
   return rawTerm(`!(${props.join('|')})`)
 }
@@ -1726,10 +1779,10 @@ export function negatedPropertySet(...properties: PredicateInput[]): SparqlTerm 
  * ```
  */
 export function service(
-  endpoint: IriInput,
-  pattern: PatternValue,
-  silent = false
-): PatternValue {
+  endpoint: IriInputType,
+  pattern: PatternValueType,
+  silent = false,
+): PatternValueType {
   const endpointRef = toVarOrIriRef(endpoint)
   const silentModifier = silent ? 'SILENT ' : ''
   return rawPattern(`SERVICE ${silentModifier}${endpointRef} { ${pattern.value} }`)
@@ -1779,7 +1832,7 @@ export function service(
  * const fullQuery = raw(`${prefixBlock}\n\n${query.build().value}`)
  * ```
  */
-export function definePrefix(prefix: PrefixName, iri: string | RdfNamedNode): SparqlValue {
+export function definePrefix(prefix: PrefixNameType, iri: string | RdfNamedNode): SparqlValueType {
   validatePrefixName(prefix)
 
   if (isRdfTerm(iri)) {
@@ -1832,7 +1885,7 @@ export function definePrefix(prefix: PrefixName, iri: string | RdfNamedNode): Sp
  * // BIND(MD5(CONCAT(?firstName, ?lastName, ?birthDate)) AS ?personKey)
  * ```
  */
-export function md5(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function md5(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`MD5(${exprTermString(value)})`))
 }
 
@@ -1855,7 +1908,7 @@ export function md5(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * // BIND(SHA1(?documentText) AS ?contentHash)
  * ```
  */
-export function sha1(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function sha1(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`SHA1(${exprTermString(value)})`))
 }
 
@@ -1881,7 +1934,7 @@ export function sha1(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * // WHERE { ?user ex:password ?password }
  * ```
  */
-export function sha256(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function sha256(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`SHA256(${exprTermString(value)})`))
 }
 
@@ -1903,7 +1956,7 @@ export function sha256(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * // SHA384(?data)
  * ```
  */
-export function sha384(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function sha384(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`SHA384(${exprTermString(value)})`))
 }
 
@@ -1927,7 +1980,7 @@ export function sha384(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * // BIND(SHA512(?sensitiveData) AS ?secureHash)
  * ```
  */
-export function sha512(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function sha512(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`SHA512(${exprTermString(value)})`))
 }
 
@@ -1972,7 +2025,7 @@ export function sha512(value: SparqlValue | ExpressionPrimitive): FluentExpr {
  * // WHERE { ?person foaf:name ?name }
  * ```
  */
-export function now(): SparqlValue {
+export function now(): SparqlValueType {
   return raw('NOW()')
 }
 
@@ -2008,7 +2061,7 @@ export function now(): SparqlValue {
  * // WHERE { ?subject ex:property ?value }
  * ```
  */
-export function uuid(): SparqlValue {
+export function uuid(): SparqlValueType {
   return raw('UUID()')
 }
 
@@ -2042,7 +2095,7 @@ export function uuid(): SparqlValue {
  * // WHERE { ?user ex:loginTime NOW() }
  * ```
  */
-export function struuid(): FluentExpr {
+export function struuid(): FluentExprType {
   return fluent(raw('STRUUID()'))
 }
 
@@ -2080,7 +2133,7 @@ export function struuid(): FluentExpr {
  * // ORDER BY (RAND() AS ?random)
  * ```
  */
-export function rand(): FluentExpr {
+export function rand(): FluentExprType {
   return fluent(raw('RAND()'))
 }
 
@@ -2093,17 +2146,17 @@ export function rand(): FluentExpr {
  *
  * @example strdt(strlit('custom value'), 'http://example.org/datatype')
  */
-export function strdt(lexical: SparqlValue, datatype: SparqlValue): SparqlValue {
+export function strdt(lexical: SparqlValueType, datatype: SparqlValueType): SparqlValueType {
   return raw(`STRDT(${lexical.value}, ${datatype.value})`)
 }
 
 /** Creates a SPARQL STRLANG expression from lexical text and a language tag. */
-export function strlang(lexical: SparqlValue, lang: string): SparqlValue {
+export function strlang(lexical: SparqlValueType, lang: string): SparqlValueType {
   return raw(`STRLANG(${lexical.value}, ${exprTermString(lang)})`)
 }
 
 /** Creates a SPARQL sameTerm expression without JavaScript value coercion. */
-export function sameTerm(a: SparqlValue, b: SparqlValue): SparqlValue {
+export function sameTerm(a: SparqlValueType, b: SparqlValueType): SparqlValueType {
   return raw(`sameTerm(${a.value}, ${b.value})`)
 }
 
@@ -2141,7 +2194,7 @@ export function sameTerm(a: SparqlValue, b: SparqlValue): SparqlValue {
  * // BIND(IRI(CONCAT("http://example.org/person/", ENCODE_FOR_URI(?name))) AS ?personIri)
  * ```
  */
-export function encodeForUri(value: SparqlValue | ExpressionPrimitive): FluentExpr {
+export function encodeForUri(value: SparqlValueType | ExpressionPrimitiveType): FluentExprType {
   return fluent(raw(`ENCODE_FOR_URI(${exprTermString(value)})`))
 }
 
@@ -2180,9 +2233,9 @@ export function encodeForUri(value: SparqlValue | ExpressionPrimitive): FluentEx
  * ```
  */
 export function langMatches(
-  lang: SparqlValue | ExpressionPrimitive,
-  range: string
-): SparqlValue {
+  lang: SparqlValueType | ExpressionPrimitiveType,
+  range: string,
+): SparqlValueType {
   return raw(`langMatches(${exprTermString(lang)}, ${exprTermString(range)})`)
 }
 
@@ -2230,7 +2283,7 @@ export function langMatches(
  * // }
  * ```
  */
-export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
+export function iri(value: SparqlValueType | ExpressionPrimitiveType): SparqlValueType {
   return raw(`IRI(${exprTermString(value)})`)
 }
 
@@ -2300,6 +2353,6 @@ export function iri(value: SparqlValue | ExpressionPrimitive): SparqlValue {
  * // }
  * ```
  */
-export function minus(pattern: PatternValue): PatternValue {
+export function minus(pattern: PatternValueType): PatternValueType {
   return rawPattern(`MINUS { ${pattern.value} }`)
 }

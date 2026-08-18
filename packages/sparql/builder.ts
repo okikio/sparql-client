@@ -10,43 +10,45 @@
 
 import { isTerm as isRdfTerm, type NamedNode as RdfNamedNode, type Namespace } from '@okikio/rdf'
 import {
+  type IriInputType,
+  type PatternValueType,
   queryDocument,
   rawPattern,
+  type SparqlExprType,
+  type SparqlQueryType,
+  type SparqlTermType,
   toGraphRef,
   toRawString,
   toVarOrIriRef,
   toVarToken,
   validateIRI,
   validatePrefixName,
-  type IriInput,
-  type PatternValue,
-  type SparqlExpr,
-  type SparqlQuery,
-  type SparqlTerm,
-  type VariableName,
+  type VariableNameType,
 } from './sparql.ts'
 import { bind, filter, optional } from './utils.ts'
 
 /** SELECT projection item accepted by the fluent builder. */
-export type ProjectionItem = string | SparqlTerm | SparqlExpr
+export type ProjectionItemType = string | SparqlTermType | SparqlExprType
 
 /** SELECT projection or wildcard. */
-export type Projection = readonly ProjectionItem[] | '*'
+export type ProjectionType = readonly ProjectionItemType[] | '*'
 
 /** DESCRIBE target accepted by the fluent builder. */
-export type DescribeItem = string | SparqlTerm | RdfNamedNode
+export type DescribeItemType = string | SparqlTermType | RdfNamedNode
 
 /** Sort order for ORDER BY clauses. */
-export type SortDirection = 'ASC' | 'DESC'
+export type SortDirectionType = 'ASC' | 'DESC'
 
 /** One ORDER BY variable and optional direction. */
-export interface SortSpec {
+export interface SortSpecType {
+  /** Variable or expression used as the sort key. */
   readonly variable: string
-  readonly direction?: SortDirection
+  /** RDF 1.2 base text direction associated with this language value. */
+  readonly direction?: SortDirectionType
 }
 
 /** SELECT duplicate modifier. */
-export type SelectModifier = 'none' | 'distinct' | 'reduced'
+export type SelectModifierType = 'none' | 'distinct' | 'reduced'
 
 /**
  * Immutable query-builder state.
@@ -54,30 +56,49 @@ export type SelectModifier = 'none' | 'distinct' | 'reduced'
  * `construct` is deliberately separate from `where`. A CONSTRUCT template is
  * output data syntax, while WHERE is the graph pattern evaluated by the query.
  */
-interface QueryState {
+interface QueryStateType {
+  /** SPARQL query form currently represented by the builder state. */
   readonly type: 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE'
-  readonly projection: Projection
-  readonly describe: readonly DescribeItem[]
-  readonly construct?: PatternValue
+  /** SELECT projection requested by the current query builder state. */
+  readonly projection: ProjectionType
+  /** Resources requested by a DESCRIBE query. */
+  readonly describe: readonly DescribeItemType[]
+  /** Triple templates emitted by a CONSTRUCT query. */
+  readonly construct?: PatternValueType
+  /** Prefix declarations available while serializing the current RDF or SPARQL document. */
   readonly prefixes: ReadonlyMap<string, string>
+  /** Default graph IRIs included in the query dataset through `FROM`. */
   readonly from: readonly string[]
+  /** Named graph IRIs included in the query dataset. */
   readonly fromNamed: readonly string[]
-  readonly where: readonly PatternValue[]
-  readonly filters: readonly PatternValue[]
-  readonly optional: readonly PatternValue[]
-  readonly bindings: readonly PatternValue[]
-  readonly unions: readonly (readonly PatternValue[])[]
-  readonly sorts: readonly SortSpec[]
+  /** Graph patterns that form the query or update WHERE clause. */
+  readonly where: readonly PatternValueType[]
+  /** FILTER expressions appended to the current graph pattern. */
+  readonly filters: readonly PatternValueType[]
+  /** OPTIONAL graph-pattern groups appended to the current query. */
+  readonly optional: readonly PatternValueType[]
+  /** VALUES or binding records attached to the current query state. */
+  readonly bindings: readonly PatternValueType[]
+  /** UNION graph-pattern branches attached to the current query state. */
+  readonly unions: readonly (readonly PatternValueType[])[]
+  /** ORDER BY specifications applied in source order. */
+  readonly sorts: readonly SortSpecType[]
+  /** GROUP BY expressions applied before aggregate projection. */
   readonly groupBy: readonly string[]
-  readonly having: readonly SparqlExpr[]
-  readonly values: ReadonlyMap<string, readonly SparqlTerm[]>
+  /** HAVING expressions applied after grouping. */
+  readonly having: readonly SparqlExprType[]
+  /** Value expressions retained from source metadata. */
+  readonly values: ReadonlyMap<string, readonly SparqlTermType[]>
+  /** Maximum result rows requested by the current query. */
   readonly limit?: number
+  /** Result rows skipped before query results are returned. */
   readonly offset?: number
-  readonly modifier: SelectModifier
+  /** SELECT duplicate-handling mode: none, DISTINCT, or REDUCED. */
+  readonly modifier: SelectModifierType
 }
 
 /** Shared empty state copied by each query-form constructor. */
-const initialState: QueryState = {
+const initialState: QueryStateType = {
   type: 'SELECT',
   projection: '*',
   describe: [],
@@ -97,20 +118,20 @@ const initialState: QueryState = {
 }
 
 /** Serializes one SELECT projection item without turning arbitrary IRIs into variables. */
-function projectionText(item: ProjectionItem): string {
+function projectionText(item: ProjectionItemType): string {
   if (typeof item !== 'string') return item.value
   return toVarToken(item)
 }
 
 /** Serializes one DESCRIBE target according to `VarOrIriRef`. */
-function describeText(item: DescribeItem): string {
+function describeText(item: DescribeItemType): string {
   if (isRdfTerm(item)) return toVarOrIriRef(item)
   if (typeof item !== 'string') return item.value
   return toVarOrIriRef(item)
 }
 
 /** Resolves a namespace-like prefix input to its validated absolute IRI. */
-function namespaceText(value: string | SparqlTerm | RdfNamedNode | Namespace): string {
+function namespaceText(value: string | SparqlTermType | RdfNamedNode | Namespace): string {
   if (typeof value === 'function') {
     validateIRI(value.iri)
     return value.iri
@@ -131,22 +152,23 @@ function namespaceText(value: string | SparqlTerm | RdfNamedNode | Namespace): s
 }
 
 /** Emits one indented pattern while preserving intentional internal newlines. */
-function pushPattern(parts: string[], pattern: PatternValue, depth = 1): void {
+function pushPattern(parts: string[], pattern: PatternValueType, depth = 1): void {
   const indent = '  '.repeat(depth)
   for (const line of pattern.value.split('\n')) parts.push(`${indent}${line}`)
 }
 
 /** Immutable builder for SELECT, ASK, CONSTRUCT, and DESCRIBE query documents. */
 export class QueryBuilder {
-  readonly #state: QueryState
+  /** Mutable builder state owned by this builder instance and copied when an immutable output is produced. */
+  readonly #state: QueryStateType
 
   /** Creates one immutable builder from already-normalized state. */
-  private constructor(state: QueryState) {
+  private constructor(state: QueryStateType) {
     this.#state = state
   }
 
   /** Starts a SELECT query. */
-  static select(projection: Projection = '*'): QueryBuilder {
+  static select(projection: ProjectionType = '*'): QueryBuilder {
     return new QueryBuilder({ ...initialState, type: 'SELECT', projection })
   }
 
@@ -161,7 +183,7 @@ export class QueryBuilder {
    * Omit `template` for the SPARQL `CONSTRUCT WHERE { ... }` shorthand. Supply
    * it to keep the result template separate from the WHERE graph pattern.
    */
-  static construct(template?: PatternValue): QueryBuilder {
+  static construct(template?: PatternValueType): QueryBuilder {
     return new QueryBuilder({
       ...initialState,
       type: 'CONSTRUCT',
@@ -171,19 +193,27 @@ export class QueryBuilder {
   }
 
   /** Starts a DESCRIBE query over variables and/or explicit RDF named nodes. */
-  static describe(resources: readonly DescribeItem[]): QueryBuilder {
+  static describe(resources: readonly DescribeItemType[]): QueryBuilder {
     if (resources.length === 0) throw new TypeError('DESCRIBE requires at least one target.')
-    return new QueryBuilder({ ...initialState, type: 'DESCRIBE', projection: [], describe: [...resources] })
+    return new QueryBuilder({
+      ...initialState,
+      type: 'DESCRIBE',
+      projection: [],
+      describe: [...resources],
+    })
   }
 
   /** Adds a FROM graph IRI. */
-  from(graph: IriInput): QueryBuilder {
+  from(graph: IriInputType): QueryBuilder {
     return new QueryBuilder({ ...this.#state, from: [...this.#state.from, toGraphRef(graph)] })
   }
 
   /** Adds a FROM NAMED graph IRI. */
-  fromNamed(graph: IriInput): QueryBuilder {
-    return new QueryBuilder({ ...this.#state, fromNamed: [...this.#state.fromNamed, toGraphRef(graph)] })
+  fromNamed(graph: IriInputType): QueryBuilder {
+    return new QueryBuilder({
+      ...this.#state,
+      fromNamed: [...this.#state.fromNamed, toGraphRef(graph)],
+    })
   }
 
   /**
@@ -193,7 +223,7 @@ export class QueryBuilder {
    * `@okikio/rdf` namespace function. Namespace functions therefore compose
    * directly with SPARQL without flattening them into application strings.
    */
-  prefix(name: string, iri: string | SparqlTerm | RdfNamedNode | Namespace): QueryBuilder {
+  prefix(name: string, iri: string | SparqlTermType | RdfNamedNode | Namespace): QueryBuilder {
     validatePrefixName(name)
     const prefixes = new Map(this.#state.prefixes)
     prefixes.set(name, namespaceText(iri))
@@ -201,12 +231,12 @@ export class QueryBuilder {
   }
 
   /** Adds graph patterns to WHERE. */
-  where(...patterns: readonly PatternValue[]): QueryBuilder {
+  where(...patterns: readonly PatternValueType[]): QueryBuilder {
     return new QueryBuilder({ ...this.#state, where: [...this.#state.where, ...patterns] })
   }
 
   /** Adds FILTER graph-pattern clauses from expressions. */
-  filter(...conditions: readonly SparqlExpr[]): QueryBuilder {
+  filter(...conditions: readonly SparqlExprType[]): QueryBuilder {
     return new QueryBuilder({
       ...this.#state,
       filters: [...this.#state.filters, ...conditions.map((value) => filter(value))],
@@ -214,7 +244,7 @@ export class QueryBuilder {
   }
 
   /** Adds OPTIONAL graph-pattern clauses. */
-  optional(...patterns: readonly PatternValue[]): QueryBuilder {
+  optional(...patterns: readonly PatternValueType[]): QueryBuilder {
     return new QueryBuilder({
       ...this.#state,
       optional: [...this.#state.optional, ...patterns.map((value) => optional(value))],
@@ -222,7 +252,7 @@ export class QueryBuilder {
   }
 
   /** Adds a BIND clause with an explicit output variable. */
-  bind(expression: SparqlExpr | SparqlTerm, variable: VariableName): QueryBuilder {
+  bind(expression: SparqlExprType | SparqlTermType, variable: VariableNameType): QueryBuilder {
     return new QueryBuilder({
       ...this.#state,
       bindings: [...this.#state.bindings, bind(expression, variable)],
@@ -235,13 +265,15 @@ export class QueryBuilder {
    * One call represents one disjunction. Each branch is emitted in its own
    * group so `union(a, b)` means `{ a } UNION { b }`, not `{ a b }`.
    */
-  union(...branches: readonly PatternValue[]): QueryBuilder {
-    if (branches.length < 2) throw new TypeError('UNION requires at least two graph-pattern branches.')
+  union(...branches: readonly PatternValueType[]): QueryBuilder {
+    if (branches.length < 2) {
+      throw new TypeError('UNION requires at least two graph-pattern branches.')
+    }
     return new QueryBuilder({ ...this.#state, unions: [...this.#state.unions, [...branches]] })
   }
 
   /** Adds GROUP BY variables. */
-  groupBy(...variables: readonly VariableName[]): QueryBuilder {
+  groupBy(...variables: readonly VariableNameType[]): QueryBuilder {
     return new QueryBuilder({
       ...this.#state,
       groupBy: [...this.#state.groupBy, ...variables.map((value) => toVarToken(value))],
@@ -249,12 +281,12 @@ export class QueryBuilder {
   }
 
   /** Adds HAVING expressions. */
-  having(...conditions: readonly SparqlExpr[]): QueryBuilder {
+  having(...conditions: readonly SparqlExprType[]): QueryBuilder {
     return new QueryBuilder({ ...this.#state, having: [...this.#state.having, ...conditions] })
   }
 
   /** Adds one ORDER BY variable. */
-  orderBy(variable: VariableName, direction?: SortDirection): QueryBuilder {
+  orderBy(variable: VariableNameType, direction?: SortDirectionType): QueryBuilder {
     const sort = direction === undefined
       ? { variable: toVarToken(variable) }
       : { variable: toVarToken(variable), direction }
@@ -263,13 +295,17 @@ export class QueryBuilder {
 
   /** Sets LIMIT after validating the non-negative integer grammar. */
   limit(count: number): QueryBuilder {
-    if (!Number.isInteger(count) || count < 0) throw new TypeError(`LIMIT must be a non-negative integer, got ${count}.`)
+    if (!Number.isInteger(count) || count < 0) {
+      throw new TypeError(`LIMIT must be a non-negative integer, got ${count}.`)
+    }
     return new QueryBuilder({ ...this.#state, limit: count })
   }
 
   /** Sets OFFSET after validating the non-negative integer grammar. */
   offset(count: number): QueryBuilder {
-    if (!Number.isInteger(count) || count < 0) throw new TypeError(`OFFSET must be a non-negative integer, got ${count}.`)
+    if (!Number.isInteger(count) || count < 0) {
+      throw new TypeError(`OFFSET must be a non-negative integer, got ${count}.`)
+    }
     return new QueryBuilder({ ...this.#state, offset: count })
   }
 
@@ -284,26 +320,28 @@ export class QueryBuilder {
   }
 
   /** Adds one single-variable VALUES data block. */
-  values(variable: VariableName, values: readonly SparqlTerm[]): QueryBuilder {
+  values(variable: VariableNameType, values: readonly SparqlTermType[]): QueryBuilder {
     const blocks = new Map(this.#state.values)
     blocks.set(toVarToken(variable), [...values])
     return new QueryBuilder({ ...this.#state, values: blocks })
   }
 
   /** Explicitly converts this complete query into a subquery graph pattern. */
-  asSubquery(): PatternValue {
+  asSubquery(): PatternValueType {
     return rawPattern(`{ ${this.build().value} }`)
   }
 
   /** Builds one complete query document. */
-  build(): SparqlQuery {
+  build(): SparqlQueryType {
     const parts: string[] = []
 
     for (const [name, iri] of this.#state.prefixes) parts.push(`PREFIX ${name}: <${iri}>`)
     if (this.#state.prefixes.size > 0) parts.push('')
 
     if (this.#state.type === 'SELECT') {
-      const modifier = this.#state.modifier === 'none' ? '' : `${this.#state.modifier.toUpperCase()} `
+      const modifier = this.#state.modifier === 'none'
+        ? ''
+        : `${this.#state.modifier.toUpperCase()} `
       const projection = this.#state.projection === '*'
         ? '*'
         : this.#state.projection.map(projectionText).join(' ')
@@ -357,7 +395,13 @@ export class QueryBuilder {
       parts.push(`HAVING(${this.#state.having.map((value) => value.value).join(' && ')})`)
     }
     if (this.#state.sorts.length > 0) {
-      parts.push(`ORDER BY ${this.#state.sorts.map((sort) => sort.direction ? `${sort.direction}(${sort.variable})` : sort.variable).join(' ')}`)
+      parts.push(
+        `ORDER BY ${
+          this.#state.sorts.map((sort) =>
+            sort.direction ? `${sort.direction}(${sort.variable})` : sort.variable
+          ).join(' ')
+        }`,
+      )
     }
     if (this.#state.limit !== undefined) parts.push(`LIMIT ${this.#state.limit}`)
     if (this.#state.offset !== undefined) parts.push(`OFFSET ${this.#state.offset}`)
@@ -376,6 +420,6 @@ export const construct = QueryBuilder.construct
 export const describe = QueryBuilder.describe
 
 /** Explicitly wraps a built query as a subquery graph pattern. */
-export function subquery(builder: QueryBuilder): PatternValue {
+export function subquery(builder: QueryBuilder): PatternValueType {
   return builder.asSubquery()
 }

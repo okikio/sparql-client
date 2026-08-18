@@ -1,11 +1,11 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { select, triple, update } from '@okikio/sparql'
-import { createClient } from './mod.ts'
+import { create } from './mod.ts'
 
 describe('@okikio/oxigraph', () => {
   it('does not pretend a synchronous Store supports timeout cancellation', async () => {
-    const client = createClient({ query: () => true, update: () => undefined })
+    const client = create({ query: () => true, update: () => undefined })
     let kind = ''
     try {
       await client.queryBoolean('ASK {}', { timeoutMs: 1 })
@@ -18,9 +18,14 @@ describe('@okikio/oxigraph', () => {
   it('accepts structured query and update documents without taking store ownership', async () => {
     let queryText = ''
     let updateText = ''
-    const client = createClient({
-      query(query: string) { queryText = query; return true },
-      update(value: string) { updateText = value },
+    const client = create({
+      query(query: string) {
+        queryText = query
+        return true
+      },
+      update(value: string) {
+        updateText = value
+      },
     })
     const query = select('*').where(triple('?s', '?p', '?o'))
     expect(await client.queryBoolean(query)).toBe(true)

@@ -6,15 +6,15 @@ This guide maps the current `@okikio/sparql` API to SPARQL syntax and to the pac
 
 The package distinguishes the major grammar roles instead of treating every fragment as one branded string.
 
-| Type | Meaning | Typical producers |
-| --- | --- | --- |
-| `SparqlTerm` | one term or legal predicate-path syntax | `v()`, `iri()`, `tripleTerm()`, property-path helpers |
-| `SparqlExpr` | one expression | comparison/arithmetic/functions, `exists()` |
-| `PatternValue` | one graph-pattern fragment | `triple()`, `filter()`, `optional()`, `graph()`, `service()`, `values()` |
-| `SparqlQuery` | one complete query document | `QueryBuilder.build()` |
-| `SparqlUpdate` | one complete Update document | update builders |
+| Type               | Meaning                                 | Typical producers                                                        |
+| ------------------ | --------------------------------------- | ------------------------------------------------------------------------ |
+| `SparqlTermType`   | one term or legal predicate-path syntax | `v()`, `iri()`, `tripleTerm()`, property-path helpers                    |
+| `SparqlExprType`   | one expression                          | comparison/arithmetic/functions, `exists()`                              |
+| `PatternValueType` | one graph-pattern fragment              | `triple()`, `filter()`, `optional()`, `graph()`, `service()`, `values()` |
+| `SparqlQueryType`  | one complete query document             | `QueryBuilder.build()`                                                   |
+| `SparqlUpdateType` | one complete Update document            | update builders                                                          |
 
-Complete query/update documents are intentionally not embeddable `SparqlValue` fragments. Use `subquery()` when a complete query must become a graph pattern.
+Complete query/update documents are intentionally not embeddable `SparqlValueType` fragments. Use `subquery()` when a complete query must become a graph pattern.
 
 ## RDF terms
 
@@ -23,7 +23,7 @@ Native `@okikio/rdf` named nodes are accepted in IRI-bearing grammar positions.
 ```ts
 import * as rdf from '@okikio/rdf'
 import * as sparql from '@okikio/sparql'
-import { Product, name } from '@okikio/vocab/schema'
+import { name, Product } from '@okikio/vocab/schema'
 
 const query = sparql.select(['?product', '?name']).where(
   sparql.triple('?product', rdf.namedNode(rdf.RDF.type), Product),
@@ -44,7 +44,7 @@ sparql.typed('42', rdf.namedNode(rdf.XSD.integer))
 sparql.update().clear(rdf.namedNode('urn:graph:old'))
 ```
 
-Strict graph positions validate `SparqlTerm` syntax and reject variables or literals. `GRAPH` and `SERVICE` keep their separate `VarOrIriRef` behavior because variables are legal there.
+Strict graph positions validate `SparqlTermType` syntax and reject variables or literals. `GRAPH` and `SERVICE` keep their separate `VarOrIriRef` behavior because variables are legal there.
 
 ## SELECT
 
@@ -211,7 +211,7 @@ sparql.sequence('schema:address', 'schema:addressLocality')
 sparql.alternative('foaf:name', 'schema:name')
 ```
 
-Property paths return `SparqlTerm` because that syntax is legal in the predicate position of a triple path.
+Property paths return `SparqlTermType` because that syntax is legal in the predicate position of a triple path.
 
 ## SPARQL 1.2 triple terms
 
@@ -297,9 +297,9 @@ The public update method is `update()`.
 ## HTTP client
 
 ```ts
-import { createClient } from '@okikio/sparql/http'
+import * as http from '@okikio/sparql/http'
 
-const client = createClient({ endpoint: 'https://example.com/sparql' })
+const client = http.create({ endpoint: 'https://example.com/sparql' })
 const rows = await client.queryBindings(query)
 ```
 
@@ -308,8 +308,8 @@ The HTTP client owns endpoint transport, accepted media types, bounded response 
 ## Oxigraph and Comunica
 
 ```ts
-import { createClient as createOxigraphClient } from '@okikio/oxigraph'
-import { createClient as createComunicaClient } from '@okikio/comunica'
+import * as oxigraph from '@okikio/oxigraph'
+import * as comunica from '@okikio/comunica'
 ```
 
 Both adapters implement the same `Queryable` contract.

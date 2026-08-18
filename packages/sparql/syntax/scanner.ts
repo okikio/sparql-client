@@ -11,7 +11,7 @@ const COMPACT_THRESHOLD = 64 * 1024
 const REFILL_WINDOW = 16 * 1024
 
 /** Numeric token kinds keep hot scanner state compact. This is not a public API. */
-export const Kind = {
+export const KindType = {
   Eof: 0,
   Keyword: 1,
   Variable: 2,
@@ -34,28 +34,133 @@ export const Kind = {
 } as const
 
 /** Stable lexical token-kind value emitted by the SPARQL scanner. */
-export type Kind = (typeof Kind)[keyof typeof Kind]
+export type KindType = (typeof KindType)[keyof typeof KindType]
 
 /** Case-insensitive SPARQL keywords recognized separately from identifiers and prefixed names. */
 const KEYWORDS = new Set([
-  'ABS', 'ADD', 'ALL', 'AS', 'ASC', 'ASK', 'AVG', 'BASE', 'BIND', 'BNODE', 'BOUND',
-  'BY', 'CEIL', 'CLEAR', 'COALESCE', 'CONCAT', 'CONSTRUCT', 'CONTAINS', 'COPY', 'COUNT',
-  'CREATE', 'DATATYPE', 'DAY', 'DEFAULT', 'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DROP',
-  'ENCODE_FOR_URI', 'EXISTS', 'FILTER', 'FLOOR', 'FROM', 'GRAPH', 'GROUP', 'GROUP_CONCAT',
-  'HAVING', 'HOURS', 'IF', 'IN', 'INSERT', 'INTO', 'IRI', 'ISBLANK', 'ISIRI', 'ISLITERAL',
-  'ISNUMERIC', 'ISTRIPLE', 'ISURI', 'LCASE', 'LIMIT', 'LOAD', 'MAX', 'MD5', 'MIN', 'MINUS',
-  'MINUTES', 'MONTH', 'MOVE', 'NAMED', 'NOT', 'NOW', 'OBJECT', 'OFFSET', 'OPTIONAL', 'ORDER',
-  'PREDICATE', 'PREFIX', 'RAND', 'REDUCED', 'REGEX', 'REPLACE', 'SAMPLE', 'SELECT', 'SEPARATOR',
-  'SERVICE', 'SHA1', 'SHA256', 'SHA384', 'SHA512', 'SILENT', 'STR', 'STRAFTER', 'STRBEFORE',
-  'STRDT', 'STRENDS', 'STRLANG', 'STRLANGDIR', 'STRLEN', 'STRSTARTS', 'SUBJECT', 'SUBSTR', 'SUM',
-  'TIMEZONE', 'TO', 'TRIPLE', 'TRUE', 'TZ', 'UCASE', 'UNDEF', 'UNION', 'URI', 'USING', 'UUID',
-  'VALUES', 'VERSION', 'WHERE', 'WITH', 'YEAR', 'LANG', 'LANGDIR', 'LANGMATCHES', 'HASLANG',
-  'HASLANGDIR', 'FALSE',
+  'ABS',
+  'ADD',
+  'ALL',
+  'AS',
+  'ASC',
+  'ASK',
+  'AVG',
+  'BASE',
+  'BIND',
+  'BNODE',
+  'BOUND',
+  'BY',
+  'CEIL',
+  'CLEAR',
+  'COALESCE',
+  'CONCAT',
+  'CONSTRUCT',
+  'CONTAINS',
+  'COPY',
+  'COUNT',
+  'CREATE',
+  'DATATYPE',
+  'DAY',
+  'DEFAULT',
+  'DELETE',
+  'DESC',
+  'DESCRIBE',
+  'DISTINCT',
+  'DROP',
+  'ENCODE_FOR_URI',
+  'EXISTS',
+  'FILTER',
+  'FLOOR',
+  'FROM',
+  'GRAPH',
+  'GROUP',
+  'GROUP_CONCAT',
+  'HAVING',
+  'HOURS',
+  'IF',
+  'IN',
+  'INSERT',
+  'INTO',
+  'IRI',
+  'ISBLANK',
+  'ISIRI',
+  'ISLITERAL',
+  'ISNUMERIC',
+  'ISTRIPLE',
+  'ISURI',
+  'LCASE',
+  'LIMIT',
+  'LOAD',
+  'MAX',
+  'MD5',
+  'MIN',
+  'MINUS',
+  'MINUTES',
+  'MONTH',
+  'MOVE',
+  'NAMED',
+  'NOT',
+  'NOW',
+  'OBJECT',
+  'OFFSET',
+  'OPTIONAL',
+  'ORDER',
+  'PREDICATE',
+  'PREFIX',
+  'RAND',
+  'REDUCED',
+  'REGEX',
+  'REPLACE',
+  'SAMPLE',
+  'SELECT',
+  'SEPARATOR',
+  'SERVICE',
+  'SHA1',
+  'SHA256',
+  'SHA384',
+  'SHA512',
+  'SILENT',
+  'STR',
+  'STRAFTER',
+  'STRBEFORE',
+  'STRDT',
+  'STRENDS',
+  'STRLANG',
+  'STRLANGDIR',
+  'STRLEN',
+  'STRSTARTS',
+  'SUBJECT',
+  'SUBSTR',
+  'SUM',
+  'TIMEZONE',
+  'TO',
+  'TRIPLE',
+  'TRUE',
+  'TZ',
+  'UCASE',
+  'UNDEF',
+  'UNION',
+  'URI',
+  'USING',
+  'UUID',
+  'VALUES',
+  'VERSION',
+  'WHERE',
+  'WITH',
+  'YEAR',
+  'LANG',
+  'LANGDIR',
+  'LANGMATCHES',
+  'HASLANG',
+  'HASLANGDIR',
+  'FALSE',
 ])
 
 /** Position-aware lexical failure used by strict mode and converted in tolerant mode. */
 export class SyntaxScanError extends SyntaxError {
+  /** Stable machine-readable code used to classify this diagnostic or failure. */
   readonly code: string
+  /** Source range that locates the related token, statement, feature, or diagnostic. */
   readonly range: RangeType
 
   /** Creates a source-ranged lexical failure that the event layer can surface as a diagnostic. */
@@ -76,27 +181,47 @@ export class SyntaxScanError extends SyntaxError {
  * character. Consumed source is compacted to cap retained text.
  */
 export class Scanner {
-  kind: Kind = Kind.Eof
+  /** Current lexical token class. `Eof` means no token is currently available. */
+  kind: KindType = KindType.Eof
+  /** Decoded token value used by syntax inspection; `raw` preserves the exact source spelling. */
   value = ''
+  /** Exact source text consumed for this token before semantic decoding. */
   raw = ''
+  /** Zero-based source offset where this record starts. */
   start = 0
+  /** Exclusive zero-based source offset where this record ends. */
   end = 0
+  /** One-based source line containing the start of this record. */
   line = 1
+  /** One-based source column containing the start of this record. */
   column = 1
+  /** One-based source line at the exclusive end of the current token. */
   endLine = 1
+  /** One-based source column at the exclusive end of the current token. */
   endColumn = 1
 
+  /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal: AbortSignal | undefined
+  /** Whether this token is whitespace or a comment that does not affect SPARQL grammar. */
   readonly trivia: boolean
+  /** Maximum token length accepted before the scanner reports a configured limit. */
   readonly maxTokenLength: number
 
+  /** Input source currently owned by this parser or scanner until it is consumed or canceled. */
   #source: AsyncGenerator<string | Uint8Array>
+  /** Streaming text decoder that preserves partial UTF-8 sequences between source chunks. */
   #decoder = new TextDecoder('utf-8', { fatal: true })
+  /** Retained unread source text. Compaction removes consumed prefixes to keep memory bounded. */
   #buffer = ''
+  /** Current lookup or cursor index used to avoid rescanning already consumed state. */
   #index = 0
+  /** Absolute source offset corresponding to the start of the retained scanner buffer. */
   #absolute = 0
+  /** Current one-based source line maintained as the scanner consumes characters. */
   #line = 1
+  /** Current one-based source column maintained as the scanner consumes characters. */
   #column = 1
+  /** Whether the underlying source has reached its terminal end state. */
   #done = false
 
   /** Creates a buffered scanner whose hot character loop stays synchronous until a source refill is needed. */
@@ -122,7 +247,7 @@ export class Scanner {
     this.#mark()
     const first = this.#peek()
     if (first === undefined) {
-      this.kind = Kind.Eof
+      this.kind = KindType.Eof
       this.#finish()
       return
     }
@@ -130,22 +255,26 @@ export class Scanner {
     const three = `${first}${this.#peek(1) ?? ''}${this.#peek(2) ?? ''}`
     const two = three.slice(0, 2)
 
-    if (three === '<<(') return this.#fixed(Kind.Marker, 3)
-    if (three === ')>>') return this.#fixed(Kind.Marker, 3)
-    if (two === '<<' || two === '>>' || two === '{|' || two === '|}') return this.#fixed(Kind.Marker, 2)
-    if (two === '^^' || two === '!=' || two === '<=' || two === '>=' || two === '||' || two === '&&') {
-      return this.#fixed(Kind.Operator, 2)
+    if (three === '<<(') return this.#fixed(KindType.Marker, 3)
+    if (three === ')>>') return this.#fixed(KindType.Marker, 3)
+    if (two === '<<' || two === '>>' || two === '{|' || two === '|}') {
+      return this.#fixed(KindType.Marker, 2)
+    }
+    if (
+      two === '^^' || two === '!=' || two === '<=' || two === '>=' || two === '||' || two === '&&'
+    ) {
+      return this.#fixed(KindType.Operator, 2)
     }
 
     if (first === '?' || first === '$') {
       const second = this.#peek(1)
       if (second !== undefined && isVarStart(second)) return await this.#variable()
-      return this.#fixed(Kind.Operator, 1)
+      return this.#fixed(KindType.Operator, 1)
     }
 
     if (first === '<') {
       if (await this.#looksLikeIri()) return await this.#iri()
-      return this.#fixed(Kind.Operator, 1)
+      return this.#fixed(KindType.Operator, 1)
     }
 
     if (first === '"' || first === "'") return await this.#string(first)
@@ -157,12 +286,12 @@ export class Scanner {
       if (await this.#number()) return
     }
 
-    if ('{}()[];,'.includes(first) || first === '.') return this.#fixed(Kind.Punctuation, 1)
-    if ('=<>+-*/!|^'.includes(first)) return this.#fixed(Kind.Operator, 1)
-    if (first === '~') return this.#fixed(Kind.Marker, 1)
+    if ('{}()[];,'.includes(first) || first === '.') return this.#fixed(KindType.Punctuation, 1)
+    if ('=<>+-*/!|^'.includes(first)) return this.#fixed(KindType.Operator, 1)
+    if (first === '~') return this.#fixed(KindType.Marker, 1)
 
     this.#take()
-    this.kind = Kind.Unknown
+    this.kind = KindType.Unknown
     this.value = first
     this.raw = first
     this.#finish()
@@ -216,7 +345,7 @@ export class Scanner {
         if (char === undefined || !isWhitespace(char)) break
         raw += this.#take() ?? ''
       }
-      this.kind = Kind.Whitespace
+      this.kind = KindType.Whitespace
       this.value = raw
       this.raw = raw
       this.#finish()
@@ -234,7 +363,7 @@ export class Scanner {
         if (char === undefined || char === '\n' || char === '\r') break
         raw += this.#take() ?? ''
       }
-      this.kind = Kind.Comment
+      this.kind = KindType.Comment
       this.value = raw.slice(1)
       this.raw = raw
       this.#finish()
@@ -274,7 +403,7 @@ export class Scanner {
   }
 
   /** Fixed as one isolated step of the Scanner state machine. */
-  #fixed(kind: Kind, width: number): void {
+  #fixed(kind: KindType, width: number): void {
     let raw = ''
     for (let i = 0; i < width; i++) raw += this.#take() ?? ''
     this.kind = kind
@@ -299,7 +428,7 @@ export class Scanner {
       value += char
       this.#guard(mark)
     }
-    this.kind = Kind.Variable
+    this.kind = KindType.Variable
     this.value = value
     this.raw = raw
     this.#finish()
@@ -337,7 +466,9 @@ export class Scanner {
         await this.#refill()
         char = this.#peek()
       }
-      if (char === undefined) throw this.error('sparql-iri-end', 'Unterminated SPARQL IRI reference.')
+      if (char === undefined) {
+        throw this.error('sparql-iri-end', 'Unterminated SPARQL IRI reference.')
+      }
       if (char === '>') {
         raw += this.#take() ?? ''
         break
@@ -353,7 +484,7 @@ export class Scanner {
       value += char
       this.#guard(mark)
     }
-    this.kind = Kind.Iri
+    this.kind = KindType.Iri
     this.value = value
     this.raw = raw
     this.#finish()
@@ -375,7 +506,9 @@ export class Scanner {
         await this.#refill(3)
         char = this.#peek()
       }
-      if (char === undefined) throw this.error('sparql-string-end', 'Unterminated SPARQL string literal.')
+      if (char === undefined) {
+        throw this.error('sparql-string-end', 'Unterminated SPARQL string literal.')
+      }
       if (char === quote) {
         if (long) {
           if (this.#peek(2) === undefined && !this.#done) await this.#refill(3)
@@ -389,7 +522,10 @@ export class Scanner {
         }
       }
       if (!long && (char === '\n' || char === '\r')) {
-        throw this.error('sparql-string-line', 'Short SPARQL string literals cannot contain line breaks.')
+        throw this.error(
+          'sparql-string-line',
+          'Short SPARQL string literals cannot contain line breaks.',
+        )
       }
       if (char === '\\') {
         raw += this.#take() ?? ''
@@ -413,7 +549,7 @@ export class Scanner {
       this.#guard(mark)
     }
 
-    this.kind = Kind.String
+    this.kind = KindType.String
     this.value = value
     this.raw = raw
     this.#finish()
@@ -440,8 +576,8 @@ export class Scanner {
     }
 
     this.kind = sawLetter && /^[A-Za-z]+(?:-[A-Za-z0-9]+)*(?:--[A-Za-z]+)?$/.test(value)
-      ? Kind.LangDir
-      : Kind.Unknown
+      ? KindType.LangDir
+      : KindType.Unknown
     this.value = value
     this.raw = raw
     this.#finish()
@@ -461,7 +597,7 @@ export class Scanner {
       raw += this.#take() ?? ''
       this.#guard(mark)
     }
-    this.kind = raw.length > 2 ? Kind.Blank : Kind.Unknown
+    this.kind = raw.length > 2 ? KindType.Blank : KindType.Unknown
     this.value = raw.slice(2)
     this.raw = raw
     this.#finish()
@@ -483,7 +619,7 @@ export class Scanner {
       if (char === '\\') {
         if (this.#peek(1) === undefined && !this.#done) await this.#refill(2)
         const next = this.#peek(1)
-        if (next === undefined || !'_~.-!$&\'()*+,;=/?#@%'.includes(next)) break
+        if (next === undefined || !"_~.-!$&'()*+,;=/?#@%".includes(next)) break
         raw += `${this.#take() ?? ''}${this.#take() ?? ''}`
         escapedLocal = true
         this.#guard(mark)
@@ -504,18 +640,18 @@ export class Scanner {
     }
 
     if (raw.includes(':')) {
-      this.kind = Kind.Prefixed
+      this.kind = KindType.Prefixed
       this.value = raw
     } else if (!escapedLocal && raw === 'a') {
-      this.kind = Kind.Keyword
+      this.kind = KindType.Keyword
       this.value = raw
     } else {
       const upper = raw.toUpperCase()
       if (KEYWORDS.has(upper)) {
-        this.kind = upper === 'TRUE' || upper === 'FALSE' ? Kind.Boolean : Kind.Keyword
+        this.kind = upper === 'TRUE' || upper === 'FALSE' ? KindType.Boolean : KindType.Keyword
         this.value = upper === 'TRUE' || upper === 'FALSE' ? raw.toLowerCase() : upper
       } else {
-        this.kind = Kind.Identifier
+        this.kind = KindType.Identifier
         this.value = raw
       }
     }
@@ -533,15 +669,26 @@ export class Scanner {
       candidate += char
     }
 
-    const matches: Array<{ kind: Kind; match: string }> = []
-    const double = candidate.match(/^[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))[eE][+-]?[0-9]+/)?.[0]
+    const matches: Array<{
+      /** Discriminates the concrete matches variant. */
+      kind: KindType
+      /** Source text matched by the candidate scanner token. */
+      match: string
+    }> = []
+    const double = candidate.match(/^[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))[eE][+-]?[0-9]+/)
+      ?.[0]
     const decimal = candidate.match(/^[+-]?[0-9]*\.[0-9]+/)?.[0]
     const integer = candidate.match(/^[+-]?[0-9]+/)?.[0]
-    if (double) matches.push({ kind: Kind.Double, match: double })
-    if (decimal) matches.push({ kind: Kind.Decimal, match: decimal })
-    if (integer) matches.push({ kind: Kind.Integer, match: integer })
+    if (double) matches.push({ kind: KindType.Double, match: double })
+    if (decimal) matches.push({ kind: KindType.Decimal, match: decimal })
+    if (integer) matches.push({ kind: KindType.Integer, match: integer })
 
-    let chosen: { kind: Kind; match: string } | undefined
+    let chosen: {
+      /** Discriminates the concrete chosen variant. */
+      kind: KindType
+      /** Source text matched by the candidate scanner token. */
+      match: string
+    } | undefined
     for (const entry of matches) {
       if (!chosen || entry.match.length > chosen.match.length) chosen = entry
     }
@@ -558,10 +705,17 @@ export class Scanner {
   }
 
   /** Unicode as one isolated step of the Scanner state machine. */
-  async #unicode(): Promise<{ raw: string; value: string }> {
+  async #unicode(): Promise<{
+    /** Original escaped source spelling before decoding or normalization. */
+    raw: string
+    /** Unicode scalar decoded from the SPARQL escape sequence. */
+    value: string
+  }> {
     await this.#refill(9)
     const marker = this.#take()
-    if (marker !== 'u' && marker !== 'U') throw this.error('sparql-unicode', 'Expected a Unicode escape.')
+    if (marker !== 'u' && marker !== 'U') {
+      throw this.error('sparql-unicode', 'Expected a Unicode escape.')
+    }
     const width = marker === 'u' ? 4 : 8
     let hex = ''
     for (let i = 0; i < width; i++) {
@@ -601,7 +755,10 @@ export class Scanner {
   #guard(mark: number): void {
     if (this.#absolute - mark > this.maxTokenLength) {
       this.#finish()
-      throw this.error('sparql-token-limit', `SPARQL token exceeds ${this.maxTokenLength} code units.`)
+      throw this.error(
+        'sparql-token-limit',
+        `SPARQL token exceeds ${this.maxTokenLength} code units.`,
+      )
     }
   }
 
@@ -650,38 +807,62 @@ export class Scanner {
 }
 
 /** Converts one internal numeric scanner kind to the public lexical token class. */
-function kindName(kind: Kind): TokenKindType {
+function kindName(kind: KindType): TokenKindType {
   switch (kind) {
-    case Kind.Keyword: return 'keyword'
-    case Kind.Variable: return 'variable'
-    case Kind.Iri: return 'iri'
-    case Kind.Prefixed: return 'prefixed'
-    case Kind.Blank: return 'blank'
-    case Kind.String: return 'string'
-    case Kind.LangDir: return 'langDir'
-    case Kind.Integer: return 'integer'
-    case Kind.Decimal: return 'decimal'
-    case Kind.Double: return 'double'
-    case Kind.Boolean: return 'boolean'
-    case Kind.Punctuation: return 'punctuation'
-    case Kind.Operator: return 'operator'
-    case Kind.Marker: return 'marker'
-    case Kind.Identifier: return 'identifier'
-    case Kind.Whitespace: return 'whitespace'
-    case Kind.Comment: return 'comment'
-    default: return 'identifier'
+    case KindType.Keyword:
+      return 'keyword'
+    case KindType.Variable:
+      return 'variable'
+    case KindType.Iri:
+      return 'iri'
+    case KindType.Prefixed:
+      return 'prefixed'
+    case KindType.Blank:
+      return 'blank'
+    case KindType.String:
+      return 'string'
+    case KindType.LangDir:
+      return 'langDir'
+    case KindType.Integer:
+      return 'integer'
+    case KindType.Decimal:
+      return 'decimal'
+    case KindType.Double:
+      return 'double'
+    case KindType.Boolean:
+      return 'boolean'
+    case KindType.Punctuation:
+      return 'punctuation'
+    case KindType.Operator:
+      return 'operator'
+    case KindType.Marker:
+      return 'marker'
+    case KindType.Identifier:
+      return 'identifier'
+    case KindType.Whitespace:
+      return 'whitespace'
+    case KindType.Comment:
+      return 'comment'
+    default:
+      return 'identifier'
   }
 }
 
 /** Decodes a SPARQL Unicode escape and rejects invalid scalar values before token emission. */
 function escaped(char: string): string {
   switch (char) {
-    case 't': return '\t'
-    case 'b': return '\b'
-    case 'n': return '\n'
-    case 'r': return '\r'
-    case 'f': return '\f'
-    default: return char
+    case 't':
+      return '\t'
+    case 'b':
+      return '\b'
+    case 'n':
+      return '\n'
+    case 'r':
+      return '\r'
+    case 'f':
+      return '\f'
+    default:
+      return char
   }
 }
 

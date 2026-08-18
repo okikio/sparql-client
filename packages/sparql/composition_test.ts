@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import * as rdf from '@okikio/rdf'
-import { Product, ProductSchema, name, offers, type ProductType } from '@okikio/vocab/schema'
+import { name, offers, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 import { select, triple, variable } from './mod.ts'
 
 describe('RDF, vocabulary, and SPARQL composition', () => {

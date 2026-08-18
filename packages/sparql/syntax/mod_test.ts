@@ -10,21 +10,29 @@ async function collect<T>(source: AsyncIterable<T>): Promise<T[]> {
 
 describe('@okikio/sparql/syntax', () => {
   it('emits source-ranged version and SPARQL 1.2 feature events without building an AST', async () => {
-    const document = await inspect('VERSION "1.2"\nSELECT ?s WHERE { BIND( <<( ?s :p :o )>> AS ?t ) }')
+    const document = await inspect(
+      'VERSION "1.2"\nSELECT ?s WHERE { BIND( <<( ?s :p :o )>> AS ?t ) }',
+    )
     expect(document.version).toBe('1.2')
     expect(document.features.some((value) => value.feature === 'triple-term')).toBe(true)
     expect(document.tokens.find((value) => value.kind === 'variable')?.range.line).toBe(2)
   })
 
   it('reports triple terms against the 1.2-basic compatibility profile', async () => {
-    const document = await inspect('VERSION "1.2-basic" SELECT * WHERE { BIND( <<( :s :p :o )>> AS ?t ) }')
+    const document = await inspect(
+      'VERSION "1.2-basic" SELECT * WHERE { BIND( <<( :s :p :o )>> AS ?t ) }',
+    )
     expect(document.diagnostics.some((value) => value.code === 'sparql-version-feature')).toBe(true)
   })
 
   it('distinguishes relational less-than from an IRI reference without whitespace', async () => {
-    const values = await collect(tokens('SELECT * WHERE { FILTER(?x<5) BIND(<https://example/> AS ?iri) }'))
+    const values = await collect(
+      tokens('SELECT * WHERE { FILTER(?x<5) BIND(<https://example/> AS ?iri) }'),
+    )
     expect(values.some((value) => value.kind === 'operator' && value.raw === '<')).toBe(true)
-    expect(values.some((value) => value.kind === 'iri' && value.value === 'https://example/')).toBe(true)
+    expect(values.some((value) => value.kind === 'iri' && value.value === 'https://example/')).toBe(
+      true,
+    )
   })
 
   it('keeps long literals across hostile chunk splits', async () => {

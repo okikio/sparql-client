@@ -34,7 +34,17 @@
  * @module
  */
 
-import { rawPattern, toGraphOrDefault, toGraphRef, toGraphRefAll, updateDocument, type GraphOrDefaultInput, type IriInput, type PatternValue, type SparqlUpdate } from './sparql.ts'
+import {
+  type GraphOrDefaultInputType,
+  type IriInputType,
+  type PatternValueType,
+  rawPattern,
+  type SparqlUpdateType,
+  toGraphOrDefault,
+  toGraphRef,
+  toGraphRefAll,
+  updateDocument,
+} from './sparql.ts'
 
 // ============================================================================
 // Update Operation Types
@@ -46,30 +56,51 @@ import { rawPattern, toGraphOrDefault, toGraphRef, toGraphRefAll, updateDocument
  * This is immutable - each method creates a new state object rather than
  * modifying the existing one.
  */
-export interface UpdateState {
-  readonly operations: UpdateOperation[]
+export interface UpdateStateType {
+  /** Update operations accumulated in source order. */
+  readonly operations: UpdateOperationType[]
 }
 
 /**
  * Individual update operation.
  */
-export interface UpdateOperation {
-  readonly type: 'INSERT_DATA' | 'DELETE_DATA' | 'DELETE_WHERE' | 'DELETE_INSERT' | 'LOAD' | 'CLEAR' | 'DROP' | 'CREATE' | 'COPY' | 'MOVE' | 'ADD'
-  readonly data?: PatternValue
-  readonly where?: PatternValue
+export interface UpdateOperationType {
+  /** SPARQL Update operation keyword represented by this builder operation. */
+  readonly type:
+    | 'INSERT_DATA'
+    | 'DELETE_DATA'
+    | 'DELETE_WHERE'
+    | 'DELETE_INSERT'
+    | 'LOAD'
+    | 'CLEAR'
+    | 'DROP'
+    | 'CREATE'
+    | 'COPY'
+    | 'MOVE'
+    | 'ADD'
+  /** RDF data block attached to this update operation. */
+  readonly data?: PatternValueType
+  /** Graph patterns that form the query or update WHERE clause. */
+  readonly where?: PatternValueType
+  /** RDF graph name represented by this quad, statement, or query target. */
   readonly graph?: string
-  readonly deleteTemplate?: PatternValue
-  readonly insertTemplate?: PatternValue
+  /** DELETE template patterns emitted before the MODIFY WHERE clause. */
+  readonly deleteTemplate?: PatternValueType
+  /** INSERT template patterns emitted before the MODIFY WHERE clause. */
+  readonly insertTemplate?: PatternValueType
+  /** Whether the SPARQL update operation requests SILENT failure handling. */
   readonly silent?: boolean
+  /** Source graph IRI used by LOAD, COPY, MOVE, or ADD operations. */
   readonly source?: string
+  /** Destination graph or endpoint resource used by this update operation. */
   readonly dest?: string
 }
 
 /**
  * Initial empty state for updates.
  */
-const initialUpdateState: UpdateState = {
-  operations: []
+const initialUpdateState: UpdateStateType = {
+  operations: [],
 }
 
 // ============================================================================
@@ -93,10 +124,11 @@ const initialUpdateState: UpdateState = {
  * ```
  */
 export class UpdateBuilder {
-  private readonly state: UpdateState
+  /** Current immutable snapshot of the outer update builder state. */
+  private readonly state: UpdateStateType
 
   /** Stores one immutable update-operation sequence; every builder method returns a new sequence instead of mutating this instance. */
-  constructor(state: UpdateState) {
+  constructor(state: UpdateStateType) {
     this.state = state
   }
 
@@ -145,12 +177,12 @@ export class UpdateBuilder {
    * )
    * ```
    */
-  insertData(data: PatternValue, graph?: IriInput): UpdateBuilder {
+  insertData(data: PatternValueType, graph?: IriInputType): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'INSERT_DATA', data, ...(graph ? { graph: toGraphRef(graph) } : {}) }
-      ]
+        { type: 'INSERT_DATA', data, ...(graph ? { graph: toGraphRef(graph) } : {}) },
+      ],
     })
   }
 
@@ -177,12 +209,12 @@ export class UpdateBuilder {
    * ]))
    * ```
    */
-  deleteData(data: PatternValue, graph?: IriInput): UpdateBuilder {
+  deleteData(data: PatternValueType, graph?: IriInputType): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'DELETE_DATA', data, ...(graph ? { graph: toGraphRef(graph) } : {}) }
-      ]
+        { type: 'DELETE_DATA', data, ...(graph ? { graph: toGraphRef(graph) } : {}) },
+      ],
     })
   }
 
@@ -216,12 +248,12 @@ export class UpdateBuilder {
    * // Deletes invalid ages
    * ```
    */
-  deleteWhere(pattern: PatternValue): UpdateBuilder {
+  deleteWhere(pattern: PatternValueType): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'DELETE_WHERE', where: pattern }
-      ]
+        { type: 'DELETE_WHERE', where: pattern },
+      ],
     })
   }
 
@@ -289,12 +321,17 @@ export class UpdateBuilder {
    * // Continues even if URL is unreachable
    * ```
    */
-  load(url: IriInput, graph?: IriInput, silent = false): UpdateBuilder {
+  load(url: IriInputType, graph?: IriInputType, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'LOAD', source: toGraphRef(url), ...(graph ? { graph: toGraphRef(graph) } : {}), silent }
-      ]
+        {
+          type: 'LOAD',
+          source: toGraphRef(url),
+          ...(graph ? { graph: toGraphRef(graph) } : {}),
+          silent,
+        },
+      ],
     })
   }
 
@@ -323,12 +360,12 @@ export class UpdateBuilder {
    * // Doesn't error if graph doesn't exist
    * ```
    */
-  clear(graph: IriInput, silent = false): UpdateBuilder {
+  clear(graph: IriInputType, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'CLEAR', graph: toGraphRefAll(graph), silent }
-      ]
+        { type: 'CLEAR', graph: toGraphRefAll(graph), silent },
+      ],
     })
   }
 
@@ -352,12 +389,12 @@ export class UpdateBuilder {
    * // Succeeds even if graph doesn't exist
    * ```
    */
-  drop(graph: IriInput, silent = false): UpdateBuilder {
+  drop(graph: IriInputType, silent = false): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'DROP', graph: toGraphRefAll(graph), silent }
-      ]
+        { type: 'DROP', graph: toGraphRefAll(graph), silent },
+      ],
     })
   }
 
@@ -381,14 +418,14 @@ export class UpdateBuilder {
    * // Succeeds even if graph already exists
    * ```
    */
-  create(graph: IriInput, silent = false): UpdateBuilder {
+  create(graph: IriInputType, silent = false): UpdateBuilder {
     const graphRef = toGraphRef(graph)
 
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'CREATE', graph: graphRef, silent }
-      ]
+        { type: 'CREATE', graph: graphRef, silent },
+      ],
     })
   }
 
@@ -434,12 +471,16 @@ export class UpdateBuilder {
    * // COPY SILENT <http://example.org/source> TO <http://example.org/dest>
    * ```
    */
-  copy(source: GraphOrDefaultInput, dest: GraphOrDefaultInput, silent = false): UpdateBuilder {
+  copy(
+    source: GraphOrDefaultInputType,
+    dest: GraphOrDefaultInputType,
+    silent = false,
+  ): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'COPY', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent }
-      ]
+        { type: 'COPY', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent },
+      ],
     })
   }
 
@@ -485,12 +526,16 @@ export class UpdateBuilder {
    * // MOVE SILENT <http://example.org/source> TO <http://example.org/dest>
    * ```
    */
-  move(source: GraphOrDefaultInput, dest: GraphOrDefaultInput, silent = false): UpdateBuilder {
+  move(
+    source: GraphOrDefaultInputType,
+    dest: GraphOrDefaultInputType,
+    silent = false,
+  ): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'MOVE', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent }
-      ]
+        { type: 'MOVE', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent },
+      ],
     })
   }
 
@@ -538,12 +583,16 @@ export class UpdateBuilder {
    * // ADD SILENT <http://example.org/optional> TO <http://example.org/main>
    * ```
    */
-  add(source: GraphOrDefaultInput, dest: GraphOrDefaultInput, silent = false): UpdateBuilder {
+  add(
+    source: GraphOrDefaultInputType,
+    dest: GraphOrDefaultInputType,
+    silent = false,
+  ): UpdateBuilder {
     return new UpdateBuilder({
       operations: [
         ...this.state.operations,
-        { type: 'ADD', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent }
-      ]
+        { type: 'ADD', source: toGraphOrDefault(source), dest: toGraphOrDefault(dest), silent },
+      ],
     })
   }
 
@@ -553,7 +602,7 @@ export class UpdateBuilder {
    * Converts all operations into a SPARQL Update string. Multiple operations
    * are separated by semicolons.
    *
-   * @returns SPARQL Update string wrapped in SparqlValue
+   * @returns SPARQL Update string wrapped in SparqlValueType
    *
    * @example
    * ```ts
@@ -565,7 +614,7 @@ export class UpdateBuilder {
    * // INSERT DATA { ex:person1 foaf:name "Alice" . }
    * ```
    */
-  build(): SparqlUpdate {
+  build(): SparqlUpdateType {
     const operations: string[] = []
 
     for (const op of this.state.operations) {
@@ -611,13 +660,17 @@ export class UpdateBuilder {
         }
 
         case 'CLEAR': {
-          const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL' ? op.graph : `GRAPH ${op.graph}`
+          const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL'
+            ? op.graph
+            : `GRAPH ${op.graph}`
           operations.push(`CLEAR ${silent}${target}`)
           break
         }
 
         case 'DROP': {
-          const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL' ? op.graph : `GRAPH ${op.graph}`
+          const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL'
+            ? op.graph
+            : `GRAPH ${op.graph}`
           operations.push(`DROP ${silent}${target}`)
           break
         }
@@ -652,7 +705,6 @@ export class UpdateBuilder {
 
     return updateDocument(operations.join(';\n'))
   }
-
 }
 
 // ============================================================================
@@ -667,17 +719,21 @@ export class UpdateBuilder {
  * to return to the main UpdateBuilder.
  */
 class ModifyBuilder {
-  private readonly updateState: UpdateState
-  private readonly deleteTemplate: PatternValue | undefined
-  private readonly insertTemplate: PatternValue | undefined
-  private readonly wherePatterns: PatternValue[]
+  /** Shared update-document state used while constructing a MODIFY operation. */
+  private readonly updateState: UpdateStateType
+  /** DELETE template patterns accumulated for the current MODIFY builder. */
+  private readonly deleteTemplate: PatternValueType | undefined
+  /** INSERT template patterns accumulated for the current MODIFY builder. */
+  private readonly insertTemplate: PatternValueType | undefined
+  /** WHERE graph patterns accumulated for the current MODIFY operation. */
+  private readonly wherePatterns: PatternValueType[]
 
   /** Creates one DELETE/INSERT/WHERE sub-builder tied to the immutable parent update sequence. */
   constructor(
-    updateState: UpdateState,
-    deleteTemplate?: PatternValue,
-    insertTemplate?: PatternValue,
-    wherePatterns: PatternValue[] = [],
+    updateState: UpdateStateType,
+    deleteTemplate?: PatternValueType,
+    insertTemplate?: PatternValueType,
+    wherePatterns: PatternValueType[] = [],
   ) {
     this.updateState = updateState
     this.deleteTemplate = deleteTemplate
@@ -701,12 +757,12 @@ class ModifyBuilder {
    *   .done()
    * ```
    */
-  delete(template: PatternValue): ModifyBuilder {
+  delete(template: PatternValueType): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       template,
       this.insertTemplate,
-      this.wherePatterns
+      this.wherePatterns,
     )
   }
 
@@ -727,12 +783,12 @@ class ModifyBuilder {
    *   .done()
    * ```
    */
-  insert(template: PatternValue): ModifyBuilder {
+  insert(template: PatternValueType): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       this.deleteTemplate,
       template,
-      this.wherePatterns
+      this.wherePatterns,
     )
   }
 
@@ -755,12 +811,12 @@ class ModifyBuilder {
    *   .done()
    * ```
    */
-  where(pattern: PatternValue): ModifyBuilder {
+  where(pattern: PatternValueType): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       this.deleteTemplate,
       this.insertTemplate,
-      [...this.wherePatterns, pattern]
+      [...this.wherePatterns, pattern],
     )
   }
 
@@ -786,7 +842,7 @@ class ModifyBuilder {
    */
   done(): UpdateBuilder {
     const whereValue = this.wherePatterns.length > 0
-      ? rawPattern(this.wherePatterns.map(p => p.value).join('\n  '))
+      ? rawPattern(this.wherePatterns.map((p) => p.value).join('\n  '))
       : undefined
 
     return new UpdateBuilder({
@@ -797,8 +853,8 @@ class ModifyBuilder {
           ...(this.deleteTemplate ? { deleteTemplate: this.deleteTemplate } : {}),
           ...(this.insertTemplate ? { insertTemplate: this.insertTemplate } : {}),
           ...(whereValue ? { where: whereValue } : {}),
-        }
-      ]
+        },
+      ],
     })
   }
 }
@@ -840,7 +896,7 @@ export const update = UpdateBuilder.create
  * ])).build()
  * ```
  */
-export function insert(data: PatternValue, graph?: IriInput): UpdateBuilder {
+export function insert(data: PatternValueType, graph?: IriInputType): UpdateBuilder {
   return UpdateBuilder.create().insertData(data, graph)
 }
 
@@ -858,7 +914,7 @@ export function insert(data: PatternValue, graph?: IriInput): UpdateBuilder {
  * deleteOp(triple('ex:person1', 'foaf:age', num(30))).build()
  * ```
  */
-export function deleteOp(data: PatternValue, graph?: IriInput): UpdateBuilder {
+export function deleteOp(data: PatternValueType, graph?: IriInputType): UpdateBuilder {
   return UpdateBuilder.create().deleteData(data, graph)
 }
 

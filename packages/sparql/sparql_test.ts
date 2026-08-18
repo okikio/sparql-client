@@ -25,7 +25,9 @@ describe('@okikio/sparql term and pattern roles', () => {
   })
 
   it('treats prefixed subject strings as graph terms and predicate variables as variables', () => {
-    expect(triple('schema:Product', 'schema:name', '?name').value).toBe('schema:Product schema:name ?name .')
+    expect(triple('schema:Product', 'schema:name', '?name').value).toBe(
+      'schema:Product schema:name ?name .',
+    )
     expect(triple('?subject', '?predicate', '?object').value).toBe('?subject ?predicate ?object .')
   })
 

@@ -15,11 +15,11 @@ const query = sparql.select(['?name'])
 The API keeps complete documents separate from embeddable syntax:
 
 ```text
-SparqlTerm     term or legal property-path position
-SparqlExpr     expression
-PatternValue   graph-pattern fragment
-SparqlQuery    complete query document
-SparqlUpdate   complete Update document
+SparqlTermType     term or legal property-path position
+SparqlExprType     expression
+PatternValueType   graph-pattern fragment
+SparqlQueryType    complete query document
+SparqlUpdateType   complete Update document
 ```
 
 This prevents a complete query/update from being accepted where the SPARQL grammar requires a term, expression, or WHERE fragment.
@@ -31,7 +31,7 @@ IRI-bearing positions accept native RDF named nodes. Generated vocabulary values
 ```ts
 import * as rdf from '@okikio/rdf'
 import * as sparql from '@okikio/sparql'
-import { Product, name, offers, price } from '@okikio/vocab/schema'
+import { name, offers, price, Product } from '@okikio/vocab/schema'
 
 const query = sparql.select(['?product', '?name']).where(
   sparql.triple('?product', rdf.namedNode(rdf.RDF.type), Product),
@@ -47,7 +47,7 @@ const text = sparql.typed('42', rdf.namedNode(rdf.XSD.integer))
 const update = sparql.update().clear(rdf.namedNode('urn:graph:old')).build()
 ```
 
-Strict IRI positions reject variable/literal `SparqlTerm` values at runtime instead of trusting any branded term as an IRI.
+Strict IRI positions reject variable/literal `SparqlTermType` values at runtime instead of trusting any branded term as an IRI.
 
 ## Execution
 

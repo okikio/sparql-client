@@ -3,20 +3,20 @@ import { expect } from '@std/expect'
 import * as rdf from '@okikio/rdf'
 import { name, offers, price } from '@okikio/vocab/schema'
 import {
-  SPARQL_EXPR_BRAND,
-  SPARQL_PATTERN_BRAND,
-  SPARQL_TERM_BRAND,
+  definePrefix,
   exists,
   filter,
-  definePrefix,
   inverse,
   optional,
   prefixed,
   sequence,
+  SPARQL_EXPR_BRAND,
+  SPARQL_PATTERN_BRAND,
+  SPARQL_TERM_BRAND,
   triple,
   typed,
-  uri,
   undef,
+  uri,
   v,
   values,
   zeroOrMore,
@@ -39,13 +39,21 @@ describe('@okikio/sparql grammar-role helpers', () => {
   })
 
   it('returns term syntax for property paths', () => {
-    for (const path of [zeroOrMore('schema:parent'), inverse('schema:child'), sequence('schema:a', 'schema:b')]) {
+    for (
+      const path of [
+        zeroOrMore('schema:parent'),
+        inverse('schema:child'),
+        sequence('schema:a', 'schema:b'),
+      ]
+    ) {
       expect(path[SPARQL_TERM_BRAND]).toBe(true)
     }
   })
   it('uses RDF named nodes directly in property paths', () => {
     expect(zeroOrMore(name).value).toBe('<https://schema.org/name>*')
-    expect(sequence(offers, price).value).toBe('<https://schema.org/offers>/<https://schema.org/price>')
+    expect(sequence(offers, price).value).toBe(
+      '<https://schema.org/offers>/<https://schema.org/price>',
+    )
     expect(inverse(name).value).toBe('^<https://schema.org/name>')
   })
 
@@ -53,10 +61,11 @@ describe('@okikio/sparql grammar-role helpers', () => {
     const stringDatatype = rdf.namedNode(rdf.XSD.string)
     const schema = rdf.namedNode('https://schema.org/')
 
-    expect(typed('Widget', stringDatatype).value).toBe('"Widget"^^<http://www.w3.org/2001/XMLSchema#string>')
+    expect(typed('Widget', stringDatatype).value).toBe(
+      '"Widget"^^<http://www.w3.org/2001/XMLSchema#string>',
+    )
     expect(uri(name).value).toBe('<https://schema.org/name>')
     expect(definePrefix('schema', schema).value).toBe('PREFIX schema: <https://schema.org/>')
     expect(prefixed('schema', 'name')[SPARQL_TERM_BRAND]).toBe(true)
   })
-
 })

@@ -38,7 +38,6 @@ describe('@okikio/sparql update builder', () => {
     ].join(';\n'))
   })
 
-
   it('accepts RDF named nodes for CLEAR/DROP and rejects variable terms in strict graph positions', () => {
     const graph = namedNode('urn:graph:products')
     expect(update().clear(graph).drop(graph, true).build().value).toBe([

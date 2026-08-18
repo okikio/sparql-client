@@ -4,10 +4,10 @@ Adapter from a caller-owned Comunica `QueryEngine` to `@okikio/sparql`'s result-
 
 ```ts
 import { QueryEngine } from '@comunica/query-sparql'
-import { createClient } from '@okikio/comunica'
+import { create } from '@okikio/comunica'
 
 const engine = new QueryEngine()
-const client = createClient(engine, {
+const client = create(engine, {
   context: () => ({ sources: [/* caller-owned sources */] }),
 })
 

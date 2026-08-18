@@ -38,7 +38,14 @@
  * @module
  */
 
-import { XSD, isTerm as isRdfTerm, type Literal as RdfLiteral, type NamedNode as RdfNamedNode, type Quad as RdfQuad, type Term as RdfTerm } from '@okikio/rdf'
+import {
+  isTerm as isRdfTerm,
+  type Literal as RdfLiteral,
+  type NamedNode as RdfNamedNode,
+  type Quad as RdfQuad,
+  type Term as RdfTerm,
+  XSD,
+} from '@okikio/rdf'
 
 // ============================================================================
 // Core Types
@@ -58,16 +65,22 @@ export const SPARQL_QUERY_BRAND = Symbol('SparqlQueryBrand')
 export const SPARQL_UPDATE_BRAND = Symbol('SparqlUpdateBrand')
 
 /** One already-serialized SPARQL term. */
-export interface SparqlTerm {
+export interface SparqlTermType {
+  /** Compile-time brand that prevents unrelated values from satisfying the SPARQL value contract structurally. */
   readonly [SPARQL_VALUE_BRAND]: true
+  /** Compile-time brand that marks values that serialize as SPARQL terms. */
   readonly [SPARQL_TERM_BRAND]: true
+  /** Serialized SPARQL term fragment safe to embed where the type permits a term. */
   readonly value: string
 }
 
 /** One already-serialized SPARQL expression. */
-export interface SparqlExpr {
+export interface SparqlExprType {
+  /** Compile-time brand that prevents unrelated values from satisfying the SPARQL value contract structurally. */
   readonly [SPARQL_VALUE_BRAND]: true
+  /** Compile-time brand that marks values that serialize as SPARQL expressions. */
   readonly [SPARQL_EXPR_BRAND]: true
+  /** Serialized SPARQL expression fragment safe to embed where the type permits an expression. */
   readonly value: string
 }
 
@@ -75,35 +88,42 @@ export interface SparqlExpr {
  * A graph pattern snippet – e.g. a block of triples to drop into WHERE {}.
  * Node, Relationship, and other pattern builders should be this.
  */
-export interface PatternValue {
+export interface PatternValueType {
+  /** Compile-time brand that prevents unrelated values from satisfying the SPARQL value contract structurally. */
   readonly [SPARQL_VALUE_BRAND]: true
+  /** Compile-time brand that marks values that can be emitted as SPARQL graph patterns. */
   readonly [SPARQL_PATTERN_BRAND]: true
+  /** Serialized SPARQL graph-pattern fragment. */
   readonly value: string
 }
 
 /** A complete SPARQL query document, not an embeddable expression or pattern. */
-export interface SparqlQuery {
+export interface SparqlQueryType {
+  /** Compile-time brand that marks values that serialize as complete SPARQL queries. */
   readonly [SPARQL_QUERY_BRAND]: true
+  /** Complete serialized SPARQL query text. */
   readonly value: string
 }
 
 /** A complete SPARQL Update document, not an embeddable expression or pattern. */
-export interface SparqlUpdate {
+export interface SparqlUpdateType {
+  /** Compile-time brand that marks values that serialize as complete SPARQL updates. */
   readonly [SPARQL_UPDATE_BRAND]: true
+  /** Complete serialized SPARQL Update text. */
   readonly value: string
 }
 
 /** Complete SPARQL documents accepted by engines and protocol clients. */
-export type SparqlDocument = SparqlQuery | SparqlUpdate
+export type SparqlDocumentType = SparqlQueryType | SparqlUpdateType
 
 /** Any library-owned SPARQL syntax fragment accepted by shared helpers. */
-export type SparqlValue = SparqlTerm | SparqlExpr | PatternValue
+export type SparqlValueType = SparqlTermType | SparqlExprType | PatternValueType
 
 /** IRI-bearing input accepted by SPARQL grammar positions that require an IRI. */
-export type IriInput = string | SparqlTerm | RdfNamedNode
+export type IriInputType = string | SparqlTermType | RdfNamedNode
 
 /** Predicate syntax accepted by triple and property-path constructors. */
-export type PredicateInput = string | SparqlTerm | RdfNamedNode
+export type PredicateInputType = string | SparqlTermType | RdfNamedNode
 
 /**
  * Values that can be safely interpolated into the `sparql` tag *as a single
@@ -113,8 +133,8 @@ export type PredicateInput = string | SparqlTerm | RdfNamedNode
  * - `valuesList(...)`, `exprList(...)`, `rdfList(...)`
  * - `bnodePattern(...)`
  */
-export type SparqlInterpolatable =
-  | SparqlValue
+export type SparqlInterpolatableType =
+  | SparqlValueType
   | string
   | number
   | boolean
@@ -129,60 +149,60 @@ export type SparqlInterpolatable =
  * In SPARQL, variables can be written as ?name or $name. We normalize these
  * internally to just store the name part, then add the ? when generating queries.
  */
-export type VariableName = string | `?${string}` | SparqlTerm
+export type VariableNameType = string | `?${string}` | SparqlTermType
 
 /**
  * Namespace prefix for abbreviated IRIs (e.g., "foaf" in foaf:name).
  */
-export type PrefixName = string
+export type PrefixNameType = string
 
 /**
  * Full IRI for a datatype (e.g., http://www.w3.org/2001/XMLSchema#integer).
  */
-export type DatatypeIRI = string | RdfNamedNode
+export type DatatypeIriType = string | RdfNamedNode
 
 /**
  * Language tag for multilingual literals (e.g., "en", "fr", "ja-JP").
  */
-export type LanguageTag = string
+export type LanguageTagType = string
 
 // ============================================================================
 // Internal Helpers
 // ============================================================================
 
 /**
- * Type guard for `SparqlValue`.
+ * Type guard for `SparqlValueType`.
  */
-export function isSparqlValue(value: unknown): value is SparqlValue {
+export function isSparqlValue(value: unknown): value is SparqlValueType {
   return (
     typeof value === 'object' &&
     value !== null &&
-    (value as SparqlValue)[SPARQL_VALUE_BRAND] === true
+    (value as SparqlValueType)[SPARQL_VALUE_BRAND] === true
   )
 }
 
 /** Returns whether a library SPARQL value is a term fragment. */
-export function isSparqlTerm(v: SparqlValue): v is SparqlTerm {
-  return (v as SparqlTerm)[SPARQL_TERM_BRAND] === true
+export function isSparqlTerm(v: SparqlValueType): v is SparqlTermType {
+  return (v as SparqlTermType)[SPARQL_TERM_BRAND] === true
 }
 
 /** Returns whether a library SPARQL value is an expression fragment. */
-export function isSparqlExpr(v: SparqlValue): v is SparqlExpr {
-  return (v as SparqlExpr)[SPARQL_EXPR_BRAND] === true
+export function isSparqlExpr(v: SparqlValueType): v is SparqlExprType {
+  return (v as SparqlExprType)[SPARQL_EXPR_BRAND] === true
 }
 
 /** Returns whether a library SPARQL value is a graph-pattern fragment. */
-export function isPatternValue(v: SparqlValue): v is PatternValue {
-  return (v as PatternValue)[SPARQL_PATTERN_BRAND] === true
+export function isPatternValue(v: SparqlValueType): v is PatternValueType {
+  return (v as PatternValueType)[SPARQL_PATTERN_BRAND] === true
 }
 
 /**
- * Extract the raw string from a SparqlValue or return the string as-is.
+ * Extract the raw string from a SparqlValueType or return the string as-is.
  *
  * Use this when you need the underlying string value without any conversion.
  * This is for SYNTAX elements that should pass through unchanged.
  */
-export function toRawString(value: string | SparqlValue): string {
+export function toRawString(value: string | SparqlValueType): string {
   return isSparqlValue(value) ? value.value : value
 }
 
@@ -209,11 +229,11 @@ export function isVariableToken(value: string): boolean {
  * - `"name"`
  * - `"?name"`
  * - `"$name"`
- * - `SparqlValue` that wraps a variable token
+ * - `SparqlValueType` that wraps a variable token
  *
  * Enforces your existing variable naming rules via validateVariableName().
  */
-export function toVarToken(name: VariableName): string {
+export function toVarToken(name: VariableNameType): string {
   const normalized = normalizeVariableName(name)
   validateVariableName(normalized)
   return `?${normalized}`
@@ -269,7 +289,7 @@ export function toIriLikeToken(value: string | RdfNamedNode): string {
 }
 
 /** Serializes a predicate/path atom without flattening RDF named nodes to strings. */
-export function toPredicateToken(input: PredicateInput): string {
+export function toPredicateToken(input: PredicateInputType): string {
   if (isRdfTerm(input)) return rdfTerm(input)
   if (isSparqlValue(input)) return input.value
   if (isVariableToken(input.trim())) return toVarToken(input)
@@ -286,14 +306,14 @@ export function toPredicateToken(input: PredicateInput): string {
  *   SERVICE VarOrIriRef { ... }  (depending on implementation)
  *
  * Semantics:
- * - If you pass a SparqlValue, we assume it's already a correct token and
+ * - If you pass a SparqlValueType, we assume it's already a correct token and
  *   just return `.value`.
  * - If you pass a string:
  *   - `?name` / `$name` → normalised to `?name`
  *   - `name` with no colon → treated as variable name → `?name`
  *   - anything else → treated as IRI/prefixed name via toIriLikeToken()
  */
-export function toVarOrIriRef(input: string | SparqlTerm | RdfNamedNode): string {
+export function toVarOrIriRef(input: string | SparqlTermType | RdfNamedNode): string {
   if (isRdfTerm(input)) return rdfTerm(input)
   if (isSparqlValue(input)) {
     const token = input.value.trim()
@@ -330,7 +350,7 @@ export function toVarOrIriRef(input: string | SparqlTerm | RdfNamedNode): string
  * - Reject obvious variable tokens (`?name` / `$name`)
  * - Normalise to `<IRI>` or `prefix:local`
  */
-export function toGraphRef(input: IriInput): string {
+export function toGraphRef(input: IriInputType): string {
   if (isRdfTerm(input)) return rdfTerm(input)
 
   const token = isSparqlValue(input) ? input.value.trim() : input.trim()
@@ -356,19 +376,19 @@ export function toGraphRef(input: IriInput): string {
  * - Accepts 'default' | 'named' | 'all' in any case and normalises them.
  * - Otherwise, falls back to a strict GraphRef (IRI) via toGraphRef().
  */
-export type GraphRefAllKeyword = 'DEFAULT' | 'NAMED' | 'ALL'
+export type GraphRefAllKeywordType = 'DEFAULT' | 'NAMED' | 'ALL'
 
 /** Graph IRI or the DEFAULT graph accepted by COPY, MOVE, and ADD. */
-export type GraphOrDefaultInput = IriInput | 'DEFAULT' | 'default'
+export type GraphOrDefaultInputType = IriInputType | 'DEFAULT' | 'default'
 
 /** Normalizes the SPARQL Update `GraphOrDefault` production. */
-export function toGraphOrDefault(input: GraphOrDefaultInput): string {
+export function toGraphOrDefault(input: GraphOrDefaultInputType): string {
   if (typeof input === 'string' && input.trim().toUpperCase() === 'DEFAULT') return 'DEFAULT'
-  return toGraphRef(input as IriInput)
+  return toGraphRef(input as IriInputType)
 }
 
 /** Normalizes a SPARQL Update graph reference or DEFAULT/NAMED/ALL keyword. */
-export function toGraphRefAll(input: IriInput): string {
+export function toGraphRefAll(input: IriInputType): string {
   if (typeof input === 'string') {
     const upper = input.trim().toUpperCase()
     if (upper === 'DEFAULT' || upper === 'NAMED' || upper === 'ALL') return upper
@@ -382,28 +402,33 @@ export function toGraphRefAll(input: IriInput): string {
  * This is useful when you need to *inspect* what you got back from user
  * input or higher-level code, rather than just drop it into the query string.
  */
-export type ParsedVarOrIriRef =
+export type ParsedVarOrIriRefType =
   | {
-      kind: 'var'
-      /** Name without the leading '?' */
-      name: string
-      /** Canonical variable token (`?name`) */
-      token: string
-    }
+    /** Selects the `var` variant of ParsedVarOrIriRefType. */
+    kind: 'var'
+    /** Name without the leading '?' */
+    name: string
+    /** Canonical variable token (`?name`) */
+    token: string
+  }
   | {
-      kind: 'iri'
-      /** The IRI *without* angle brackets */
-      iri: string
-      /** Lexical token, usually `<iri>` */
-      token: string
-    }
+    /** Selects the `iri` variant of ParsedVarOrIriRefType. */
+    kind: 'iri'
+    /** The IRI *without* angle brackets */
+    iri: string
+    /** Lexical token, usually `<iri>` */
+    token: string
+  }
   | {
-      kind: 'prefixed'
-      prefix: string
-      local: string
-      /** Lexical token like `prefix:local` */
-      token: string
-    }
+    /** Selects the `prefixed` variant of ParsedVarOrIriRefType. */
+    kind: 'prefixed'
+    /** Prefix label associated with this syntax or RDF name. */
+    prefix: string
+    /** Local-name component of this parsed prefixed SPARQL name. */
+    local: string
+    /** Lexical token like `prefix:local` */
+    token: string
+  }
 
 /**
  * Parse a VarOrIriRef into a structured representation.
@@ -412,8 +437,8 @@ export type ParsedVarOrIriRef =
  * the same semantics as the rest of the builder.
  */
 export function parseVarOrIriRef(
-  input: string | SparqlTerm | RdfNamedNode,
-): ParsedVarOrIriRef {
+  input: string | SparqlTermType | RdfNamedNode,
+): ParsedVarOrIriRefType {
   const token = toVarOrIriRef(input)
 
   if (isVariableToken(token)) {
@@ -453,7 +478,7 @@ export function parseVarOrIriRef(
 }
 
 /** Wraps trusted syntax as one raw SPARQL term without escaping it. */
-export function rawTerm(value: string): SparqlTerm {
+export function rawTerm(value: string): SparqlTermType {
   return {
     [SPARQL_VALUE_BRAND]: true,
     [SPARQL_TERM_BRAND]: true,
@@ -462,7 +487,7 @@ export function rawTerm(value: string): SparqlTerm {
 }
 
 /** Wraps trusted syntax as one raw SPARQL expression without escaping it. */
-export function rawExpr(value: string): SparqlExpr {
+export function rawExpr(value: string): SparqlExprType {
   return {
     [SPARQL_VALUE_BRAND]: true,
     [SPARQL_EXPR_BRAND]: true,
@@ -471,7 +496,7 @@ export function rawExpr(value: string): SparqlExpr {
 }
 
 /** Wraps trusted syntax as a raw graph-pattern fragment without escaping it. */
-export function rawPattern(text: string): PatternValue {
+export function rawPattern(text: string): PatternValueType {
   return {
     [SPARQL_VALUE_BRAND]: true,
     [SPARQL_PATTERN_BRAND]: true,
@@ -480,17 +505,17 @@ export function rawPattern(text: string): PatternValue {
 }
 
 /** Wraps already-serialized text as one complete SPARQL query document. */
-export function queryDocument(value: string): SparqlQuery {
+export function queryDocument(value: string): SparqlQueryType {
   return { [SPARQL_QUERY_BRAND]: true, value } as const
 }
 
 /** Wraps already-serialized text as one complete SPARQL Update document. */
-export function updateDocument(value: string): SparqlUpdate {
+export function updateDocument(value: string): SparqlUpdateType {
   return { [SPARQL_UPDATE_BRAND]: true, value } as const
 }
 
 /**
- * Wrap a raw SPARQL snippet as a `SparqlValue`.
+ * Wrap a raw SPARQL snippet as a `SparqlValueType`.
  *
  * Use this when you *know* the string is already valid SPARQL syntax and you
  * do not want any further escaping or conversion.
@@ -509,7 +534,7 @@ export function updateDocument(value: string): SparqlUpdate {
  * raw('BNODE()')               // Built-in function
  * raw('ex:customFunc(?x, ?y)') // Custom function
  */
-export function raw(value: string): SparqlExpr {
+export function raw(value: string): SparqlExprType {
   return rawExpr(value)
 }
 
@@ -669,11 +694,16 @@ export function escapeString(
 
     // Control characters with explicit SPARQL-style escapes
     switch (ch) {
-      case '\n': return '\\n'
-      case '\r': return '\\r'
-      case '\t': return '\\t'
-      case '\b': return '\\b'
-      case '\f': return '\\f'
+      case '\n':
+        return '\\n'
+      case '\r':
+        return '\\r'
+      case '\t':
+        return '\\t'
+      case '\b':
+        return '\\b'
+      case '\f':
+        return '\\f'
       default: {
         // Any remaining control char U+0000–U+001F gets a \u00XX escape
         const code = ch.charCodeAt(0)
@@ -689,7 +719,7 @@ export function escapeString(
  */
 export function needsLongQuotes(str: string): boolean {
   return str.includes('\n') || str.includes('\r') ||
-         str.includes('"') || str.includes("'")
+    str.includes('"') || str.includes("'")
 }
 
 // ============================================================================
@@ -810,8 +840,8 @@ export function validateLanguageTag(tag: string): void {
  * internal representation. This function strips the prefix if present, so both
  * "foo" and "?foo" become "foo" internally.
  */
-export function normalizeVariableName(name: VariableName): string {
-  const n = isSparqlValue(name) ? name?.value : name;
+export function normalizeVariableName(name: VariableNameType): string {
+  const n = isSparqlValue(name) ? name?.value : name
   // Strip ? or $ prefix if present
   if (n.startsWith('?') || n.startsWith('$')) {
     return n.slice(1)
@@ -833,7 +863,7 @@ export function normalizeVariableName(name: VariableName): string {
  * variable('name')  // → ?name
  * variable('?name') // → ?name
  */
-export function variable(name: VariableName): SparqlTerm {
+export function variable(name: VariableNameType): SparqlTermType {
   const n = normalizeVariableName(name)
   validateVariableName(n)
   return rawTerm(`?${n}`)
@@ -848,9 +878,8 @@ export function variable(name: VariableName): SparqlTerm {
  * @example
  * uri('http://example.org/resource')  // → <http://example.org/resource>
  * uri('urn:isbn:0451450523')          // → <urn:isbn:0451450523>
-
  */
-export function uri(iri: string | RdfNamedNode): SparqlTerm {
+export function uri(iri: string | RdfNamedNode): SparqlTermType {
   if (typeof iri !== 'string') return rawTerm(rdfTerm(iri))
   validateIRI(iri)
   return rawTerm(`<${iri}>`)
@@ -864,7 +893,7 @@ export function uri(iri: string | RdfNamedNode): SparqlTerm {
  * @example
  * prefixed('foaf', 'name')  // → foaf:name
  */
-export function prefixed(prefix: PrefixName, localName: string): SparqlTerm {
+export function prefixed(prefix: PrefixNameType, localName: string): SparqlTermType {
   validatePrefixName(prefix)
   // Local names have complex rules; block obvious injection
   if (INJECTION_CHARS.test(localName)) {
@@ -876,7 +905,7 @@ export function prefixed(prefix: PrefixName, localName: string): SparqlTerm {
 /**
  * Alias for {@link prefixed} with more explicit naming.
  */
-export function prefix(namespace: PrefixName, local: string): SparqlTerm {
+export function prefix(namespace: PrefixNameType, local: string): SparqlTermType {
   return prefixed(namespace, local)
 }
 
@@ -893,7 +922,7 @@ export function prefix(namespace: PrefixName, local: string): SparqlTerm {
  * strlit('Hello')           // → "Hello"
  * strlit('Line 1\nLine 2')  // → """Line 1\nLine 2"""
  */
-export function strlit(value: string): SparqlTerm {
+export function strlit(value: string): SparqlTermType {
   const escaped = escapeString(value)
 
   if (needsLongQuotes(value)) {
@@ -910,12 +939,12 @@ export function strlit(value: string): SparqlTerm {
  * typed('42', 'http://www.w3.org/2001/XMLSchema#integer')
  * // → "42"^^<http://www.w3.org/2001/XMLSchema#integer>
  */
-export function typed(value: string, datatype: DatatypeIRI): SparqlTerm {
+export function typed(value: string, datatype: DatatypeIriType): SparqlTermType {
   const datatypeToken = typeof datatype === 'string'
     ? (() => {
-        validateIRI(datatype)
-        return `<${datatype}>`
-      })()
+      validateIRI(datatype)
+      return `<${datatype}>`
+    })()
     : rdfTerm(datatype)
   const escaped = escapeString(value)
 
@@ -935,7 +964,7 @@ export function typed(value: string, datatype: DatatypeIRI): SparqlTerm {
  * @example lang('Hello', 'en') → "Hello"@en
  * @example lang('Bonjour', 'fr') → "Bonjour"@fr
  */
-export function lang(value: string, tag: LanguageTag): SparqlTerm {
+export function lang(value: string, tag: LanguageTagType): SparqlTermType {
   validateLanguageTag(tag)
   const escaped = escapeString(value)
 
@@ -956,7 +985,7 @@ export function lang(value: string, tag: LanguageTag): SparqlTerm {
  *
  * @throws {Error} If value is not an integer
  */
-export function integer(value: number): SparqlTerm {
+export function integer(value: number): SparqlTermType {
   if (!Number.isInteger(value)) {
     throw new Error(`Expected integer, got: ${value}`)
   }
@@ -976,7 +1005,7 @@ export function integer(value: number): SparqlTerm {
  *
  * @throws {Error} If value is not finite (NaN or Infinity)
  */
-export function decimal(value: number): SparqlTerm {
+export function decimal(value: number): SparqlTermType {
   if (!Number.isFinite(value)) {
     throw new Error(`Expected finite number, got: ${value}`)
   }
@@ -1000,7 +1029,7 @@ export function decimal(value: number): SparqlTerm {
  *
  * @throws {Error} If value is not an double
  */
-export function double(value: number): SparqlTerm {
+export function double(value: number): SparqlTermType {
   if (!Number.isFinite(value)) {
     throw new Error(`Expected finite number, got: ${value}`)
   }
@@ -1018,7 +1047,7 @@ export function double(value: number): SparqlTerm {
  * num(42)    // → 42
  * num(3.14)  // → 3.14
  */
-export function num(value: number): SparqlTerm {
+export function num(value: number): SparqlTermType {
   if (Number.isInteger(value)) {
     return integer(value)
   }
@@ -1031,14 +1060,14 @@ export function num(value: number): SparqlTerm {
  *
  * Boolean values in SPARQL are written as bare keywords, not quoted strings.
  */
-export function boolean(value: boolean): SparqlTerm {
+export function boolean(value: boolean): SparqlTermType {
   return rawTerm(value ? 'true' : 'false')
 }
 
 /**
  * Short alias for {@link boolean}.
  */
-export function bool(value: boolean): SparqlTerm {
+export function bool(value: boolean): SparqlTermType {
   return boolean(value)
 }
 
@@ -1048,7 +1077,7 @@ export function bool(value: boolean): SparqlTerm {
  * @example
  * date(new Date('2024-01-15'))  // → "2024-01-15"^^<xsd:date>
  */
-export function date(value: Date | string): SparqlTerm {
+export function date(value: Date | string): SparqlTermType {
   const dateObj = value instanceof Date ? value : new Date(value)
   const yyyy = dateObj.getFullYear()
   const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
@@ -1062,7 +1091,7 @@ export function date(value: Date | string): SparqlTerm {
  * @example
  * dateTime(new Date())  // → "2024-01-15T10:30:00.000Z"^^<xsd:dateTime>
  */
-export function dateTime(value: Date | string): SparqlTerm {
+export function dateTime(value: Date | string): SparqlTermType {
   const dateObj = value instanceof Date ? value : new Date(value)
   return rawTerm(`"${dateObj.toISOString()}"^^<${XSD.dateTime}>`)
 }
@@ -1113,7 +1142,7 @@ export function dateTime(value: Date | string): SparqlTerm {
  * convertValue(null)             // throws
  * ```
  */
-export function convertValue(value: SparqlInterpolatable, strict = true): string {
+export function convertValue(value: SparqlInterpolatableType, strict = true): string {
   // Already a SPARQL value – pass straight through.
   if (isSparqlValue(value)) return value.value
   if (isRdfTerm(value)) return rdfTerm(value)
@@ -1122,7 +1151,7 @@ export function convertValue(value: SparqlInterpolatable, strict = true): string
   if (value === null || value === undefined) {
     if (strict) {
       throw new Error(
-        'Cannot convert null/undefined to a SPARQL term. Use OPTIONAL/BOUND or pass strict=false if you explicitly want an empty string literal.'
+        'Cannot convert null/undefined to a SPARQL term. Use OPTIONAL/BOUND or pass strict=false if you explicitly want an empty string literal.',
       )
     }
     return strlit('').value
@@ -1148,18 +1177,18 @@ export function convertValue(value: SparqlInterpolatable, strict = true): string
   // Anything else (arrays, plain objects, etc.) is not a single term.
   if (Array.isArray(value)) {
     throw new Error(
-      'Cannot convert an array directly to a SPARQL term. Use valuesList(), exprList(), or rdfList() to control how the list appears in your query.'
+      'Cannot convert an array directly to a SPARQL term. Use valuesList(), exprList(), or rdfList() to control how the list appears in your query.',
     )
   }
 
   if (typeof value === 'object') {
     throw new Error(
-      'Cannot convert a plain object directly to a SPARQL term. Use bnodePattern() to create [ ... ] blank nodes, or pre-wrap it as a SparqlValue using raw().'
+      'Cannot convert a plain object directly to a SPARQL term. Use bnodePattern() to create [ ... ] blank nodes, or pre-wrap it as a SparqlValueType using raw().',
     )
   }
 
   throw new Error(
-    `Cannot convert value of type "${typeof value}" to a SPARQL term`
+    `Cannot convert value of type "${typeof value}" to a SPARQL term`,
   )
 }
 
@@ -1176,7 +1205,10 @@ export function isNonStringIterable(value: unknown): value is Iterable<unknown> 
     value !== undefined &&
     typeof value !== 'string' &&
     (typeof value === 'object' || typeof value === 'function') &&
-    typeof (value as { readonly [Symbol.iterator]?: unknown })[Symbol.iterator] === 'function'
+    typeof (value as {
+        /** Iterable hook used to distinguish SPARQL iterable inputs from strings. */
+        readonly [Symbol.iterator]?: unknown
+      })[Symbol.iterator] === 'function'
   )
 }
 
@@ -1204,8 +1236,8 @@ export function isNonStringIterable(value: unknown): value is Iterable<unknown> 
  * ```
  */
 export function valuesList(
-  items: Iterable<SparqlInterpolatable>
-): SparqlValue {
+  items: Iterable<SparqlInterpolatableType>,
+): SparqlValueType {
   const parts: string[] = []
 
   for (const item of items) {
@@ -1241,8 +1273,8 @@ export function valuesList(
  * ```
  */
 export function exprList(
-  items: Iterable<SparqlInterpolatable>
-): SparqlValue {
+  items: Iterable<SparqlInterpolatableType>,
+): SparqlValueType {
   const parts: string[] = []
 
   for (const item of items) {
@@ -1275,8 +1307,8 @@ export function exprList(
  * ```
  */
 export function rdfList(
-  items: Iterable<SparqlInterpolatable>
-): SparqlValue {
+  items: Iterable<SparqlInterpolatableType>,
+): SparqlValueType {
   const parts: string[] = []
 
   for (const item of items) {
@@ -1325,7 +1357,7 @@ export function rdfList(
  * // Fresh blank nodes for each result row.
  * ```
  */
-export function bnode(id?: string): SparqlTerm {
+export function bnode(id?: string): SparqlTermType {
   if (id) {
     return rawTerm(`_:${id}`)
   }
@@ -1335,22 +1367,22 @@ export function bnode(id?: string): SparqlTerm {
 /**
  * Property map for `bnodePattern`.
  */
-export type BnodeProps = Record<string, BnodePropValue>
+export type BnodePropsType = Record<string, BnodePropValueType>
 
 /**
  * Allowed values for blank node properties:
  *
- * - Single scalar term (string/number/boolean/Date/SparqlValue/null/undefined).
+ * - Single scalar term (string/number/boolean/Date/SparqlValueType/null/undefined).
  * - Arrays or other iterables → become **object lists**:
  *   `predicate v1 , v2 , v3`.
  * - Nested property objects → become nested `[ ... ]` blank nodes.
  */
-export type BnodePropValue =
-  | SparqlInterpolatable
-  | Iterable<SparqlInterpolatable>
+export type BnodePropValueType =
+  | SparqlInterpolatableType
+  | Iterable<SparqlInterpolatableType>
 
 /**
- * Internal: check for a "plain" object (not Date, not SparqlValue, etc.).
+ * Internal: check for a "plain" object (not Date, not SparqlValueType, etc.).
  */
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object') {
@@ -1385,7 +1417,7 @@ export function toPredicateName(key: string): string {
   }
 
   // `a` = `rdf:type` its a common shortcut in SPARQL
-  if (key === "a") return key
+  if (key === 'a') return key
 
   // Fallback: assume a default ":" prefix is bound.
   return `:${key}`
@@ -1454,7 +1486,7 @@ export function toPredicateName(key: string): string {
  * // ]
  * ```
  */
-export function bnodePattern(props: BnodeProps): SparqlTerm {
+export function bnodePattern(props: BnodePropsType): SparqlTermType {
   const entries = Object.entries(props)
 
   if (entries.length === 0) {
@@ -1468,7 +1500,7 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
 
     if (rawVal === null || rawVal === undefined) {
       throw new Error(
-        `Property "${rawKey}" is null/undefined in bnodePattern(). Omit it or model absence with OPTIONAL patterns instead.`
+        `Property "${rawKey}" is null/undefined in bnodePattern(). Omit it or model absence with OPTIONAL patterns instead.`,
       )
     }
 
@@ -1478,7 +1510,7 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
       !isSparqlValue(rawVal) &&
       !(rawVal instanceof Date)
     ) {
-      const nested = bnodePattern(rawVal as BnodeProps)
+      const nested = bnodePattern(rawVal as BnodePropsType)
       propertyFragments.push(`${predicate} ${nested.value}`)
       continue
     }
@@ -1487,13 +1519,13 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
     if (Array.isArray(rawVal) || isNonStringIterable(rawVal)) {
       const objects: string[] = []
 
-      for (const item of rawVal as Iterable<SparqlInterpolatable>) {
+      for (const item of rawVal as Iterable<SparqlInterpolatableType>) {
         objects.push(convertValue(item))
       }
 
       if (objects.length === 0) {
         throw new Error(
-          `Property "${rawKey}" has an empty iterable in bnodePattern().`
+          `Property "${rawKey}" has an empty iterable in bnodePattern().`,
         )
       }
 
@@ -1503,7 +1535,7 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
 
     // Single scalar value.
     propertyFragments.push(
-      `${predicate} ${convertValue(rawVal as SparqlInterpolatable)}`
+      `${predicate} ${convertValue(rawVal as SparqlInterpolatableType)}`,
     )
   }
 
@@ -1519,10 +1551,10 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
  *
  * It:
  * - Interpolates values using `convertValue` (scalars) or lets you insert
- *   richer fragments using `SparqlValue` helpers (`raw`, `valuesList`, etc.).
+ *   richer fragments using `SparqlValueType` helpers (`raw`, `valuesList`, etc.).
  * - Normalizes only the common indentation introduced by the template call site.
  *
- * Because `SparqlInterpolatable` deliberately excludes arrays/objects, you are
+ * Because `SparqlInterpolatableType` deliberately excludes arrays/objects, you are
  * guided towards the explicit helpers for composite structures.
  *
  * @example Basic query with scalars
@@ -1570,14 +1602,14 @@ export function bnodePattern(props: BnodeProps): SparqlTerm {
  */
 export function sparql(
   strings: TemplateStringsArray,
-  ...values: SparqlInterpolatable[]
-): SparqlValue {
+  ...values: SparqlInterpolatableType[]
+): SparqlValueType {
   let result = strings[0] ?? ''
 
   for (let i = 0; i < values.length; i++) {
     const value = values[i]
 
-    // SparqlValue fragments are injected as-is.
+    // SparqlValueType fragments are injected as-is.
     if (isSparqlValue(value)) {
       result += value.value
     } else {
@@ -1590,7 +1622,6 @@ export function sparql(
 
   return raw(normalizeTemplate(result))
 }
-
 
 /** Serializes an RDF/JS term as SPARQL syntax without losing RDF semantics. */
 export function rdfTerm(term: RdfTerm): string {
@@ -1606,7 +1637,9 @@ export function rdfTerm(term: RdfTerm): string {
     case 'Literal': {
       const literal = term as RdfLiteral
       const lexical = `"${escapeString(literal.value, '"')}"`
-      if (literal.language) return `${lexical}@${literal.language}${literal.direction ? `--${literal.direction}` : ''}`
+      if (literal.language) {
+        return `${lexical}@${literal.language}${literal.direction ? `--${literal.direction}` : ''}`
+      }
       if (literal.datatype.value === XSD.string) return lexical
       return `${lexical}^^<${escapeIriForQuery(literal.datatype.value)}>`
     }
@@ -1615,7 +1648,9 @@ export function rdfTerm(term: RdfTerm): string {
       if (triple.graph.termType !== 'DefaultGraph') {
         throw new TypeError('A SPARQL triple-term expression cannot contain a named graph.')
       }
-      return `<<( ${rdfTerm(triple.subject)} ${rdfTerm(triple.predicate)} ${rdfTerm(triple.object)} )>>`
+      return `<<( ${rdfTerm(triple.subject)} ${rdfTerm(triple.predicate)} ${
+        rdfTerm(triple.object)
+      } )>>`
     }
   }
 }
@@ -1626,7 +1661,9 @@ export function rdfTerm(term: RdfTerm): string {
  */
 function normalizeTemplate(value: string): string {
   const lines = value.replace(/^\n/, '').replace(/\n\s*$/, '').split('\n')
-  const indents = lines.filter((line) => line.trim()).map((line) => line.match(/^\s*/)?.[0].length ?? 0)
+  const indents = lines.filter((line) => line.trim()).map((line) =>
+    line.match(/^\s*/)?.[0].length ?? 0
+  )
   const common = indents.length === 0 ? 0 : Math.min(...indents)
   return lines.map((line) => line.slice(common)).join('\n')
 }

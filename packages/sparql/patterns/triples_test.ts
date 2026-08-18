@@ -9,7 +9,9 @@ describe('@okikio/sparql triple patterns', () => {
   })
 
   it('accepts RDF named nodes in every RDF IRI-bearing position', () => {
-    expect(triple(namedNode('urn:s'), namedNode('urn:p'), namedNode('urn:o')).value).toBe('<urn:s> <urn:p> <urn:o> .')
+    expect(triple(namedNode('urn:s'), namedNode('urn:p'), namedNode('urn:o')).value).toBe(
+      '<urn:s> <urn:p> <urn:o> .',
+    )
   })
 
   it('rejects empty grouped predicate-object lists', () => {

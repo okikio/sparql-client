@@ -1,5 +1,5 @@
 /**
- * Graph pattern matching inspired by Cypher.
+ * GraphTermType pattern matching inspired by Cypher.
  *
  * SPARQL's verbose syntax makes queries hard to read, especially when you're describing
  * complex graph structures. These pattern helpers let you think in terms of nodes and
@@ -16,32 +16,32 @@
  * @module
  */
 
-import { RDF, isTerm as isRdfTerm, namedNode } from '@okikio/rdf'
+import { isTerm as isRdfTerm, namedNode, RDF } from '@okikio/rdf'
 
 import {
-  toVarToken,
+  type PatternValueType,
+  raw,
+  rawPattern,
+  rawTerm,
+  rdfTerm,
+  SPARQL_PATTERN_BRAND,
+  SPARQL_VALUE_BRAND,
+  type SparqlTermType,
+  type SparqlValueType,
   toPredicateName,
   toRawString,
+  toVarToken,
   variable,
-  raw,
-  rdfTerm,
-  rawTerm,
-  rawPattern,
-  SPARQL_VALUE_BRAND,
-  SPARQL_PATTERN_BRAND,
-  type SparqlValue,
-  type SparqlTerm,
-  type PatternValue,
 } from '../sparql.ts'
 import { exprTermString } from '../utils.ts'
 
 import {
-  triples,
+  type PredicateObjectListType,
   triple,
-  type TriplePredicate,
-  type TripleObject,
-  type PredicateObjectList,
-} from "./triples.ts"
+  type TripleObjectType,
+  type TriplePredicateType,
+  triples,
+} from './triples.ts'
 
 // ============================================================================
 // Design Philosophy
@@ -71,25 +71,28 @@ import {
  * Can be a simple triple object (literal, IRI, variable) or another Node for
  * nested structures. Arrays let you specify multiple values for one property.
  */
-export type PropertyAtomic = TripleObject | Node
+export type PropertyAtomicType = TripleObjectType | Node
 /** One object-pattern property value or a repeated set of property values. */
-export type PropertyValue = PropertyAtomic | PropertyAtomic[]
+export type PropertyValueType = PropertyAtomicType | PropertyAtomicType[]
 
 /**
  * Map of property names to values.
  */
-export interface NodePropertyMap {
-  [predicate: string]: PropertyValue
+export interface NodePropertyMapType {
+  /** Additional keyed values accepted by this standards-compatible structural record. */
+  [predicate: string]: PropertyValueType
 }
 
 /** Predicate-preserving property entry used internally by node and edge builders. */
 interface PropertyEntryType {
-  readonly predicate: TriplePredicate
-  value: PropertyValue
+  /** RDF predicate IRI represented by this statement, pattern, or index entry. */
+  readonly predicate: TriplePredicateType
+  /** Object value emitted for this predicate when the property pattern is serialized. */
+  value: PropertyValueType
 }
 
 /** Creates a stable comparison key without changing the predicate's lexical form. */
-function predicateKey(predicate: TriplePredicate): string {
+function predicateKey(predicate: TriplePredicateType): string {
   if (typeof predicate === 'string') return `string:${predicate}`
   if (isRdfTerm(predicate)) return `iri:${predicate.value}`
   return `term:${predicate.value}`
@@ -206,29 +209,49 @@ function predicateKey(predicate: TriplePredicate): string {
  *   )
  * ```
  */
-export class Node implements PatternValue {
+export class Node implements PatternValueType {
+  /** Compile-time brand that prevents unrelated values from satisfying the SPARQL value contract structurally. */
   readonly [SPARQL_VALUE_BRAND] = true as const
+  /** Compile-time brand that marks values that can be emitted as SPARQL graph patterns. */
   readonly [SPARQL_PATTERN_BRAND] = true as const
 
-  readonly subjectTerm: SparqlTerm
+  /** Converts the supplied subject input into a validated SPARQL subject term. */
+  readonly subjectTerm: SparqlTermType
+  /** Returns the variable name without its optional leading question mark. */
   private readonly varName: string
-  private readonly typesTerm: TriplePredicate[] = []
+  /** Builds the RDF type term or expression used by the object-pattern helpers. */
+  private readonly typesTerm: TriplePredicateType[] = []
+  /** Property records or property definitions owned by this model. */
   private readonly properties: PropertyEntryType[] = []
 
   // Fluent getters for natural chaining
   /** Fluent no-op alias that keeps natural-language Node chains on the same immutable pattern object. */
-  get is(): this { return this }
+  get is(): this {
+    return this
+  }
   /** Fluent no-op alias used to continue Node property/type chains without changing semantics. */
-  get with(): this { return this }
+  get with(): this {
+    return this
+  }
   /** Fluent no-op alias used to join consecutive Node clauses without allocating another wrapper. */
-  get and(): this { return this }
+  get and(): this {
+    return this
+  }
   /** Fluent no-op alias used by natural-language Node chains before a following predicate operation. */
-  get that(): this { return this }
+  get that(): this {
+    return this
+  }
   /** Fluent no-op alias used by natural-language Node chains before adding another property. */
-  get has(): this { return this }
+  get has(): this {
+    return this
+  }
 
   /** Creates a variable-backed graph-pattern node and normalizes optional type/property seeds into predicate-preserving entries. */
-  constructor(subject: string | SparqlTerm, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap) {
+  constructor(
+    subject: string | SparqlTermType,
+    type?: TriplePredicateType | TriplePredicateType[],
+    options?: NodePropertyMapType,
+  ) {
     const subjectString = toVarToken(subject)
 
     this.varName = subjectString
@@ -250,7 +273,11 @@ export class Node implements PatternValue {
   }
 
   /** Creates a variable-backed node using the fluent object-pattern API. */
-  static create(name: string, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap): Node {
+  static create(
+    name: string,
+    type?: TriplePredicateType | TriplePredicateType[],
+    options?: NodePropertyMapType,
+  ): Node {
     return new Node(name, type, options)
   }
 
@@ -260,7 +287,7 @@ export class Node implements PatternValue {
    * Use this when you need to reference the node as an object in another triple.
    * For example, when connecting two nodes with a relationship.
    */
-  term(): SparqlTerm {
+  term(): SparqlTermType {
     return this.subjectTerm
   }
 
@@ -275,13 +302,13 @@ export class Node implements PatternValue {
    * node('person').a('foaf:Person').a('schema:Author')
    * ```
    */
-  a(typeIri: TriplePredicate): this {
+  a(typeIri: TriplePredicateType): this {
     this.typesTerm.push(typeIri)
     return this
   }
 
   /** Alias for {@link a} with more explicit naming. */
-  type(typeIri: TriplePredicate): this {
+  type(typeIri: TriplePredicateType): this {
     this.a(typeIri)
     return this
   }
@@ -294,9 +321,10 @@ export class Node implements PatternValue {
    * node('item').types(['schema:Product', 'schema:CreativeWork'])
    * ```
    */
-  types(typesIri: TriplePredicate[]): this {
-    for (const typeIri of typesIri)
-      this.a(typeIri);
+  types(typesIri: TriplePredicateType[]): this {
+    for (const typeIri of typesIri) {
+      this.a(typeIri)
+    }
     return this
   }
 
@@ -325,7 +353,7 @@ export class Node implements PatternValue {
    * node('product').prop('schema:publisher', node('publisher', 'schema:Organization'))
    * ```
    */
-  prop(predicate: TriplePredicate, value: PropertyValue): this {
+  prop(predicate: TriplePredicateType, value: PropertyValueType): this {
     const key = predicateKey(predicate)
     const entry = this.properties.find((item) => predicateKey(item.predicate) === key)
 
@@ -358,7 +386,7 @@ export class Node implements PatternValue {
    * })
    * ```
    */
-  props(map: NodePropertyMap): this {
+  props(map: NodePropertyMapType): this {
     for (const [key, value] of Object.entries(map)) {
       this.prop(key, value)
     }
@@ -376,7 +404,7 @@ export class Node implements PatternValue {
     if (visited.has(this)) return ''
     visited.add(this)
 
-    const pairs: PredicateObjectList = []
+    const pairs: PredicateObjectListType = []
     const nested: string[] = []
 
     for (const type of this.typesTerm) {
@@ -384,8 +412,8 @@ export class Node implements PatternValue {
       pairs.push([namedNode(RDF.type), object])
     }
 
-    const push = (predicate: TriplePredicate, atomic: PropertyAtomic): void => {
-      let object: TripleObject
+    const push = (predicate: TriplePredicateType, atomic: PropertyAtomicType): void => {
+      let object: TripleObjectType
       if (atomic instanceof Node) {
         object = atomic.term()
         const value = atomic.buildPatternInternal(visited)
@@ -406,11 +434,11 @@ export class Node implements PatternValue {
   }
 
   /**
-   * Get the full SPARQL pattern as a SparqlValue.
+   * Get the full SPARQL pattern as a SparqlValueType.
    *
    * Call this to get the complete pattern including all nested nodes.
    */
-  pattern(): PatternValue {
+  pattern(): PatternValueType {
     const visited = new Set<Node>()
     const text = this.buildPatternInternal(visited)
     return rawPattern(text)
@@ -419,8 +447,8 @@ export class Node implements PatternValue {
   /**
    * Get the SPARQL pattern string.
    *
-   * This implements SparqlValue.value, which means you can pass Node objects
-   * directly to query builder methods that expect SparqlValue.
+   * This implements SparqlValueType.value, which means you can pass Node objects
+   * directly to query builder methods that expect SparqlValueType.
    *
    * ⚠️ Warning: This returns the full pattern, not just the variable. If you
    * want to use this node as an object in a triple, call term() instead.
@@ -445,8 +473,9 @@ export class Node implements PatternValue {
  * Like nodes, relationships can have properties too. This is called reification
  * in RDF - treating the edge itself as a resource with facts about it.
  */
-export interface RelationshipPropertyMap {
-  [predicate: string]: PropertyValue
+export interface RelationshipPropertyMapType {
+  /** Additional keyed values accepted by this standards-compatible structural record. */
+  [predicate: string]: PropertyValueType
 }
 
 /**
@@ -561,29 +590,43 @@ export interface RelationshipPropertyMap {
  *   .where(friend2Rel)
  * ```
  */
-export class Relationship implements PatternValue {
+export class Relationship implements PatternValueType {
+  /** Compile-time brand that prevents unrelated values from satisfying the SPARQL value contract structurally. */
   readonly [SPARQL_VALUE_BRAND] = true as const
+  /** Compile-time brand that marks values that can be emitted as SPARQL graph patterns. */
   readonly [SPARQL_PATTERN_BRAND] = true as const
 
-  private readonly fromTerm: SparqlTerm
-  private readonly toTerm: SparqlTerm
-  private readonly predicate: TriplePredicate
+  /** Converts an RDF/JS term into the corresponding SPARQL value wrapper. */
+  private readonly fromTerm: SparqlTermType
+  /** Converts a SPARQL term wrapper back to an RDF/JS term when representable. */
+  private readonly toTerm: SparqlTermType
+  /** RDF predicate IRI represented by this statement, pattern, or index entry. */
+  private readonly predicate: TriplePredicateType
+  /** Property records or property definitions owned by this model. */
   private readonly properties: PropertyEntryType[] = []
 
   /** Fluent no-op alias used to continue relationship metadata chains on the same pattern. */
-  get with(): this { return this }
+  get with(): this {
+    return this
+  }
   /** Fluent no-op alias used to join relationship metadata clauses without changing the RDF statement. */
-  get and(): this { return this }
+  get and(): this {
+    return this
+  }
   /** Fluent no-op alias retained for natural-language relationship chaining. */
-  get that(): this { return this }
+  get that(): this {
+    return this
+  }
   /** Fluent no-op alias used before attaching another reified relationship property. */
-  get has(): this { return this }
+  get has(): this {
+    return this
+  }
 
   /** Captures caller endpoints as SPARQL terms and preserves the predicate term without flattening RDF IRIs to strings. */
   constructor(
-    from: Node | string | SparqlTerm,
-    predicate: TriplePredicate,
-    to: Node | string | SparqlTerm,
+    from: Node | string | SparqlTermType,
+    predicate: TriplePredicateType,
+    to: Node | string | SparqlTermType,
   ) {
     if (from instanceof Node) {
       this.fromTerm = from.term()
@@ -603,7 +646,7 @@ export class Relationship implements PatternValue {
   /** Creates a relationship between two variable-backed nodes using the supplied predicate term. */
   static create(
     fromVar: string,
-    predicate: TriplePredicate,
+    predicate: TriplePredicateType,
     toVar: string,
   ): Relationship {
     return new Relationship(fromVar, predicate, toVar)
@@ -621,7 +664,7 @@ export class Relationship implements PatternValue {
    * rel('person', 'knows', 'friend').prop('timestamp', dateTime(new Date()))
    * ```
    */
-  prop(predicate: TriplePredicate, value: PropertyValue): this {
+  prop(predicate: TriplePredicateType, value: PropertyValueType): this {
     const key = predicateKey(predicate)
     const entry = this.properties.find((item) => predicateKey(item.predicate) === key)
     if (!entry) {
@@ -641,7 +684,7 @@ export class Relationship implements PatternValue {
    * Convenient when you have several properties to set. Just pass an object
    * where keys are predicates and values are objects.
    */
-  props(map: RelationshipPropertyMap): this {
+  props(map: RelationshipPropertyMapType): this {
     for (const [key, value] of Object.entries(map)) {
       this.prop(key, value)
     }
@@ -655,8 +698,12 @@ export class Relationship implements PatternValue {
    * blank node identifier. Same relationship always gets the same ID.
    */
   private getEdgeId(): string {
-    const predicate = isRdfTerm(this.predicate) ? rdfTerm(this.predicate) : toPredicateName(toRawString(this.predicate))
-    const hash = simpleHash(`${toVarToken(this.fromTerm)}|${predicate}|${exprTermString(this.toTerm)}`)
+    const predicate = isRdfTerm(this.predicate)
+      ? rdfTerm(this.predicate)
+      : toPredicateName(toRawString(this.predicate))
+    const hash = simpleHash(
+      `${toVarToken(this.fromTerm)}|${predicate}|${exprTermString(this.toTerm)}`,
+    )
     return `_:edge_${hash}`
   }
 
@@ -666,7 +713,7 @@ export class Relationship implements PatternValue {
    * If there are no properties, just generates the basic triple. If there are
    * properties, generates the triple plus a reification structure.
    */
-  private buildTriples(): SparqlValue {
+  private buildTriples(): SparqlValueType {
     const base = triple(this.fromTerm, this.predicate, this.toTerm)
 
     if (this.properties.length === 0) {
@@ -675,16 +722,21 @@ export class Relationship implements PatternValue {
 
     // Reify with properties
     const edgeId = this.getEdgeId()
-    const poList: PredicateObjectList = [
+    const poList: PredicateObjectListType = [
       [namedNode(RDF.type), namedNode(RDF.statement)],
       [namedNode(RDF.subject), this.fromTerm],
-      [namedNode(RDF.predicate), typeof this.predicate === 'string' ? rawTerm(this.predicate) : this.predicate],
+      [
+        namedNode(RDF.predicate),
+        typeof this.predicate === 'string' ? rawTerm(this.predicate) : this.predicate,
+      ],
       [namedNode(RDF.object), this.toTerm],
     ]
     for (const entry of this.properties) {
       const values = Array.isArray(entry.value) ? entry.value : [entry.value]
       for (const value of values) {
-        if (value instanceof Node) throw new TypeError('Relationship metadata cannot contain a nested Node value.')
+        if (value instanceof Node) {
+          throw new TypeError('Relationship metadata cannot contain a nested Node value.')
+        }
         poList.push([entry.predicate, value])
       }
     }
@@ -721,7 +773,11 @@ export class Relationship implements PatternValue {
  *   .prop('foaf:age', v('age'))
  * ```
  */
-export function node(name: string, type?: TriplePredicate | TriplePredicate[], options?: NodePropertyMap): Node {
+export function node(
+  name: string,
+  type?: TriplePredicateType | TriplePredicateType[],
+  options?: NodePropertyMapType,
+): Node {
   return Node.create(name, type, options)
 }
 
@@ -742,7 +798,7 @@ export function node(name: string, type?: TriplePredicate | TriplePredicate[], o
  */
 export function rel(
   fromVar: string,
-  predicate: TriplePredicate,
+  predicate: TriplePredicateType,
   toVar: string,
 ): Relationship {
   return Relationship.create(fromVar, predicate, toVar)
@@ -764,8 +820,8 @@ export function rel(
  * ```
  */
 export function match(
-  ...patterns: Array<Node | Relationship | SparqlValue>
-): SparqlValue {
+  ...patterns: Array<Node | Relationship | SparqlValueType>
+): SparqlValueType {
   const built = patterns.map((p) => p.value)
   return raw(`${built.join('\n    ')}`)
 }

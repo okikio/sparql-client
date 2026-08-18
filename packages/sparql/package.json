@@ -9,7 +9,8 @@
   "exports": {
     ".": "./mod.ts",
     "./http": "./http/mod.ts",
-    "./syntax": "./syntax/mod.ts"
+    "./syntax": "./syntax/mod.ts",
+    "./graph-store": "./graph-store/mod.ts"
   },
   "description": "SPARQL construction, syntax inspection, and query contracts for TypeScript.",
   "license": "MIT",

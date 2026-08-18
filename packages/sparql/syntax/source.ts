@@ -11,7 +11,10 @@ const DIRECT_CHUNK_SIZE = 16 * 1024
  * A Web stream reader is cancelled when the syntax consumer stops early. A
  * pending read is also cancelled when the operation signal aborts.
  */
-export async function* chunks(source: SourceType, signal?: AbortSignal): AsyncGenerator<string | Uint8Array> {
+export async function* chunks(
+  source: SourceType,
+  signal?: AbortSignal,
+): AsyncGenerator<string | Uint8Array> {
   if (typeof source === 'string') {
     for (let offset = 0; offset < source.length; offset += DIRECT_CHUNK_SIZE) {
       throwIfAborted(signal)
@@ -42,7 +45,11 @@ export async function* chunks(source: SourceType, signal?: AbortSignal): AsyncGe
         yield item.value
       }
     } finally {
-      if (!complete) await reader.cancel('SPARQL syntax consumer stopped before source completion').catch(() => undefined)
+      if (!complete) {
+        await reader.cancel('SPARQL syntax consumer stopped before source completion').catch(() =>
+          undefined
+        )
+      }
       reader.releaseLock()
     }
   }

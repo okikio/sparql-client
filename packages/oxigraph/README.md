@@ -4,10 +4,10 @@ Adapter from a caller-owned Oxigraph `Store` to `@okikio/sparql`'s result-mode-s
 
 ```ts
 import { Store } from 'oxigraph'
-import { createClient } from '@okikio/oxigraph'
+import { create } from '@okikio/oxigraph'
 
 const store = new Store()
-const client = createClient(store)
+const client = create(store)
 
 const rows = await client.queryBindings(query)
 await client.update(update)

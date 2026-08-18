@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { RDF } from '@okikio/rdf'
-import { Product, name, offers } from '@okikio/vocab/schema'
+import { name, offers, Product } from '@okikio/vocab/schema'
 import { node, rel, variable } from '../mod.ts'
 
 describe('@okikio/sparql object patterns', () => {

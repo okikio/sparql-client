@@ -12,9 +12,16 @@
  */
 
 import { isTerm as isRdfTerm, type Term as RdfTerm } from '@okikio/rdf'
-import type { PatternValue, PredicateInput, SparqlTerm } from '../sparql.ts'
-import { rawPattern, rawTerm, rdfTerm, toPredicateName, toPredicateToken, toVarToken } from '../sparql.ts'
-import { termString, type ExpressionPrimitive } from '../utils.ts'
+import type { PatternValueType, PredicateInputType, SparqlTermType } from '../sparql.ts'
+import {
+  rawPattern,
+  rawTerm,
+  rdfTerm,
+  toPredicateName,
+  toPredicateToken,
+  toVarToken,
+} from '../sparql.ts'
+import { type ExpressionPrimitiveType, termString } from '../utils.ts'
 
 // ============================================================================
 // Triple Component Types
@@ -26,7 +33,7 @@ import { termString, type ExpressionPrimitive } from '../utils.ts'
  * Can be a variable (?person), an IRI (<http://...>), or a blank node.
  * Most often you'll use variables to match multiple resources.
  */
-export type TripleSubject = string | SparqlTerm | RdfTerm
+export type TripleSubjectType = string | SparqlTermType | RdfTerm
 
 /**
  * Predicate of a triple pattern.
@@ -34,7 +41,7 @@ export type TripleSubject = string | SparqlTerm | RdfTerm
  * Can be a prefixed name (foaf:name), full IRI, or variable. Predicates
  * describe relationships or properties.
  */
-export type TriplePredicate = PredicateInput
+export type TriplePredicateType = PredicateInputType
 
 /**
  * Values that are allowed in the object position of a triple, per SPARQL.
@@ -44,19 +51,18 @@ export type TriplePredicate = PredicateInput
  * - an IRI or prefixed name
  * - a literal
  * - a blank node
- *
  */
-export type TripleObject =
-  | SparqlTerm
+export type TripleObjectType =
+  | SparqlTermType
   | RdfTerm
-  | ExpressionPrimitive
+  | ExpressionPrimitiveType
 
 /**
  * Convert subject to string form.
  *
- * Handles both raw strings and SparqlValue objects.
+ * Handles both raw strings and SparqlValueType objects.
  */
-export function tripleSubjectString(subject: TripleSubject): string {
+export function tripleSubjectString(subject: TripleSubjectType): string {
   if (typeof subject === 'string') {
     const value = subject.trim()
     if (/^[?$]/.test(value) || !value.includes(':')) return toVarToken(value)
@@ -69,17 +75,16 @@ export function tripleSubjectString(subject: TripleSubject): string {
 /**
  * Convert predicate to string form.
  */
-export function tripleObjectString(object: TripleObject): string {
+export function tripleObjectString(object: TripleObjectType): string {
   if (isRdfTerm(object)) return rdfTerm(object)
   if (typeof object === 'string' && /^[?$][A-Za-z_][A-Za-z0-9_]*$/.test(object.trim())) {
     return toVarToken(object)
   }
-  return termString(object as SparqlTerm | ExpressionPrimitive, 'object')
+  return termString(object as SparqlTermType | ExpressionPrimitiveType, 'object')
 }
 
-
 /** Converts a predicate input without flattening RDF named nodes to strings. */
-function predicateString(predicate: TriplePredicate): string {
+function predicateString(predicate: TriplePredicateType): string {
   return toPredicateToken(predicate)
 }
 
@@ -116,10 +121,10 @@ function predicateString(predicate: TriplePredicate): string {
  * ```
  */
 export function triple(
-  subject: TripleSubject,
-  predicate: TriplePredicate,
-  object: TripleObject,
-): PatternValue {
+  subject: TripleSubjectType,
+  predicate: TriplePredicateType,
+  object: TripleObjectType,
+): PatternValueType {
   const s = tripleSubjectString(subject)
   const p = predicateString(predicate)
   const o = tripleObjectString(object)
@@ -128,7 +133,7 @@ export function triple(
 }
 
 // ============================================================================
-// Multiple Triples with Shared Subject
+// Multiple triples with a shared subject
 // ============================================================================
 
 /**
@@ -137,7 +142,7 @@ export function triple(
  * Each entry is [predicate, object]. Use this when you want explicit control
  * over the order of properties.
  */
-export type PredicateObjectList = Array<[TriplePredicate, TripleObject]>
+export type PredicateObjectListType = Array<[TriplePredicateType, TripleObjectType]>
 
 /**
  * Object format for predicate-object pairs.
@@ -145,9 +150,9 @@ export type PredicateObjectList = Array<[TriplePredicate, TripleObject]>
  * Keys are predicates, values are objects. Values can be single items or arrays
  * for properties with multiple values.
  */
-export type PredicateObjectMap = Record<
+export type PredicateObjectMapType = Record<
   string,
-  TripleObject | TripleObject[]
+  TripleObjectType | TripleObjectType[]
 >
 
 /**
@@ -191,25 +196,25 @@ export type PredicateObjectMap = Record<
  * same predicate (one for each value).
  */
 export function triples(
-  subject: TripleSubject,
-  predicateObjects: PredicateObjectList | PredicateObjectMap,
-): PatternValue {
+  subject: TripleSubjectType,
+  predicateObjects: PredicateObjectListType | PredicateObjectMapType,
+): PatternValueType {
   const subjectTerm = tripleSubjectString(subject)
 
   // 4 spaces; 2 (block) + 2 (extra)
-  const CONTINUATION_INDENT = '    ';
+  const CONTINUATION_INDENT = '    '
 
   // Normalize to list format
-  const list: PredicateObjectList = Array.isArray(predicateObjects)
+  const list: PredicateObjectListType = Array.isArray(predicateObjects)
     ? predicateObjects
     : Object.entries(predicateObjects).flatMap(([pred, value]) => {
-        if (Array.isArray(value)) {
-          // Multiple values for same predicate → multiple pairs
-          return value.map(
-            (v): [TriplePredicate, TripleObject] => [pred, v],
-          )
-        }
-        return [[pred, value]]
+      if (Array.isArray(value)) {
+        // Multiple values for same predicate → multiple pairs
+        return value.map(
+          (v): [TriplePredicateType, TripleObjectType] => [pred, v],
+        )
+      }
+      return [[pred, value]]
     })
 
   // Build semicolon-separated list
@@ -225,7 +230,9 @@ export function triples(
   })
 
   const [first, ...rest] = lines
-  if (first === undefined) throw new TypeError('triples() requires at least one predicate-object pair.')
+  if (first === undefined) {
+    throw new TypeError('triples() requires at least one predicate-object pair.')
+  }
   if (rest.length === 0) {
     // Single predicate-object: everything on a single line
     // `first` currently has leading spaces; strip them on the left.
@@ -283,10 +290,10 @@ export function triples(
  * ```
  */
 export function tripleTerm(
-  subject: TripleSubject,
-  predicate: TriplePredicate,
-  object: TripleObject,
-): SparqlTerm {
+  subject: TripleSubjectType,
+  predicate: TriplePredicateType,
+  object: TripleObjectType,
+): SparqlTermType {
   const s = tripleSubjectString(subject)
   const p = predicateString(predicate)
   const o = tripleObjectString(object)
