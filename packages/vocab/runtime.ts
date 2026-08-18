@@ -11,8 +11,8 @@
 import type {
   JsonSchemaOptions,
   JsonSchemaTarget,
-  StandardJSONSchemaV1Props,
   StandardIssue,
+  StandardJSONSchemaV1Props,
   StandardResult,
   StandardSchemaV1Props,
 } from './standard.ts'
@@ -37,12 +37,17 @@ export type {
 
 /** Combined validator and JSON Schema converter exposed by generated classes. */
 export interface VocabularySchema<Input = unknown, Output = Input> {
-  readonly '~standard': StandardSchemaV1Props<Input, Output> & StandardJSONSchemaV1Props<Input, Output>
+  /** Standard Schema V1 metadata property consumed by compatible schema tooling. */
+  readonly '~standard':
+    & StandardSchemaV1Props<Input, Output>
+    & StandardJSONSchemaV1Props<Input, Output>
 }
 
 /** JSON-LD reference to another node by IRI. */
 export interface IdReferenceType {
+  /** JSON-LD identifier preserved on generated vocabulary node values. */
   readonly '@id': string
+  /** Additional keyed values accepted by this standards-compatible structural record. */
   readonly [key: string]: unknown
 }
 
@@ -52,27 +57,35 @@ export type ValueType<T> = T | readonly T[]
 /** Open-world generated JSON-LD node. */
 export type NodeType<Type extends string | readonly string[], Properties extends object> = Readonly<
   Properties & {
+    /** JSON-LD type discriminator used by the generated vocabulary node. */
     readonly '@type': Type
+    /** JSON-LD node identifier used by the generated vocabulary node. */
     readonly '@id'?: string
+    /** Optional JSON-LD context retained with the generated vocabulary node. */
     readonly '@context'?: unknown
+    /** Retains vocabulary-specific JSON-LD properties not modeled by the standard fields. */
     readonly [key: string]: unknown
   }
 >
 
 /** Runtime range classes that can be represented safely by the structural validator. */
-export type RangeKind = 'string' | 'number' | 'boolean' | 'node' | 'unknown'
+export type RangeKindType = 'string' | 'number' | 'boolean' | 'node' | 'unknown'
 
 /** Generated runtime schema configuration. */
 export interface SchemaConfigType {
+  /** Named RDF types or generated type names attached to this record. */
   readonly types: readonly string[]
-  readonly properties?: Readonly<Record<string, RangeKind | readonly RangeKind[]>>
+  /** Property records or property definitions owned by this model. */
+  readonly properties?: Readonly<Record<string, RangeKindType | readonly RangeKindType[]>>
   /** Parent class schemas whose property ranges also apply to this class. */
   readonly parents?: () => readonly VocabularySchema[]
 }
 
 /** Internal generated schema metadata retained without copying inherited properties. */
 interface SchemaStateType {
-  readonly properties: Readonly<Record<string, RangeKind | readonly RangeKind[]>>
+  /** Property records or property definitions owned by this model. */
+  readonly properties: Readonly<Record<string, RangeKindType | readonly RangeKindType[]>>
+  /** Parent schemas composed into this generated schema before local properties are checked. */
   readonly parents: () => readonly VocabularySchema[]
 }
 
@@ -91,7 +104,10 @@ export function createSchema<Output>(config: SchemaConfigType): VocabularySchema
     if (!isRecord(value)) return { issues: [{ message: 'Expected a JSON-LD object.' }] }
 
     if (!hasType(value['@type'], config.types)) {
-      issues.push({ message: `Expected @type to include ${config.types.join(', ')}.`, path: ['@type'] })
+      issues.push({
+        message: `Expected @type to include ${config.types.join(', ')}.`,
+        path: ['@type'],
+      })
     }
 
     visitProperties(schema, (name, range) => {
@@ -101,7 +117,10 @@ export function createSchema<Output>(config: SchemaConfigType): VocabularySchema
       const values = Array.isArray(property) ? property : [property]
       for (let index = 0; index < values.length; index++) {
         if (!matches(values[index], kinds)) {
-          issues.push({ message: `Property '${name}' does not match its generated vocabulary range.`, path: [name, index] })
+          issues.push({
+            message: `Property '${name}' does not match its generated vocabulary range.`,
+            path: [name, index],
+          })
         }
       }
     })
@@ -162,7 +181,7 @@ export function createSchema<Output>(config: SchemaConfigType): VocabularySchema
  */
 function visitProperties(
   schema: VocabularySchema,
-  visit: (name: string, range: RangeKind | readonly RangeKind[]) => void,
+  visit: (name: string, range: RangeKindType | readonly RangeKindType[]) => void,
 ): void {
   const schemas = [schema]
   const seenSchemas = new Set<object>()
@@ -196,28 +215,38 @@ function hasType(value: unknown, required: readonly string[]): boolean {
 }
 
 /** Checks one JSON-LD property value against the generated open-world range kinds. */
-function matches(value: unknown, kinds: readonly RangeKind[]): boolean {
+function matches(value: unknown, kinds: readonly RangeKindType[]): boolean {
   if (kinds.includes('unknown')) return true
   return kinds.some((kind) => {
     switch (kind) {
-      case 'string': return typeof value === 'string'
-      case 'number': return typeof value === 'number' && Number.isFinite(value)
-      case 'boolean': return typeof value === 'boolean'
-      case 'node': return typeof value === 'string' || isRecord(value)
-      case 'unknown': return true
+      case 'string':
+        return typeof value === 'string'
+      case 'number':
+        return typeof value === 'number' && Number.isFinite(value)
+      case 'boolean':
+        return typeof value === 'boolean'
+      case 'node':
+        return typeof value === 'string' || isRecord(value)
+      case 'unknown':
+        return true
     }
   })
 }
 
 /** Converts generated vocabulary range kinds into their JSON Schema representation. */
-function jsonRange(kinds: readonly RangeKind[]): Record<string, unknown> {
+function jsonRange(kinds: readonly RangeKindType[]): Record<string, unknown> {
   const schemas = kinds.map((kind): Record<string, unknown> => {
     switch (kind) {
-      case 'string': return { type: 'string' }
-      case 'number': return { type: 'number' }
-      case 'boolean': return { type: 'boolean' }
-      case 'node': return { anyOf: [{ type: 'string' }, { type: 'object' }] }
-      case 'unknown': return {}
+      case 'string':
+        return { type: 'string' }
+      case 'number':
+        return { type: 'number' }
+      case 'boolean':
+        return { type: 'boolean' }
+      case 'node':
+        return { anyOf: [{ type: 'string' }, { type: 'object' }] }
+      case 'unknown':
+        return {}
     }
   })
   return schemas.length === 1 ? schemas[0]! : { anyOf: schemas }
@@ -227,6 +256,10 @@ function jsonRange(kinds: readonly RangeKind[]): Record<string, unknown> {
 function getSchemaUri(target: JsonSchemaTarget): string | undefined {
   if (target === 'draft-2020-12') return 'https://json-schema.org/draft/2020-12/schema'
   if (target === 'draft-07') return 'http://json-schema.org/draft-07/schema#'
-  if (target === 'openapi-3.0') throw new TypeError('OpenAPI 3.0 conversion is not implemented because it is not JSON Schema-equivalent.')
+  if (target === 'openapi-3.0') {
+    throw new TypeError(
+      'OpenAPI 3.0 conversion is not implemented because it is not JSON Schema-equivalent.',
+    )
+  }
   throw new TypeError(`Unsupported JSON Schema target '${target}'.`)
 }

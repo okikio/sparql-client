@@ -2,21 +2,28 @@
 
 import type { ManifestType, PropertyType, VocabularyModelType } from './model.ts'
 import { createManifest } from './manifest.ts'
-import { plan, type NamePlanType } from './name.ts'
-import type { RangeKind } from './runtime.ts'
+import { type NamePlanType, plan } from './name.ts'
+import type { RangeKindType } from './runtime.ts'
 
 /** TypeScript vocabulary emission options. */
 export interface EmitOptionsType {
+  /** Human-readable vocabulary name used in generated module documentation and manifest metadata. */
   readonly vocabulary: string
+  /** Base vocabulary namespace IRI used by every generated term. */
   readonly namespace: string
+  /** Preferred generated identifier prefix when a vocabulary needs one. */
   readonly prefix: string
+  /** Module specifier used by generated source for RDF runtime imports. */
   readonly rdfImport?: string
+  /** Module specifier used by generated source for vocabulary runtime imports. */
   readonly runtimeImport?: string
 }
 
 /** Complete deterministic vocabulary generation result. */
 export interface EmitResultType {
+  /** Complete generated TypeScript module source. */
   readonly source: string
+  /** Deterministic manifest that maps source IRIs to emitted TypeScript symbols. */
   readonly manifest: ManifestType
 }
 
@@ -41,7 +48,11 @@ export function emit(model: VocabularyModelType, options: EmitOptionsType): Emit
   writer.line(' */')
   writer.line('')
   writer.line(`import { namedNode } from ${quote(rdfImport)}`)
-  writer.line(`import { createSchema, type IdReferenceType, type NodeType, type ValueType } from ${quote(runtimeImport)}`)
+  writer.line(
+    `import { createSchema, type IdReferenceType, type NodeType, type ValueType } from ${
+      quote(runtimeImport)
+    }`,
+  )
   writer.line('')
   writer.line('/** Base IRI used by every generated vocabulary term in this module. */')
   writer.line(`export const namespace = ${quote(options.namespace)}`)
@@ -95,12 +106,16 @@ function emitProperties(writer: Writer, model: VocabularyModelType, names: NameP
       .filter((name): name is string => name !== undefined)
       .map((name) => `${name}PropertiesType`)
     const heritage = supers.length > 0 ? ` extends ${supers.join(', ')}` : ''
-    writer.line(`/** JSON-LD properties directly available to ${className}, including inherited interfaces. */`)
+    writer.line(
+      `/** JSON-LD properties directly available to ${className}, including inherited interfaces. */`,
+    )
     writer.line(`export interface ${className}PropertiesType${heritage} {`)
     writer.indent(() => {
       for (const property of byDomain.get(value.iri) ?? []) {
         const propertyName = names.properties.get(property.iri)!
-        writer.line(`readonly ${propertyKey(propertyName)}?: ValueType<${propertyType(property, names)}>`)
+        writer.line(
+          `readonly ${propertyKey(propertyName)}?: ValueType<${propertyType(property, names)}>`,
+        )
       }
     })
     writer.line('}')
@@ -122,7 +137,9 @@ function emitClasses(writer: Writer, model: VocabularyModelType, names: NamePlan
     writer.line(`export const ${name}Schema = createSchema<${name}Type>({`)
     writer.indent(() => {
       writer.line(`types: [${quote(name)}],`)
-      if (parents.length > 0) writer.line(`parents: () => [${parents.map((parent) => `${parent}Schema`).join(', ')}],`)
+      if (parents.length > 0) {
+        writer.line(`parents: () => [${parents.map((parent) => `${parent}Schema`).join(', ')}],`)
+      }
       const properties = directProperties.get(value.iri) ?? []
       if (properties.length > 0) {
         writer.line('properties: {')
@@ -149,7 +166,9 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
     writer.line(`export type ${name}Type = ${scalarType(iri) ?? 'unknown'}`)
   }
   writer.line('')
-  writer.line('/** Generated class-name to property-interface map used by multi-typed JSON-LD nodes. */')
+  writer.line(
+    '/** Generated class-name to property-interface map used by multi-typed JSON-LD nodes. */',
+  )
   writer.line('export interface TypeMapType {')
   writer.indent(() => {
     for (const value of model.classes) {
@@ -162,14 +181,28 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   writer.line('/** Every generated vocabulary class name accepted by multi-type nodes. */')
   writer.line('export type ClassNameType = keyof TypeMapType')
   writer.line('/** Resolves one generated class name to its property interface. */')
-  writer.line('type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never')
-  writer.line('/** Converts the selected class-property union into one intersection for multi-typed nodes. */')
-  writer.line('type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never')
+  writer.line(
+    'type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never',
+  )
+  writer.line(
+    '/** Converts the selected class-property union into one intersection for multi-typed nodes. */',
+  )
+  writer.line(
+    'type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never',
+  )
   writer.line('')
-  writer.line('/** Intersects the properties contributed by every class on a multi-typed JSON-LD node. */')
-  writer.line('type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object')
-  writer.line('/** JSON-LD node carrying all properties contributed by the selected generated class names. */')
-  writer.line('export type MultiTypeType<Types extends readonly ClassNameType[]> = NodeType<Types, MergedPropertiesType<Types>>')
+  writer.line(
+    '/** Intersects the properties contributed by every class on a multi-typed JSON-LD node. */',
+  )
+  writer.line(
+    'type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object',
+  )
+  writer.line(
+    '/** JSON-LD node carrying all properties contributed by the selected generated class names. */',
+  )
+  writer.line(
+    'export type MultiTypeType<Types extends readonly ClassNameType[]> = NodeType<Types, MergedPropertiesType<Types>>',
+  )
 }
 
 /** Indexes properties by directly declared domain without treating RDFS domain as requiredness. */
@@ -185,7 +218,6 @@ function propertiesByDomain(model: VocabularyModelType): Map<string, PropertyTyp
   for (const values of result.values()) values.sort((a, b) => a.iri.localeCompare(b.iri))
   return result
 }
-
 
 /** Builds the generated TypeScript value type for one ontology property range. */
 function propertyType(property: PropertyType, names: NamePlanType): string {
@@ -212,13 +244,16 @@ function scalarType(iri: string): string | undefined {
   if (iri === 'https://schema.org/Boolean' || iri === 'http://schema.org/Boolean') return 'boolean'
   if (iri === 'http://www.w3.org/2001/XMLSchema#string') return 'string'
   if (iri === 'http://www.w3.org/2001/XMLSchema#boolean') return 'boolean'
-  if (/^http:\/\/www\.w3\.org\/2001\/XMLSchema#(?:decimal|double|float|integer|int|long|short|byte|nonNegativeInteger|nonPositiveInteger|positiveInteger|negativeInteger|unsignedLong|unsignedInt|unsignedShort|unsignedByte)$/.test(iri)) return 'number'
+  if (
+    /^http:\/\/www\.w3\.org\/2001\/XMLSchema#(?:decimal|double|float|integer|int|long|short|byte|nonNegativeInteger|nonPositiveInteger|positiveInteger|negativeInteger|unsignedLong|unsignedInt|unsignedShort|unsignedByte)$/
+      .test(iri)
+  ) return 'number'
   return undefined
 }
 
 /** Builds the runtime range descriptor emitted into a generated Standard Schema. */
 function rangeLiteral(property: PropertyType): string {
-  const kinds = new Set<RangeKind>()
+  const kinds = new Set<RangeKindType>()
   if (property.ranges.length === 0) kinds.add('unknown')
   for (const range of property.ranges) {
     const scalar = scalarType(range)
@@ -234,7 +269,10 @@ function rangeLiteral(property: PropertyType): string {
 /** Writes normalized ontology documentation and deprecation metadata into generated TSDoc. */
 function emitDoc(
   writer: Writer,
-  comments: readonly { readonly value: string }[],
+  comments: readonly {
+    /** One human-readable documentation line emitted before the generated vocabulary symbol. */
+    readonly value: string
+  }[],
   deprecated: boolean,
   fallback: string,
 ): void {
@@ -268,7 +306,9 @@ function quote(value: string): string {
 
 /** Internal Writer implementation and its owned state. */
 class Writer {
+  /** Generated source lines accumulated in deterministic emission order. */
   #lines: string[] = []
+  /** Current indentation depth applied when the writer appends a source line. */
   #depth = 0
 
   /** Appends one source line at the current indentation depth. */

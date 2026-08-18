@@ -10,19 +10,65 @@ export interface NameOptionsType {
 
 /** Planned generated symbols for classes, properties, and datatypes. */
 export interface NamePlanType {
+  /** Normalized RDF/OWL class records discovered across the inspected sources. */
   readonly classes: ReadonlyMap<string, string>
+  /** Property records or property definitions owned by this model. */
   readonly properties: ReadonlyMap<string, string>
+  /** Datatype IRIs discovered or referenced by the inspected ontology sources. */
   readonly datatypes: ReadonlyMap<string, string>
+  /** Generated source symbols indexed by their vocabulary IRIs. */
   readonly symbols: readonly SymbolType[]
 }
 
 /** ECMAScript/TypeScript words that cannot be emitted unchanged as binding identifiers. */
 const RESERVED = new Set([
-  'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default',
-  'delete', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function',
-  'if', 'implements', 'import', 'in', 'instanceof', 'interface', 'let', 'new', 'null',
-  'package', 'private', 'protected', 'public', 'return', 'static', 'super', 'switch', 'this',
-  'throw', 'true', 'try', 'typeof', 'undefined', 'var', 'void', 'while', 'with', 'yield',
+  'await',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'implements',
+  'import',
+  'in',
+  'instanceof',
+  'interface',
+  'let',
+  'new',
+  'null',
+  'package',
+  'private',
+  'protected',
+  'public',
+  'return',
+  'static',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'undefined',
+  'var',
+  'void',
+  'while',
+  'with',
+  'yield',
 ])
 
 /**
@@ -45,8 +91,16 @@ export function plan(model: VocabularyModelType, options: NameOptionsType): Name
     classes.set(value.iri, name)
     symbols.push({ iri: value.iri, kind: 'class', name })
   }
-  for (const value of [...model.properties].sort((left, right) => left.iri.localeCompare(right.iri))) {
-    const name = claim(preferred(value.names, value.iri), value.iri, options.prefix, used, 'Property')
+  for (
+    const value of [...model.properties].sort((left, right) => left.iri.localeCompare(right.iri))
+  ) {
+    const name = claim(
+      preferred(value.names, value.iri),
+      value.iri,
+      options.prefix,
+      used,
+      'Property',
+    )
     properties.set(value.iri, name)
     symbols.push({ iri: value.iri, kind: 'property', name })
   }
@@ -106,7 +160,9 @@ function safePrefix(value: string): string {
 /** Converts punctuation-separated source text into a valid PascalCase identifier candidate. */
 function pascal(value: string): string {
   const parts = value.split(/[^A-Za-z0-9_$]+/g).filter(Boolean)
-  const joined = parts.map((part) => part.length === 0 ? '' : `${part[0]!.toUpperCase()}${part.slice(1)}`).join('')
+  const joined = parts.map((part) =>
+    part.length === 0 ? '' : `${part[0]!.toUpperCase()}${part.slice(1)}`
+  ).join('')
   if (!joined) return 'Term'
   return /^[A-Za-z_$]/.test(joined) ? joined : `Term${joined}`
 }

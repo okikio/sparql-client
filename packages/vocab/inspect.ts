@@ -9,9 +9,9 @@
  */
 
 import {
-  read as readOntology,
+  inspect as inspectOntology,
+  type InspectOptionsType as OntologyInspectOptionsType,
   type OntologySourceType,
-  type ReadOptions as OntologyReadOptions,
 } from '@okikio/rdf/ontology'
 import type { ClassType, PropertyType, VocabularyModelType } from './model.ts'
 
@@ -26,24 +26,35 @@ const SCHEMA_HTTP_RANGE = 'http://schema.org/rangeIncludes'
 
 export type { OntologySourceType }
 
-/** Additional vocabulary conventions accepted by the generator reader. */
-export interface ReadOptions extends Omit<OntologyReadOptions, 'domainPredicates' | 'rangePredicates'> {
+/** Additional vocabulary conventions accepted by the vocabulary inspector. */
+export interface InspectOptionsType
+  extends Omit<OntologyInspectOptionsType, 'domainPredicates' | 'rangePredicates'> {
+  /** Additional predicate IRIs interpreted as ontology property-domain declarations. */
   readonly domainPredicates?: readonly string[]
+  /** Additional predicate IRIs interpreted as ontology property-range declarations. */
   readonly rangePredicates?: readonly string[]
 }
 
 /**
- * Reads ontology sources into the deterministic vocabulary compiler model.
+ * Inspects ontology sources into the deterministic vocabulary compiler model.
  *
  * Schema.org domain/range aliases are enabled because generated Schema.org is a
  * first-class consumer. Callers can add equivalent vocabulary-specific aliases
  * without teaching the generic RDF ontology package about those vocabularies.
+ *
+ * @example
+ * ```ts
+ * import * as vocab from '@okikio/vocab'
+ *
+ * const model = await vocab.inspect([{ id: 'example', quads }])
+ * console.log(model.classes.length)
+ * ```
  */
-export async function read(
+export async function inspect(
   sources: readonly OntologySourceType[],
-  options: ReadOptions = {},
+  options: InspectOptionsType = {},
 ): Promise<VocabularyModelType> {
-  const model = await readOntology(sources, {
+  const model = await inspectOntology(sources, {
     domainPredicates: [SCHEMA_DOMAIN, SCHEMA_HTTP_DOMAIN, ...(options.domainPredicates ?? [])],
     rangePredicates: [SCHEMA_RANGE, SCHEMA_HTTP_RANGE, ...(options.rangePredicates ?? [])],
     ...(options.maxQuads === undefined ? {} : { maxQuads: options.maxQuads }),
@@ -66,12 +77,16 @@ function toClass(value: Parameters<typeof classValue>[0]): ClassType {
 }
 
 /** Adds the deterministic source symbol candidate used by vocabulary naming. */
-function classValue(value: Awaited<ReturnType<typeof readOntology>>['classes'][number]): ClassType {
+function classValue(
+  value: Awaited<ReturnType<typeof inspectOntology>>['classes'][number],
+): ClassType {
   return { ...value, names: [localName(value.iri)] }
 }
 
 /** Projects a generic ontology property into the vocabulary compiler model and retains functional semantics. */
-function toProperty(value: Awaited<ReturnType<typeof readOntology>>['properties'][number]): PropertyType {
+function toProperty(
+  value: Awaited<ReturnType<typeof inspectOntology>>['properties'][number],
+): PropertyType {
   return {
     ...value,
     names: [localName(value.iri)],

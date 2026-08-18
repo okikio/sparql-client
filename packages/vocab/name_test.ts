@@ -33,10 +33,13 @@ describe('@okikio/vocab symbol planning', () => {
   })
 
   it('qualifies reserved and invalid TypeScript identifiers', () => {
-    const result = plan(model([
-      cls('urn:class', 'class'),
-      cls('urn:bad', 'not-valid!'),
-    ]), { prefix: 'demo' })
+    const result = plan(
+      model([
+        cls('urn:class', 'class'),
+        cls('urn:bad', 'not-valid!'),
+      ]),
+      { prefix: 'demo' },
+    )
     expect(result.classes.get('urn:class') === 'class').toBe(false)
     expect(result.classes.get('urn:bad')?.startsWith('Demo')).toBe(true)
   })

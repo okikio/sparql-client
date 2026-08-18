@@ -13,7 +13,9 @@ describe('@okikio/vocab compile', () => {
     const direct = { id: 'direct', quads: [quad(product, RDF_TYPE, RDFS_CLASS)] }
     const turtle = {
       id: 'turtle',
-      quads: parseTurtle('@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n<https://example.test/Offer> a rdfs:Class .'),
+      quads: parseTurtle(
+        '@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n<https://example.test/Offer> a rdfs:Class .',
+      ),
     }
     const result = await compile([direct, turtle], {
       vocabulary: 'Example',

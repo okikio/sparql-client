@@ -8,5 +8,12 @@
     "./schema": "./schema/mod.ts",
     "./compile": "./compile.ts",
     "./standard": "./standard.ts"
+  },
+  "publish": {
+    "exclude": [
+      "**/*_test.ts",
+      "**/*_bench.ts",
+      "**/*_property_test.ts"
+    ]
   }
 }

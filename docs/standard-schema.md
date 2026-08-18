@@ -5,8 +5,8 @@
 ```ts
 import {
   Product,
-  ProductSchema,
   type ProductPropertiesType,
+  ProductSchema,
   type ProductType,
 } from '@okikio/vocab/schema'
 ```
@@ -24,11 +24,11 @@ The permanent `standard_test.ts` also imports `@standard-schema/spec`; under the
 
 The names are related but they solve different problems.
 
-| Contract | Purpose | Generated vocabulary use |
-| --- | --- | --- |
-| Standard Typed | common metadata and input/output inference | base shape of the generated `~standard` object |
-| Standard Schema | runtime validation | `ProductSchema['~standard'].validate(value)` |
-| Standard JSON Schema | JSON Schema conversion | `ProductSchema['~standard'].jsonSchema.input(...)` and `.output(...)` |
+| Contract             | Purpose                                    | Generated vocabulary use                                              |
+| -------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| Standard Typed       | common metadata and input/output inference | base shape of the generated `~standard` object                        |
+| Standard Schema      | runtime validation                         | `ProductSchema['~standard'].validate(value)`                          |
+| Standard JSON Schema | JSON Schema conversion                     | `ProductSchema['~standard'].jsonSchema.input(...)` and `.output(...)` |
 
 One generated schema object implements both Standard Schema and Standard JSON Schema:
 
@@ -127,7 +127,7 @@ A schema whose generated `types` list contains several class names requires all 
 The current generated runtime intentionally uses a small structural range model:
 
 ```ts
-export type RangeKind =
+export type RangeKindType =
   | 'string'
   | 'number'
   | 'boolean'

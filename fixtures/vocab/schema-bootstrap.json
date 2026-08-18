@@ -1,0 +1,147 @@
+{
+  "sources": [
+    {
+      "id": "schema.org-bootstrap",
+      "iri": "https://schema.org/",
+      "version": "bootstrap"
+    }
+  ],
+  "classes": [
+    {
+      "iri": "https://schema.org/Offer",
+      "names": ["Offer"],
+      "labels": [{ "value": "Offer" }],
+      "comments": [
+        {
+          "value": "A compact bootstrap class used to validate the generator and direct-import API."
+        }
+      ],
+      "superClasses": ["https://schema.org/Intangible"],
+      "equivalentClasses": [],
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/Product",
+      "names": ["Product"],
+      "labels": [{ "value": "Product" }],
+      "comments": [
+        {
+          "value": "A compact bootstrap class used to validate the generator and direct-import API."
+        }
+      ],
+      "superClasses": ["https://schema.org/Thing"],
+      "equivalentClasses": [],
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/Thing",
+      "names": ["Thing"],
+      "labels": [{ "value": "Thing" }],
+      "comments": [
+        { "value": "The most generic type of item in this bootstrap vocabulary slice." }
+      ],
+      "superClasses": [],
+      "equivalentClasses": [],
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/Intangible",
+      "names": ["Intangible"],
+      "labels": [{ "value": "Intangible" }],
+      "comments": [],
+      "superClasses": ["https://schema.org/Thing"],
+      "equivalentClasses": [],
+      "deprecated": false
+    }
+  ],
+  "properties": [
+    {
+      "iri": "https://schema.org/description",
+      "names": ["description"],
+      "labels": [{ "value": "description" }],
+      "comments": [],
+      "domains": ["https://schema.org/Thing"],
+      "ranges": ["https://schema.org/Text"],
+      "superProperties": [],
+      "equivalentProperties": [],
+      "inverseOf": [],
+      "functional": false,
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/name",
+      "names": ["name"],
+      "labels": [{ "value": "name" }],
+      "comments": [],
+      "domains": ["https://schema.org/Thing"],
+      "ranges": ["https://schema.org/Text"],
+      "superProperties": [],
+      "equivalentProperties": [],
+      "inverseOf": [],
+      "functional": false,
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/offers",
+      "names": ["offers"],
+      "labels": [{ "value": "offers" }],
+      "comments": [],
+      "domains": ["https://schema.org/Product"],
+      "ranges": ["https://schema.org/Offer"],
+      "superProperties": [],
+      "equivalentProperties": [],
+      "inverseOf": [],
+      "functional": false,
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/price",
+      "names": ["price"],
+      "labels": [{ "value": "price" }],
+      "comments": [],
+      "domains": ["https://schema.org/Offer"],
+      "ranges": ["https://schema.org/Number", "https://schema.org/Text"],
+      "superProperties": [],
+      "equivalentProperties": [],
+      "inverseOf": [],
+      "functional": false,
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/priceCurrency",
+      "names": ["priceCurrency"],
+      "labels": [{ "value": "priceCurrency" }],
+      "comments": [],
+      "domains": ["https://schema.org/Offer"],
+      "ranges": ["https://schema.org/Text"],
+      "superProperties": [],
+      "equivalentProperties": [],
+      "inverseOf": [],
+      "functional": false,
+      "deprecated": false
+    },
+    {
+      "iri": "https://schema.org/sku",
+      "names": ["sku"],
+      "labels": [{ "value": "sku" }],
+      "comments": [],
+      "domains": ["https://schema.org/Product"],
+      "ranges": ["https://schema.org/Text"],
+      "superProperties": [],
+      "equivalentProperties": [],
+      "inverseOf": [],
+      "functional": false,
+      "deprecated": false
+    }
+  ],
+  "datatypes": [
+    "https://schema.org/Boolean",
+    "https://schema.org/Number",
+    "https://schema.org/Text",
+    "https://schema.org/URL"
+  ],
+  "assertions": [],
+  "diagnostics": [
+    "This checked-in module is a bootstrap slice for generator/runtime validation, not the complete Schema.org release."
+  ]
+}

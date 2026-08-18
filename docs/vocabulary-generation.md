@@ -31,7 +31,7 @@ serialized RDF / dataset / store
  @okikio/rdf/ontology
              |
              v
-   @okikio/vocab.read()
+   @okikio/vocab.inspect()
              |
              v
  naming + collision planning
@@ -124,12 +124,12 @@ Generated vocabularies use direct imports:
 
 ```ts
 import {
-  Product,
-  ProductSchema,
-  type ProductPropertiesType,
-  type ProductType,
   name,
   offers,
+  Product,
+  type ProductPropertiesType,
+  ProductSchema,
+  type ProductType,
 } from '@okikio/vocab/schema'
 ```
 
@@ -213,7 +213,7 @@ Package-local runtime benchmark:
 packages/vocab/compile_bench.ts
 ```
 
-It measures a deterministic ontology `read -> name plan -> emit` workload.
+It measures a deterministic ontology `inspect -> name plan -> emit` workload.
 
 Cross-process TypeScript benchmark:
 

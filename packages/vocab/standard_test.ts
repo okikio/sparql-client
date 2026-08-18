@@ -1,21 +1,33 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import type { StandardJSONSchemaV1 as OfficialJSONSchemaV1, StandardSchemaV1 as OfficialSchemaV1 } from '@standard-schema/spec'
+import type {
+  StandardJSONSchemaV1 as OfficialJSONSchemaV1,
+  StandardSchemaV1 as OfficialSchemaV1,
+} from '@standard-schema/spec'
 import { ProductSchema, type ProductType } from './schema/mod.ts'
-import type { StandardInferInput, StandardInferOutput, StandardJSONSchemaV1, StandardSchemaV1 } from './standard.ts'
+import type {
+  StandardInferInput,
+  StandardInferOutput,
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from './standard.ts'
 
 /** Compile-time assertion that generated schemas satisfy both local and official contracts. */
 
 /** Compile-time proof that local Standard Typed inference preserves the generated schema output type. */
-function acceptInference(_input: StandardInferInput<typeof ProductSchema>, output: StandardInferOutput<typeof ProductSchema>): ProductType {
+function acceptInference(
+  _input: StandardInferInput<typeof ProductSchema>,
+  output: StandardInferOutput<typeof ProductSchema>,
+): ProductType {
   return output
 }
 
 function acceptSchema(
-  schema: StandardSchemaV1<unknown, ProductType> &
-    StandardJSONSchemaV1<unknown, ProductType> &
-    OfficialSchemaV1<unknown, ProductType> &
-    OfficialJSONSchemaV1<unknown, ProductType>,
+  schema:
+    & StandardSchemaV1<unknown, ProductType>
+    & StandardJSONSchemaV1<unknown, ProductType>
+    & OfficialSchemaV1<unknown, ProductType>
+    & OfficialJSONSchemaV1<unknown, ProductType>,
 ): void {
   void schema
 }

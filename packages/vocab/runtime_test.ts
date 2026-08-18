@@ -5,7 +5,12 @@ import { createSchema } from './runtime.ts'
 describe('@okikio/vocab runtime', () => {
   it('validates every required multi-type name and accepts extension fields', async () => {
     const schema = createSchema({ types: ['Product', 'SoftwareApplication'] })
-    expect(await schema['~standard'].validate({ '@type': ['Product', 'SoftwareApplication'], extension: true })).toEqual({
+    expect(
+      await schema['~standard'].validate({
+        '@type': ['Product', 'SoftwareApplication'],
+        extension: true,
+      }),
+    ).toEqual({
       value: { '@type': ['Product', 'SoftwareApplication'], extension: true },
     })
     const invalid = await schema['~standard'].validate({ '@type': ['Product'] })
@@ -21,12 +26,14 @@ describe('@okikio/vocab runtime', () => {
         code: ['string', 'number'],
       },
     })
-    expect(await schema['~standard'].validate({
-      '@type': 'Product',
-      price: [10, 20],
-      brand: { '@id': 'urn:brand:1' },
-      code: ['A', 2],
-    })).toEqual({
+    expect(
+      await schema['~standard'].validate({
+        '@type': 'Product',
+        price: [10, 20],
+        brand: { '@id': 'urn:brand:1' },
+        code: ['A', 2],
+      }),
+    ).toEqual({
       value: {
         '@type': 'Product',
         price: [10, 20],
@@ -40,7 +47,11 @@ describe('@okikio/vocab runtime', () => {
     let left = createSchema({ types: ['Left'] })
     let right = createSchema({ types: ['Right'] })
     left = createSchema({ types: ['Left'], properties: { left: 'string' }, parents: () => [right] })
-    right = createSchema({ types: ['Right'], properties: { right: 'number' }, parents: () => [left] })
+    right = createSchema({
+      types: ['Right'],
+      properties: { right: 'number' },
+      parents: () => [left],
+    })
 
     const invalid = await left['~standard'].validate({ '@type': 'Left', left: 'ok', right: 'bad' })
     expect('issues' in invalid).toBe(true)

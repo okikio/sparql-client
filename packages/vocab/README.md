@@ -7,12 +7,7 @@ RDF ontology compiler and generated vocabulary runtime.
 Generated vocabularies expose direct RDF terms, TypeScript types, and Standard Schema validators:
 
 ```ts
-import {
-  Product,
-  ProductSchema,
-  type ProductType,
-  name,
-} from '@okikio/vocab/schema'
+import { name, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 ```
 
 Generated terms are `@okikio/rdf` named nodes, so they work directly with datasets and SPARQL builders.
@@ -20,7 +15,7 @@ Generated terms are `@okikio/rdf` named nodes, so they work directly with datase
 ```ts
 import * as rdf from '@okikio/rdf'
 import * as sparql from '@okikio/sparql'
-import { Product, name } from '@okikio/vocab/schema'
+import { name, Product } from '@okikio/vocab/schema'
 
 const query = sparql.select(['?product', '?name']).where(
   sparql.triple('?product', rdf.namedNode(rdf.RDF.type), Product),

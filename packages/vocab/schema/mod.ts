@@ -67,19 +67,25 @@ export const sku = namedNode('https://schema.org/sku')
 
 /** JSON-LD properties directly available to Offer, including inherited interfaces. */
 export interface OfferPropertiesType extends IntangiblePropertiesType {
+  /** Offer price represented using the generated schema.org vocabulary contract. */
   readonly price?: ValueType<number | string>
+  /** ISO-style currency code associated with the offer price. */
   readonly priceCurrency?: ValueType<string>
 }
 
 /** JSON-LD properties directly available to Product, including inherited interfaces. */
 export interface ProductPropertiesType extends ThingPropertiesType {
+  /** Offer nodes associated with this product. */
   readonly offers?: ValueType<OfferType | IdReferenceType>
+  /** Merchant or catalog SKU associated with this product. */
   readonly sku?: ValueType<string>
 }
 
 /** JSON-LD properties directly available to Thing, including inherited interfaces. */
 export interface ThingPropertiesType {
+  /** Human-readable description of this schema.org Thing. */
   readonly description?: ValueType<string>
+  /** Schema.org `name` value for this Thing. */
   readonly name?: ValueType<string>
 }
 
@@ -142,20 +148,32 @@ export type URLType = string
 
 /** Generated class-name to property-interface map used by multi-typed JSON-LD nodes. */
 export interface TypeMapType {
+  /** Property contract contributed by the generated Offer class. */
   readonly Offer: OfferPropertiesType
+  /** Property contract contributed by the generated Product class. */
   readonly Product: ProductPropertiesType
+  /** Property contract contributed by the generated Thing class. */
   readonly Thing: ThingPropertiesType
+  /** Property contract contributed by the generated Intangible class. */
   readonly Intangible: IntangiblePropertiesType
 }
 
 /** Every generated vocabulary class name accepted by multi-type nodes. */
 export type ClassNameType = keyof TypeMapType
 /** Resolves one generated class name to its property interface. */
-type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never
+type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType
+  ? TypeMapType[Type]
+  : never
 /** Converts the selected class-property union into one intersection for multi-typed nodes. */
-type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never
+type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends
+  (value: infer Intersection) => void ? Intersection : never
 
 /** Intersects the properties contributed by every class on a multi-typed JSON-LD node. */
-type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object
+type MergedPropertiesType<Types extends readonly ClassNameType[]> =
+  & UnionToIntersection<PropertiesForType<Types[number]>>
+  & object
 /** JSON-LD node carrying all properties contributed by the selected generated class names. */
-export type MultiTypeType<Types extends readonly ClassNameType[]> = NodeType<Types, MergedPropertiesType<Types>>
+export type MultiTypeType<Types extends readonly ClassNameType[]> = NodeType<
+  Types,
+  MergedPropertiesType<Types>
+>
