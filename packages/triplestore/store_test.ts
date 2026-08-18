@@ -92,7 +92,6 @@ describe('@okikio/triplestore', () => {
     expect(reopened.has(second)).toBe(true)
   })
 
-
   it('prevents mutations after close without disposing the borrowed filesystem', async () => {
     const fs = new MemoryFileSystem()
     const store = await open(fs, { path: '/db' })
@@ -105,7 +104,10 @@ describe('@okikio/triplestore', () => {
     const fs = new MemoryFileSystem()
     await fs.ensureDir('/db/segments')
     await fs.ensureDir('/db/commits')
-    await fs.writeFile('/db/format.json', '{"version":2,"store":"@okikio/triplestore","segment":2}\n')
+    await fs.writeFile(
+      '/db/format.json',
+      '{"version":2,"store":"@okikio/triplestore","segment":2}\n',
+    )
     await fs.writeFile('/db/segments/0000000000000001.delta.nq', 'orphan\n')
     await fs.writeFile('/db/commits/0000000000000001.json', '{"version":2')
 
@@ -114,5 +116,4 @@ describe('@okikio/triplestore', () => {
     expect(reopened.size).toBe(0)
     expect(reopened.recovery[0]?.kind).toBe('incomplete-commit')
   })
-
 })

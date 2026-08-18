@@ -1,7 +1,16 @@
-import type { DirectoryEntryType, FileStatType, FileSystemType, SignalOptionsType } from './storage.ts'
+import type {
+  DirectoryEntryType,
+  FileStatType,
+  FileSystemType,
+  SignalOptionsType,
+} from './storage.ts'
 
 /** Injected write fault used by durability tests to simulate a crash during publication. */
-export type WriteFaultType = (path: string, text: string, fs: MemoryFileSystem) => void | Promise<void>
+export type WriteFaultType = (
+  path: string,
+  text: string,
+  fs: MemoryFileSystem,
+) => void | Promise<void>
 
 /** Minimal in-memory filesystem for package-local durability tests. */
 export class MemoryFileSystem implements FileSystemType {
@@ -25,7 +34,10 @@ export class MemoryFileSystem implements FileSystemType {
     }
   }
 
-  async *readDir(path: string, options: SignalOptionsType = {}): AsyncGenerator<DirectoryEntryType> {
+  async *readDir(
+    path: string,
+    options: SignalOptionsType = {},
+  ): AsyncGenerator<DirectoryEntryType> {
     abort(options.signal)
     const root = normalize(path)
     const prefix = root === '/' ? '/' : `${root}/`
@@ -55,7 +67,10 @@ export class MemoryFileSystem implements FileSystemType {
     return value
   }
 
-  async stat(path: string, options: SignalOptionsType = {}): Promise<FileStatType | { readonly kind: 'directory' }> {
+  async stat(
+    path: string,
+    options: SignalOptionsType = {},
+  ): Promise<FileStatType | { readonly kind: 'directory' }> {
     abort(options.signal)
     const normalized = normalize(path)
     const file = this.files.get(normalized)

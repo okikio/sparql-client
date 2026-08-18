@@ -21,12 +21,14 @@ describe('@okikio/triplestore format records', () => {
     }))
     expect(delta.operation).toBe('delete')
 
-    expect(() => parseCommit(JSON.stringify({
-      ...delta,
-      mode: 'snapshot',
-      operation: 'add',
-      segment: 'segments/0000000000000002.nq',
-    }))).toThrow('must not declare')
+    expect(() =>
+      parseCommit(JSON.stringify({
+        ...delta,
+        mode: 'snapshot',
+        operation: 'add',
+        segment: 'segments/0000000000000002.nq',
+      }))
+    ).toThrow('must not declare')
   })
 
   it('uses lexicographically sortable generation names and rejects invalid generations', () => {
