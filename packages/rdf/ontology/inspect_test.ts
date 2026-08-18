@@ -1,13 +1,13 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { parse } from '../turtle/mod.ts'
-import { index, read } from './mod.ts'
+import { index, inspect } from './mod.ts'
 
 const SCHEMA_DOMAIN = 'https://schema.org/domainIncludes'
 const SCHEMA_RANGE = 'https://schema.org/rangeIncludes'
 
 describe('@okikio/rdf/ontology', () => {
-  it('reads named RDFS/OWL relationships and configurable vocabulary aliases', async () => {
+  it('inspects named RDFS/OWL relationships and configurable vocabulary aliases', async () => {
     const source = `
       @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -20,7 +20,7 @@ describe('@okikio/rdf/ontology', () => {
       ex:name a rdf:Property, owl:FunctionalProperty ;
         schema:domainIncludes ex:Thing ; schema:rangeIncludes schema:Text .
     `
-    const model = await read([{ id: 'test', quads: parse(source) }], {
+    const model = await inspect([{ id: 'test', quads: parse(source) }], {
       domainPredicates: [SCHEMA_DOMAIN],
       rangePredicates: [SCHEMA_RANGE],
     })
@@ -37,7 +37,7 @@ describe('@okikio/rdf/ontology', () => {
       @prefix ex: <https://example.com/> .
       ex:Product a owl:Class ; rdfs:subClassOf [ a owl:Restriction ; owl:onProperty ex:name ] .
     `
-    const model = await read([{ id: 'test', quads: parse(source) }])
+    const model = await inspect([{ id: 'test', quads: parse(source) }])
     expect(model.classes).toHaveLength(1)
     expect(model.assertions.length > 0).toBe(true)
   })

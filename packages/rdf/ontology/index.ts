@@ -4,7 +4,9 @@ import type { ClassType, ModelType, PropertyType } from './model.ts'
 
 /** Read-only indexes over one ontology model. */
 export class OntologyIndex {
+  /** Ontology class lookup indexed by absolute class IRI. */
   readonly #classes: ReadonlyMap<string, ClassType>
+  /** Ontology property lookup indexed by absolute property IRI. */
   readonly #properties: ReadonlyMap<string, PropertyType>
 
   /** Builds immutable lookup maps over a parsed ontology model without performing entailment. */

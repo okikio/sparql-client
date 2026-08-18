@@ -3,10 +3,15 @@ import { expect } from '@std/expect'
 import { chunks, throwIfAborted } from './text.ts'
 
 /** Collects parser source chunks as decoded strings for source-contract tests. */
-async function collect(source: Parameters<typeof chunks>[0], signal?: AbortSignal): Promise<string[]> {
+async function collect(
+  source: Parameters<typeof chunks>[0],
+  signal?: AbortSignal,
+): Promise<string[]> {
   const decoder = new TextDecoder()
   const values: string[] = []
-  for await (const value of chunks(source, signal)) values.push(typeof value === 'string' ? value : decoder.decode(value))
+  for await (const value of chunks(source, signal)) {
+    values.push(typeof value === 'string' ? value : decoder.decode(value))
+  }
   return values
 }
 

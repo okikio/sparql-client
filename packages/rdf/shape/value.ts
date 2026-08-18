@@ -1,6 +1,6 @@
 /** Serializable RDF term conversion for the SHACL model. @module */
 
-import type { Graph, Literal, Quad, Term } from '../term.ts'
+import type { GraphTermType, Literal, Quad, Term } from '../term.ts'
 import type { AssertionType, IdType, LiteralType, TermType, TextType } from './model.ts'
 
 /** Converts an RDF graph node into a serializable SHACL identifier. */
@@ -35,10 +35,15 @@ export function term(value: Term): TermType | undefined {
 /** Converts an RDF literal into a serializable SHACL literal. */
 export function literal(value: Literal): LiteralType {
   const record: {
+    /** Selects the `literal` variant of record. */
     kind: 'literal'
+    /** RDF literal lexical form preserved in the temporary serializable record. */
     value: string
+    /** Datatype IRI associated with this RDF literal value. */
     datatype: string
+    /** BCP 47 language tag retained for this localized RDF value. */
     language?: string
+    /** RDF 1.2 base text direction retained for this localized RDF value. */
     direction?: Literal['direction'] extends '' ? never : 'ltr' | 'rtl'
   } = {
     kind: 'literal',
@@ -53,9 +58,13 @@ export function literal(value: Literal): LiteralType {
 /** Converts an RDF literal into localized human-facing text. */
 export function text(value: Literal): TextType {
   const record: {
+    /** Literal lexical form preserved as human-facing SHACL text. */
     value: string
+    /** Datatype IRI associated with this RDF literal value. */
     datatype: string
+    /** BCP 47 language tag retained for this localized RDF value. */
     language?: string
+    /** RDF 1.2 base text direction retained for this localized RDF value. */
     direction?: 'ltr' | 'rtl'
   } = { value: value.value, datatype: value.datatype.value }
   if (value.language) record.language = value.language
@@ -69,7 +78,16 @@ export function assertion(quad: Quad): AssertionType | undefined {
   if (!object) return undefined
   const subject = id(quad.subject)
   if (!subject) return undefined
-  const record: { subject: IdType; predicate: string; object: TermType; graph?: IdType } = {
+  const record: {
+    /** RDF subject term represented by this statement or operation filter. */
+    subject: IdType
+    /** RDF predicate IRI represented by this statement or operation filter. */
+    predicate: string
+    /** RDF object term represented by this statement or operation filter. */
+    object: TermType
+    /** RDF graph that receives quads produced by SHACL inspection. */
+    graph?: IdType
+  } = {
     subject,
     predicate: quad.predicate.value,
     object,
@@ -80,6 +98,6 @@ export function assertion(quad: Quad): AssertionType | undefined {
 }
 
 /** Returns a serializable graph identifier when a quad belongs to a named graph. */
-function graphId(graph: Graph): IdType | undefined {
+function graphId(graph: GraphTermType): IdType | undefined {
   return graph.termType === 'DefaultGraph' ? undefined : id(graph)
 }

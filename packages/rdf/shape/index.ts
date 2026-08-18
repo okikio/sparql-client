@@ -1,12 +1,15 @@
 /** Indexed view over one materialized SHACL shapes graph. @module */
 
 import { key } from '../term.ts'
-import type { ObjectTerm, Quad, Subject, Term } from '../term.ts'
+import type { ObjectTermType, Quad, SubjectTermType, Term } from '../term.ts'
 
-/** Subject/predicate index used by the SHACL reader and property-path parser. */
+/** Subject/predicate index used by the SHACL inspector and property-path parser. */
 export class ShapeIndex {
-  readonly #subjects = new Map<string, Subject>()
-  readonly #values = new Map<string, Map<string, ObjectTerm[]>>()
+  /** SHACL index of materialized subject terms discovered in the shapes graph. */
+  readonly #subjects = new Map<string, SubjectTermType>()
+  /** SHACL predicate/value index used for repeated direct lookups during shape inspection. */
+  readonly #values = new Map<string, Map<string, ObjectTermType[]>>()
+  /** Primary semantic-key map containing the quads currently owned by this dataset. */
   readonly #quads = new Map<string, Quad[]>()
 
   /** Adds one quad to the index. */
@@ -35,24 +38,24 @@ export class ShapeIndex {
   }
 
   /** Returns each indexed subject. */
-  subjects(): Iterable<Subject> {
+  subjects(): Iterable<SubjectTermType> {
     return this.#subjects.values()
   }
 
   /** Returns predicate values for one RDF subject. */
-  get(subject: Subject, predicate: string): readonly ObjectTerm[] {
+  get(subject: SubjectTermType, predicate: string): readonly ObjectTermType[] {
     return this.#values.get(key(subject))?.get(predicate) ?? []
   }
 
   /** Returns all quads for one RDF subject. */
-  quads(subject: Subject): readonly Quad[] {
+  quads(subject: SubjectTermType): readonly Quad[] {
     return this.#quads.get(key(subject)) ?? []
   }
 
   /** Returns whether a node is an RDF list cell. */
   isList(term: Term): boolean {
     if (term.termType !== 'NamedNode' && term.termType !== 'BlankNode') return false
-    const subject = term as Subject
+    const subject = term as SubjectTermType
     return this.get(subject, RDF_FIRST).length > 0 || this.get(subject, RDF_REST).length > 0
   }
 }

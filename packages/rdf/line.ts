@@ -1,42 +1,78 @@
 /** Shared streaming scanner for RDF 1.2 N-Triples and N-Quads. @module */
 
 import { blankNode, defaultGraph, literal, namedNode, quad } from './factory.ts'
-import type { Graph, ObjectTerm, Predicate, Quad, Subject } from './term.ts'
-import { chunks, throwIfAborted, type TextSource } from './text.ts'
+import type {
+  GraphTermType,
+  ObjectTermType,
+  PredicateTermType,
+  Quad,
+  SubjectTermType,
+} from './term.ts'
+import { chunks, type TextSourceType, throwIfAborted } from './text.ts'
 
-export type { TextSource } from './text.ts'
+export type { TextSourceType } from './text.ts'
 
 /** Source range expressed in UTF-16 code-unit offsets and one-based line/column positions. */
-export interface SourceRange {
+export interface SourceRangeType {
+  /** Zero-based source offset where this record starts. */
   readonly start: number
+  /** Exclusive zero-based source offset where this record ends. */
   readonly end: number
+  /** One-based source line containing the start of this record. */
   readonly line: number
+  /** One-based source column containing the start of this record. */
   readonly column: number
 }
 
 /** Recoverable parser diagnostic. */
-export interface Diagnostic {
+export interface DiagnosticType {
+  /** Stable machine-readable code used to classify this diagnostic or failure. */
   readonly code: string
+  /** Human-readable explanation of the diagnostic or failure. */
   readonly message: string
-  readonly range: SourceRange
+  /** Source range that locates the related token, statement, feature, or diagnostic. */
+  readonly range: SourceRangeType
 }
 
 /** Parser controls for hostile input and tolerant analysis. */
-export interface ParseOptions {
+export interface ParseOptionsType {
+  /** When true, recoverable line-syntax defects become diagnostics instead of immediate failures. */
   readonly tolerant?: boolean
+  /** Maximum characters accepted for one logical RDF line before parsing reports a limit. */
   readonly maxLineLength?: number
+  /** Maximum nested RDF 1.2 triple-term depth accepted before parsing reports a limit. */
   readonly maxTripleDepth?: number
+  /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
 }
 
 /** RDF 1.2 version labels understood by the line syntaxes. */
-export type RdfVersion = '1.1' | '1.2-basic' | '1.2'
+export type RdfVersionType = '1.1' | '1.2-basic' | '1.2'
 
 /** Event stream emitted by N-Triples/N-Quads analysis. */
-export type ParseEvent =
-  | { readonly kind: 'quad'; readonly quad: Quad; readonly range: SourceRange }
-  | { readonly kind: 'version'; readonly version: RdfVersion; readonly range: SourceRange }
-  | { readonly kind: 'diagnostic'; readonly diagnostic: Diagnostic }
+export type ParseEventType =
+  | {
+    /** Selects the `quad` variant of ParseEventType. */
+    readonly kind: 'quad'
+    /** RDF quad carried by this event or triplestore mutation. */
+    readonly quad: Quad
+    /** Source range covered by this ParseEventType. */
+    readonly range: SourceRangeType
+  }
+  | {
+    /** Selects the `version` variant of ParseEventType. */
+    readonly kind: 'version'
+    /** Version marker retained by this syntax record. */
+    readonly version: RdfVersionType
+    /** Source range covered by this ParseEventType. */
+    readonly range: SourceRangeType
+  }
+  | {
+    /** Selects the `diagnostic` variant of ParseEventType. */
+    readonly kind: 'diagnostic'
+    /** Structured syntax diagnostic emitted by this parser event. */
+    readonly diagnostic: DiagnosticType
+  }
 
 /** Default max line length used when the caller does not provide an override. */
 const DEFAULT_MAX_LINE_LENGTH = 8 * 1024 * 1024
@@ -44,20 +80,24 @@ const DEFAULT_MAX_LINE_LENGTH = 8 * 1024 * 1024
 const DEFAULT_MAX_TRIPLE_DEPTH = 64
 
 /** Internal line record retaining absolute source offsets. */
-interface LineRecord {
+interface LineRecordType {
   /** Decoded source window that contains this logical line. */
   readonly source: string
   /** Inclusive line start within `source`. */
   readonly from: number
   /** Exclusive line end within `source`. */
   readonly to: number
+  /** One-based source line containing the start of this record. */
   readonly line: number
   /** Absolute document offset corresponding to `from`. */
   readonly start: number
 }
 
 /** Incrementally yields logical lines and cancels a Web Stream on early return. */
-export async function* lines(source: TextSource, options: ParseOptions = {}): AsyncGenerator<LineRecord> {
+export async function* lines(
+  source: TextSourceType,
+  options: ParseOptionsType = {},
+): AsyncGenerator<LineRecordType> {
   const maxLineLength = options.maxLineLength ?? DEFAULT_MAX_LINE_LENGTH
   const decoder = new TextDecoder()
   let buffered = ''
@@ -66,12 +106,14 @@ export async function* lines(source: TextSource, options: ParseOptions = {}): As
   let line = 1
 
   /** Emits every complete line currently available without repeatedly slicing the unconsumed suffix. */
-  function* drain(final: boolean): Generator<LineRecord> {
+  function* drain(final: boolean): Generator<LineRecordType> {
     while (true) {
       const boundary = nextLineBreak(buffered, index, final)
       if (!boundary) return
       const length = boundary.index - index
-      if (length > maxLineLength) throw new SyntaxError(`RDF line exceeds maxLineLength (${maxLineLength}).`)
+      if (length > maxLineLength) {
+        throw new SyntaxError(`RDF line exceeds maxLineLength (${maxLineLength}).`)
+      }
       yield { source: buffered, from: index, to: boundary.index, line, start: base + index }
       index = boundary.index + boundary.length
       line++
@@ -96,13 +138,28 @@ export async function* lines(source: TextSource, options: ParseOptions = {}): As
   buffered += decoder.decode()
   yield* drain(true)
   const remaining = buffered.length - index
-  if (remaining > maxLineLength) throw new SyntaxError(`RDF line exceeds maxLineLength (${maxLineLength}).`)
-  if (remaining > 0) yield { source: buffered, from: index, to: buffered.length, line, start: base + index }
+  if (remaining > maxLineLength) {
+    throw new SyntaxError(`RDF line exceeds maxLineLength (${maxLineLength}).`)
+  }
+  if (remaining > 0) {
+    yield { source: buffered, from: index, to: buffered.length, line, start: base + index }
+  }
 }
 
 /** Parses one N-Triples/N-Quads line into a semantic event. */
-export function parseLine(record: LineRecord, allowGraph: boolean, options: ParseOptions = {}): ParseEvent | undefined {
-  const cursor = new Cursor(record.source, record.from, record.to, record.start, record.line, options.maxTripleDepth ?? DEFAULT_MAX_TRIPLE_DEPTH)
+export function parseLine(
+  record: LineRecordType,
+  allowGraph: boolean,
+  options: ParseOptionsType = {},
+): ParseEventType | undefined {
+  const cursor = new Cursor(
+    record.source,
+    record.from,
+    record.to,
+    record.start,
+    record.line,
+    options.maxTripleDepth ?? DEFAULT_MAX_TRIPLE_DEPTH,
+  )
   cursor.space()
   if (cursor.done || cursor.peek() === '#') return undefined
 
@@ -124,12 +181,12 @@ export function parseLine(record: LineRecord, allowGraph: boolean, options: Pars
 
   const subject = cursor.subject()
   cursor.requiredSpace('Expected whitespace after RDF subject.')
-  const predicate = cursor.iri() as Predicate
+  const predicate = cursor.iri() as PredicateTermType
   cursor.requiredSpace('Expected whitespace after RDF predicate.')
   const object = cursor.object(0)
   cursor.space()
 
-  let graph: Graph = defaultGraph()
+  let graph: GraphTermType = defaultGraph()
   if (allowGraph && cursor.peek() !== '.') {
     graph = cursor.graph()
     cursor.space()
@@ -146,22 +203,31 @@ export function parseLine(record: LineRecord, allowGraph: boolean, options: Pars
 }
 
 /** Converts a parser exception into a source-ranged diagnostic. */
-export function diagnostic(error: unknown, record: LineRecord): Diagnostic {
-  if (error instanceof ParseError) return { code: error.code, message: error.message, range: error.range }
+export function diagnostic(error: unknown, record: LineRecordType): DiagnosticType {
+  if (error instanceof ParseError) {
+    return { code: error.code, message: error.message, range: error.range }
+  }
   return {
     code: 'rdf-syntax',
     message: error instanceof Error ? error.message : String(error),
-    range: { start: record.start, end: record.start + record.to - record.from, line: record.line, column: 1 },
+    range: {
+      start: record.start,
+      end: record.start + record.to - record.from,
+      line: record.line,
+      column: 1,
+    },
   }
 }
 
 /** Position-aware parser error used internally and surfaced as diagnostics in tolerant mode. */
 class ParseError extends SyntaxError {
+  /** Stable machine-readable code used to classify this diagnostic or failure. */
   readonly code: string
-  readonly range: SourceRange
+  /** Source range that locates the related token, statement, feature, or diagnostic. */
+  readonly range: SourceRangeType
 
   /** Creates one source-ranged line-syntax failure for strict throwing or tolerant diagnostic conversion. */
-  constructor(code: string, message: string, range: SourceRange) {
+  constructor(code: string, message: string, range: SourceRangeType) {
     super(message)
     this.name = 'RdfParseError'
     this.code = code
@@ -171,16 +237,30 @@ class ParseError extends SyntaxError {
 
 /** Data-oriented cursor over one line. It emits RDF terms directly and builds no token objects. */
 class Cursor {
+  /** Current lookup or cursor index used to avoid rescanning already consumed state. */
   #index: number
+  /** Logical RDF line text inspected by this cursor. */
   readonly source: string
+  /** Inclusive index of the first character in this cursor slice. */
   readonly from: number
+  /** Exclusive index after the last character in this cursor slice. */
   readonly to: number
+  /** Absolute source offset corresponding to the cursor slice start. */
   readonly sourceStart: number
+  /** One-based source line containing the start of this record. */
   readonly line: number
+  /** Maximum nested RDF 1.2 triple-term depth allowed while this cursor parses a term. */
   readonly maxTripleDepth: number
 
   /** Creates a cursor over one logical RDF line with absolute source offsets and a bounded RDF 1.2 triple depth. */
-  constructor(source: string, from: number, to: number, sourceStart: number, line: number, maxTripleDepth: number) {
+  constructor(
+    source: string,
+    from: number,
+    to: number,
+    sourceStart: number,
+    line: number,
+    maxTripleDepth: number,
+  ) {
     this.source = source
     this.from = from
     this.to = to
@@ -208,7 +288,9 @@ class Cursor {
 
   /** Consumes an exact lexical token only when it fits inside this logical line. */
   take(value: string): boolean {
-    if (this.#index + value.length > this.to || !this.source.startsWith(value, this.#index)) return false
+    if (this.#index + value.length > this.to || !this.source.startsWith(value, this.#index)) {
+      return false
+    }
     this.#index += value.length
     return true
   }
@@ -243,29 +325,35 @@ class Cursor {
   }
 
   /** Reads a legal line-format RDF subject: IRI, blank node, or RDF 1.2 triple term where permitted. */
-  subject(): Subject {
+  subject(): SubjectTermType {
     if (this.peek() === '<') return this.iri()
     if (this.starts('_:')) return this.blank()
     throw this.error('rdf-subject', 'Expected IRI or blank node as RDF subject.')
   }
 
   /** Reads a legal N-Quads graph label without allowing the default graph token in source syntax. */
-  graph(): Graph {
+  graph(): GraphTermType {
     if (this.peek() === '<') return this.iri()
     if (this.starts('_:')) return this.blank()
     throw this.error('rdf-graph', 'Expected IRI or blank node as RDF graph label.')
   }
 
   /** Reads an RDF object, including bounded RDF 1.2 nested triple terms. */
-  object(depth: number): ObjectTerm {
+  object(depth: number): ObjectTermType {
     if (depth > this.maxTripleDepth) {
-      throw this.error('rdf-depth', `Triple term nesting exceeds maxTripleDepth (${this.maxTripleDepth}).`)
+      throw this.error(
+        'rdf-depth',
+        `Triple term nesting exceeds maxTripleDepth (${this.maxTripleDepth}).`,
+      )
     }
     if (this.starts('<<(')) return this.triple(depth + 1)
     if (this.peek() === '<') return this.iri()
     if (this.starts('_:')) return this.blank()
     if (this.peek() === '"') return this.literal()
-    throw this.error('rdf-object', 'Expected IRI, blank node, literal, or RDF 1.2 triple term as object.')
+    throw this.error(
+      'rdf-object',
+      'Expected IRI, blank node, literal, or RDF 1.2 triple term as object.',
+    )
   }
 
   /** Decodes one `<IRIREF>` while rejecting forbidden characters and invalid Unicode escapes. */
@@ -284,7 +372,11 @@ class Cursor {
         continue
       }
       if (char <= ' ' || /[<>"{}|^`]/.test(char)) {
-        throw this.errorAt('rdf-iri-char', `Invalid character in IRI at column ${this.#index - this.from + 1}.`, start)
+        throw this.errorAt(
+          'rdf-iri-char',
+          `Invalid character in IRI at column ${this.#index - this.from + 1}.`,
+          start,
+        )
       }
       value += char
       this.#index++
@@ -350,7 +442,10 @@ class Cursor {
       }
       if (char === '\\') {
         const escaped = this.peek(1)
-        if (escaped === 't' || escaped === 'b' || escaped === 'n' || escaped === 'r' || escaped === 'f' || escaped === '"' || escaped === "'" || escaped === '\\') {
+        if (
+          escaped === 't' || escaped === 'b' || escaped === 'n' || escaped === 'r' ||
+          escaped === 'f' || escaped === '"' || escaped === "'" || escaped === '\\'
+        ) {
           this.#index += 2
           value += escapeValue(escaped)
           continue
@@ -358,7 +453,13 @@ class Cursor {
         value += this.unicodeEscape()
         continue
       }
-      if (char === '\n' || char === '\r') throw this.errorAt('rdf-string-line', 'Line break is not allowed in an N-Triples literal.', start)
+      if (char === '\n' || char === '\r') {
+        throw this.errorAt(
+          'rdf-string-line',
+          'Line break is not allowed in an N-Triples literal.',
+          start,
+        )
+      }
       value += char
       this.#index++
     }
@@ -372,11 +473,13 @@ class Cursor {
     this.space()
     const subject = this.subject()
     this.requiredSpace('Expected whitespace in triple term after subject.')
-    const predicate = this.iri() as Predicate
+    const predicate = this.iri() as PredicateTermType
     this.requiredSpace('Expected whitespace in triple term after predicate.')
     const object = this.object(depth)
     this.space()
-    if (!this.take(')>>')) throw this.errorAt('rdf-triple-end', "Expected ')>>' after triple term.", start)
+    if (!this.take(')>>')) {
+      throw this.errorAt('rdf-triple-end', "Expected ')>>' after triple term.", start)
+    }
     return quad(subject, predicate, object)
   }
 
@@ -385,7 +488,9 @@ class Cursor {
     const start = this.#index
     this.#index++
     const kind = this.peek()
-    if (kind !== 'u' && kind !== 'U') throw this.errorAt('rdf-escape', 'Expected Unicode escape.', start)
+    if (kind !== 'u' && kind !== 'U') {
+      throw this.errorAt('rdf-escape', 'Expected Unicode escape.', start)
+    }
     this.#index++
     const width = kind === 'u' ? 4 : 8
     const text = this.source.slice(this.#index, Math.min(this.#index + width, this.to))
@@ -410,7 +515,7 @@ class Cursor {
   }
 
   /** Converts absolute offsets into a one-line source range with the correct one-based column. */
-  range(start: number, end: number): SourceRange {
+  range(start: number, end: number): SourceRangeType {
     return { start, end, line: this.line, column: start - this.sourceStart + 1 }
   }
 
@@ -435,7 +540,12 @@ function nextLineBreak(
   value: string,
   start: number,
   final: boolean,
-): { readonly index: number; readonly length: number } | undefined {
+): {
+  /** Offset of the next line-break sequence. */
+  readonly index: number
+  /** Number of source code units occupied by the line-break sequence. */
+  readonly length: number
+} | undefined {
   const lf = value.indexOf('\n', start)
   const cr = value.indexOf('\r', start)
   if (lf === -1 && cr === -1) return undefined
@@ -449,14 +559,23 @@ function nextLineBreak(
 /** Maps an N-Triples single-character escape to its decoded code point. */
 function escapeValue(value: string): string {
   switch (value) {
-    case 't': return '\t'
-    case 'b': return '\b'
-    case 'n': return '\n'
-    case 'r': return '\r'
-    case 'f': return '\f'
-    case '"': return '"'
-    case "'": return "'"
-    case '\\': return '\\'
-    default: return value
+    case 't':
+      return '\t'
+    case 'b':
+      return '\b'
+    case 'n':
+      return '\n'
+    case 'r':
+      return '\r'
+    case 'f':
+      return '\f'
+    case '"':
+      return '"'
+    case "'":
+      return "'"
+    case '\\':
+      return '\\'
+    default:
+      return value
   }
 }

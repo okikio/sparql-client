@@ -3,22 +3,22 @@
 import {
   BlankNodeValue,
   DefaultGraphValue,
-  type DirectionalLanguage,
-  type Graph,
+  type DirectionalLanguageType,
+  type GraphTermType,
+  type Literal,
+  LiteralValue,
   type NamedNode,
   NamedNodeValue,
-  type ObjectTerm,
-  type Predicate,
+  type ObjectTermType,
+  type PredicateTermType,
   type Quad,
   QuadValue,
   RDF,
-  type Subject,
+  type SubjectTermType,
   type Term,
   type TermType,
   type Variable,
   VariableValue,
-  type Literal,
-  LiteralValue,
   XSD,
 } from './term.ts'
 
@@ -62,7 +62,7 @@ export function defaultGraph(): DefaultGraphValue {
  */
 export function literal(
   value: string,
-  languageOrDatatype?: string | NamedNode | DirectionalLanguage,
+  languageOrDatatype?: string | NamedNode | DirectionalLanguageType,
 ): Literal {
   if (typeof languageOrDatatype === 'string') {
     const language = normalizeLanguage(languageOrDatatype)
@@ -70,7 +70,9 @@ export function literal(
   }
 
   if (languageOrDatatype !== undefined && 'termType' in languageOrDatatype) {
-    if (languageOrDatatype.termType !== 'NamedNode') throw new TypeError('Literal datatype must be a named node.')
+    if (languageOrDatatype.termType !== 'NamedNode') {
+      throw new TypeError('Literal datatype must be a named node.')
+    }
     return new LiteralValue(value, languageOrDatatype)
   }
 
@@ -92,7 +94,12 @@ export function literal(
 }
 
 /** Creates a quad or, with the default graph, an RDF 1.2 triple term. */
-export function quad(subject: Subject, predicate: Predicate, object: ObjectTerm, graph: Graph = DEFAULT_GRAPH): Quad {
+export function quad(
+  subject: SubjectTermType,
+  predicate: PredicateTermType,
+  object: ObjectTermType,
+  graph: GraphTermType = DEFAULT_GRAPH,
+): Quad {
   if (object.termType === 'Quad' && object.graph.termType !== 'DefaultGraph') {
     throw new TypeError('An RDF 1.2 triple term cannot contain a named graph.')
   }
@@ -100,7 +107,11 @@ export function quad(subject: Subject, predicate: Predicate, object: ObjectTerm,
 }
 
 /** Creates a triple term explicitly. */
-export function triple(subject: Subject, predicate: Predicate, object: ObjectTerm): Quad {
+export function triple(
+  subject: SubjectTermType,
+  predicate: PredicateTermType,
+  object: ObjectTermType,
+): Quad {
   return quad(subject, predicate, object)
 }
 
@@ -117,7 +128,9 @@ export function fromTerm(original: Term): TermType {
       return defaultGraph()
     case 'Literal': {
       const value = original as Literal
-      if (value.direction) return literal(value.value, { language: value.language, direction: value.direction })
+      if (value.direction) {
+        return literal(value.value, { language: value.language, direction: value.direction })
+      }
       if (value.language) return literal(value.value, value.language)
       return literal(value.value, namedNode(value.datatype.value))
     }
@@ -129,10 +142,10 @@ export function fromTerm(original: Term): TermType {
 /** Copies an RDF/JS-compatible quad recursively. */
 export function fromQuad(original: Quad): Quad {
   return quad(
-    fromTerm(original.subject) as Subject,
-    fromTerm(original.predicate) as Predicate,
-    fromTerm(original.object) as ObjectTerm,
-    fromTerm(original.graph) as Graph,
+    fromTerm(original.subject) as SubjectTermType,
+    fromTerm(original.predicate) as PredicateTermType,
+    fromTerm(original.object) as ObjectTermType,
+    fromTerm(original.graph) as GraphTermType,
   )
 }
 

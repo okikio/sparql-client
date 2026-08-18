@@ -3,7 +3,7 @@
 const DIRECT_CHUNK_SIZE = 16 * 1024
 
 /** Byte/text source accepted by streaming RDF parsers. */
-export type TextSource =
+export type TextSourceType =
   | string
   | Uint8Array
   | Iterable<string | Uint8Array>
@@ -17,7 +17,10 @@ export type TextSource =
  * source completion. This prevents an upstream producer from continuing work
  * after a parser or its caller has stopped reading.
  */
-export async function* chunks(source: TextSource, signal?: AbortSignal): AsyncGenerator<string | Uint8Array> {
+export async function* chunks(
+  source: TextSourceType,
+  signal?: AbortSignal,
+): AsyncGenerator<string | Uint8Array> {
   if (typeof source === 'string') {
     for (let offset = 0; offset < source.length; offset += DIRECT_CHUNK_SIZE) {
       throwIfAborted(signal)
@@ -48,7 +51,11 @@ export async function* chunks(source: TextSource, signal?: AbortSignal): AsyncGe
         yield item.value
       }
     } finally {
-      if (!complete) await reader.cancel('RDF parser consumer stopped before source completion').catch(() => undefined)
+      if (!complete) {
+        await reader.cancel('RDF parser consumer stopped before source completion').catch(() =>
+          undefined
+        )
+      }
       reader.releaseLock()
     }
   }
@@ -66,7 +73,6 @@ export async function* chunks(source: TextSource, signal?: AbortSignal): AsyncGe
     yield chunk
   }
 }
-
 
 /** Read from the supplied source while preserving caller ownership. */
 function read(

@@ -1,7 +1,7 @@
 /**
  * SHACL shape and property-path infrastructure.
  *
- * This subpath reads shapes graphs into a loss-preserving, versioned IR. It is
+ * This subpath inspects shapes graphs into a loss-preserving, versioned IR. It is
  * intentionally separate from ontology interpretation and does not claim full
  * SHACL validation. SHACL 1.2 extension specifications can add evaluators over
  * the retained RDF term records without changing the Core model.
@@ -11,17 +11,17 @@
  * import * as turtle from '@okikio/rdf/turtle'
  * import * as shape from '@okikio/rdf/shape'
  *
- * const graph = await shape.read(turtle.parse(source), { version: '1.2' })
+ * const graph = await shape.inspect(turtle.parse(source), { version: '1.2' })
  * const person = graph.shapes.find((value) => value.id.value.endsWith('PersonShape'))
  * ```
  *
  * @module
  */
 
-export { read } from './read.ts'
-export type { ReadOptions } from './read.ts'
-export { readPath } from './path.ts'
-export type { PathOptions } from './path.ts'
+export { inspect } from './inspect.ts'
+export type { InspectOptionsType } from './inspect.ts'
+export { getPath } from './path.ts'
+export type { PathOptionsType } from './path.ts'
 export type {
   AssertionType,
   BlankType,

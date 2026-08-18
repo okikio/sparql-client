@@ -1,29 +1,46 @@
 /** Shared streaming RDF 1.2 Turtle/TriG scanner and semantic parser. @module */
 
 import { blankNode, defaultGraph, literal, namedNode, quad, triple } from './factory.ts'
-import { chunks, throwIfAborted, type TextSource } from './text.ts'
-import { RDF, XSD, type Graph, type Literal, type NamedNode, type ObjectTerm, type Predicate, type Quad, type Subject } from './term.ts'
+import { chunks, type TextSourceType, throwIfAborted } from './text.ts'
+import {
+  type GraphTermType,
+  type Literal,
+  type NamedNode,
+  type ObjectTermType,
+  type PredicateTermType,
+  type Quad,
+  RDF,
+  type SubjectTermType,
+  XSD,
+} from './term.ts'
 
 /** Source range expressed in UTF-16 code-unit offsets and one-based line/column positions. */
-export interface CompactRange {
+export interface CompactRangeType {
+  /** Zero-based source offset where this record starts. */
   readonly start: number
+  /** Exclusive zero-based source offset where this record ends. */
   readonly end: number
+  /** One-based source line containing the start of this record. */
   readonly line: number
+  /** One-based source column containing the start of this record. */
   readonly column: number
 }
 
 /** Recoverable Turtle/TriG diagnostic. */
-export interface CompactDiagnostic {
+export interface CompactDiagnosticType {
+  /** Stable machine-readable code used to classify this diagnostic or failure. */
   readonly code: string
+  /** Human-readable explanation of the diagnostic or failure. */
   readonly message: string
-  readonly range: CompactRange
+  /** Source range that locates the related token, statement, feature, or diagnostic. */
+  readonly range: CompactRangeType
 }
 
 /** RDF version labels accepted by RDF 1.2 Turtle and TriG. */
-export type CompactVersion = '1.1' | '1.2-basic' | '1.2'
+export type CompactVersionType = '1.1' | '1.2-basic' | '1.2'
 
 /** Streaming parser controls for Turtle and TriG. */
-export interface CompactOptions {
+export interface CompactOptionsType {
   /** Retrieval/base IRI used before an in-document BASE directive appears. */
   readonly baseIri?: string
   /** Emit diagnostics and resume at the next statement where safe. */
@@ -34,16 +51,52 @@ export interface CompactOptions {
   readonly maxDepth?: number
   /** Maximum semantic events buffered for one invalidatable statement in tolerant mode. */
   readonly maxStatementEvents?: number
+  /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
 }
 
 /** Parser event common to Turtle and TriG. */
-export type CompactEvent =
-  | { readonly kind: 'quad'; readonly quad: Quad; readonly range: CompactRange }
-  | { readonly kind: 'prefix'; readonly prefix: string; readonly iri: string; readonly range: CompactRange }
-  | { readonly kind: 'base'; readonly iri: string; readonly range: CompactRange }
-  | { readonly kind: 'version'; readonly version: CompactVersion; readonly range: CompactRange }
-  | { readonly kind: 'diagnostic'; readonly diagnostic: CompactDiagnostic }
+export type CompactEventType =
+  | {
+    /** Selects the `quad` variant of CompactEventType. */
+    readonly kind: 'quad'
+    /** RDF quad carried by this event or triplestore mutation. */
+    readonly quad: Quad
+    /** Source range covered by this CompactEventType. */
+    readonly range: CompactRangeType
+  }
+  | {
+    /** Selects the `prefix` variant of CompactEventType. */
+    readonly kind: 'prefix'
+    /** Prefix label associated with this syntax or RDF name. */
+    readonly prefix: string
+    /** IRI retained by this CompactEventType. */
+    readonly iri: string
+    /** Source range covered by this CompactEventType. */
+    readonly range: CompactRangeType
+  }
+  | {
+    /** Selects the `base` variant of CompactEventType. */
+    readonly kind: 'base'
+    /** IRI retained by this CompactEventType. */
+    readonly iri: string
+    /** Source range covered by this CompactEventType. */
+    readonly range: CompactRangeType
+  }
+  | {
+    /** Selects the `version` variant of CompactEventType. */
+    readonly kind: 'version'
+    /** Version marker retained by this syntax record. */
+    readonly version: CompactVersionType
+    /** Source range covered by this CompactEventType. */
+    readonly range: CompactRangeType
+  }
+  | {
+    /** Selects the `diagnostic` variant of CompactEventType. */
+    readonly kind: 'diagnostic'
+    /** Structured syntax diagnostic emitted by this parser event. */
+    readonly diagnostic: CompactDiagnosticType
+  }
 
 /** Default max token length used when the caller does not provide an override. */
 const DEFAULT_MAX_TOKEN_LENGTH = 8 * 1024 * 1024
@@ -55,7 +108,7 @@ const DEFAULT_MAX_STATEMENT_EVENTS = 1_000_000
 const COMPACT_THRESHOLD = 64 * 1024
 
 /** Transient scanner token kinds. Tokens are fields on one scanner object, not allocated AST nodes. */
-const Kind = {
+const KindType = {
   Eof: 0,
   Iri: 1,
   PName: 2,
@@ -69,7 +122,7 @@ const Kind = {
   Prefix: 10,
   Base: 11,
   Version: 12,
-  Graph: 13,
+  GraphTermType: 13,
   Dot: 14,
   Semicolon: 15,
   Comma: 16,
@@ -91,15 +144,17 @@ const Kind = {
 } as const
 
 /** Numeric compact-syntax token kind used only inside the allocation-light scanner/parser state machine. */
-type Kind = (typeof Kind)[keyof typeof Kind]
+type KindType = (typeof KindType)[keyof typeof KindType]
 
 /** Position-aware parser failure used by strict mode and converted to diagnostics in tolerant mode. */
 class CompactError extends SyntaxError {
+  /** Stable machine-readable code used to classify this diagnostic or failure. */
   readonly code: string
-  readonly range: CompactRange
+  /** Source range that locates the related token, statement, feature, or diagnostic. */
+  readonly range: CompactRangeType
 
   /** Creates a position-aware Turtle/TriG syntax failure that tolerant mode can convert to a diagnostic. */
-  constructor(code: string, message: string, range: CompactRange) {
+  constructor(code: string, message: string, range: CompactRangeType) {
     super(message)
     this.name = 'RdfCompactParseError'
     this.code = code
@@ -115,28 +170,45 @@ class CompactError extends SyntaxError {
  * while still giving the semantic parser one-token lookahead.
  */
 class Scanner {
+  /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal: AbortSignal | undefined
+  /** Maximum token length accepted before the scanner reports a configured limit. */
   readonly maxTokenLength: number
 
-  kind: Kind = Kind.Eof
+  /** Current lexical token class. `Eof` means no token is currently available. */
+  kind: KindType = KindType.Eof
+  /** Decoded token value used by parser logic; `raw` preserves the exact source spelling. */
   value = ''
+  /** Exact source text consumed for this token before semantic decoding. */
   raw = ''
+  /** Zero-based source offset where this record starts. */
   start = 0
+  /** Exclusive zero-based source offset where this record ends. */
   end = 0
+  /** One-based source line containing the start of this record. */
   line = 1
+  /** One-based source column containing the start of this record. */
   column = 1
 
+  /** Input source currently owned by this parser or scanner until it is consumed or canceled. */
   #source: AsyncGenerator<string | Uint8Array>
+  /** Streaming text decoder that preserves partial UTF-8 sequences between source chunks. */
   #decoder = new TextDecoder('utf-8', { fatal: true })
+  /** Retained unread source text. Compaction removes consumed prefixes to keep memory bounded. */
   #buffer = ''
+  /** Current lookup or cursor index used to avoid rescanning already consumed state. */
   #index = 0
+  /** Absolute source offset corresponding to the start of the retained scanner buffer. */
   #absolute = 0
+  /** Current one-based source line maintained as the scanner consumes characters. */
   #line = 1
+  /** Current one-based source column maintained as the scanner consumes characters. */
   #column = 1
+  /** Whether the underlying source has reached its terminal end state. */
   #done = false
 
   /** Creates one incremental scanner over bounded source chunks without materializing a token array. */
-  constructor(source: TextSource, options: CompactOptions) {
+  constructor(source: TextSourceType, options: CompactOptionsType) {
     this.signal = options.signal
     this.maxTokenLength = options.maxTokenLength ?? DEFAULT_MAX_TOKEN_LENGTH
     this.#source = chunks(source, options.signal)
@@ -155,7 +227,7 @@ class Scanner {
 
     const first = await this.#peek()
     if (first === undefined) {
-      this.kind = Kind.Eof
+      this.kind = KindType.Eof
       this.end = this.#absolute
       return
     }
@@ -163,42 +235,56 @@ class Scanner {
     const three = `${first}${await this.#peek(1) ?? ''}${await this.#peek(2) ?? ''}`
     const two = three.slice(0, 2)
 
-    if (three === '<<(') return await this.#punct(Kind.TripleStart, 3)
-    if (three === ')>>') return await this.#punct(Kind.TripleEnd, 3)
-    if (two === '<<') return await this.#punct(Kind.ReifiedStart, 2)
-    if (two === '>>') return await this.#punct(Kind.ReifiedEnd, 2)
-    if (two === '{|') return await this.#punct(Kind.AnnotationStart, 2)
-    if (two === '|}') return await this.#punct(Kind.AnnotationEnd, 2)
-    if (two === '^^') return await this.#punct(Kind.HatHat, 2)
+    if (three === '<<(') return await this.#punct(KindType.TripleStart, 3)
+    if (three === ')>>') return await this.#punct(KindType.TripleEnd, 3)
+    if (two === '<<') return await this.#punct(KindType.ReifiedStart, 2)
+    if (two === '>>') return await this.#punct(KindType.ReifiedEnd, 2)
+    if (two === '{|') return await this.#punct(KindType.AnnotationStart, 2)
+    if (two === '|}') return await this.#punct(KindType.AnnotationEnd, 2)
+    if (two === '^^') return await this.#punct(KindType.HatHat, 2)
 
     switch (first) {
       case '.': {
         const next = await this.#peek(1)
         if (next !== undefined && /[0-9]/.test(next)) return await this.#number()
-        return await this.#punct(Kind.Dot, 1)
+        return await this.#punct(KindType.Dot, 1)
       }
-      case ';': return await this.#punct(Kind.Semicolon, 1)
-      case ',': return await this.#punct(Kind.Comma, 1)
-      case '[': return await this.#punct(Kind.LBracket, 1)
-      case ']': return await this.#punct(Kind.RBracket, 1)
-      case '(': return await this.#punct(Kind.LParen, 1)
-      case ')': return await this.#punct(Kind.RParen, 1)
-      case '{': return await this.#punct(Kind.LBrace, 1)
-      case '}': return await this.#punct(Kind.RBrace, 1)
-      case '~': return await this.#punct(Kind.Tilde, 1)
-      case '<': return await this.#iri()
+      case ';':
+        return await this.#punct(KindType.Semicolon, 1)
+      case ',':
+        return await this.#punct(KindType.Comma, 1)
+      case '[':
+        return await this.#punct(KindType.LBracket, 1)
+      case ']':
+        return await this.#punct(KindType.RBracket, 1)
+      case '(':
+        return await this.#punct(KindType.LParen, 1)
+      case ')':
+        return await this.#punct(KindType.RParen, 1)
+      case '{':
+        return await this.#punct(KindType.LBrace, 1)
+      case '}':
+        return await this.#punct(KindType.RBrace, 1)
+      case '~':
+        return await this.#punct(KindType.Tilde, 1)
+      case '<':
+        return await this.#iri()
       case '"':
-      case "'": return await this.#string(first)
-      case '@': return await this.#at()
-      case ':': return await this.#pname()
+      case "'":
+        return await this.#string(first)
+      case '@':
+        return await this.#at()
+      case ':':
+        return await this.#pname()
       case '+':
-      case '-': return await this.#numberOrUnknown()
+      case '-':
+        return await this.#numberOrUnknown()
       default:
         if (/[0-9]/.test(first)) return await this.#number()
         if (two === '_:') return await this.#blank()
         if (isNameStart(first)) return await this.#wordOrPname()
         await this.#take()
-        this.kind = Kind.Unknown
+        this.kind = KindType.Unknown
         this.raw = first
         this.value = first
         this.end = this.#absolute
@@ -206,7 +292,7 @@ class Scanner {
   }
 
   /** Returns a range covering the current scanner token. */
-  range(): CompactRange {
+  range(): CompactRangeType {
     return { start: this.start, end: this.end, line: this.line, column: this.column }
   }
 
@@ -237,7 +323,7 @@ class Scanner {
   }
 
   /** Punct as one isolated step of the Scanner state machine. */
-  async #punct(kind: Kind, width: number): Promise<void> {
+  async #punct(kind: KindType, width: number): Promise<void> {
     let raw = ''
     for (let i = 0; i < width; i++) raw += await this.#take() ?? ''
     this.kind = kind
@@ -258,7 +344,7 @@ class Scanner {
       if (char === '>') {
         raw += await this.#take()
         this.#guard(mark)
-        this.kind = Kind.Iri
+        this.kind = KindType.Iri
         this.value = value
         this.raw = raw
         this.end = this.#absolute
@@ -291,7 +377,9 @@ class Scanner {
 
     while (true) {
       const char = await this.#peek()
-      if (char === undefined) throw this.error('turtle-string-end', 'Unterminated Turtle string literal.')
+      if (char === undefined) {
+        throw this.error('turtle-string-end', 'Unterminated Turtle string literal.')
+      }
       if (char === quote) {
         if (long) {
           if (await this.#peek(1) === quote && await this.#peek(2) === quote) {
@@ -304,7 +392,10 @@ class Scanner {
         }
       }
       if (!long && (char === '\n' || char === '\r')) {
-        throw this.error('turtle-string-line', 'Short Turtle string literals cannot contain line breaks.')
+        throw this.error(
+          'turtle-string-line',
+          'Short Turtle string literals cannot contain line breaks.',
+        )
       }
       if (char === '\\') {
         raw += await this.#take()
@@ -328,7 +419,7 @@ class Scanner {
     }
 
     this.#guard(mark)
-    this.kind = Kind.String
+    this.kind = KindType.String
     this.value = value
     this.raw = raw
     this.end = this.#absolute
@@ -345,10 +436,10 @@ class Scanner {
       this.#guard(mark)
     }
 
-    if (raw === '@prefix') this.kind = Kind.Prefix
-    else if (raw === '@base') this.kind = Kind.Base
-    else if (raw === '@version') this.kind = Kind.Version
-    else this.kind = Kind.Lang
+    if (raw === '@prefix') this.kind = KindType.Prefix
+    else if (raw === '@base') this.kind = KindType.Base
+    else if (raw === '@version') this.kind = KindType.Version
+    else this.kind = KindType.Lang
     this.raw = raw
     this.value = raw.slice(1)
     this.end = this.#absolute
@@ -359,7 +450,9 @@ class Scanner {
     const mark = this.#absolute
     let raw = `${await this.#take() ?? ''}${await this.#take() ?? ''}`
     const first = await this.#peek()
-    if (first === undefined || !isBlankStart(first)) throw this.error('turtle-blank', 'Invalid blank-node label.')
+    if (first === undefined || !isBlankStart(first)) {
+      throw this.error('turtle-blank', 'Invalid blank-node label.')
+    }
     while (true) {
       const char = await this.#peek()
       if (char === undefined || !isBlankChar(char)) break
@@ -370,7 +463,7 @@ class Scanner {
       this.#rewindOne('.')
       raw = raw.slice(0, -1)
     }
-    this.kind = Kind.Blank
+    this.kind = KindType.Blank
     this.raw = raw
     this.value = raw.slice(2)
     this.end = this.#absolute
@@ -380,11 +473,14 @@ class Scanner {
   async #numberOrUnknown(): Promise<void> {
     const next = await this.#peek(1)
     const after = await this.#peek(2)
-    if (next !== undefined && (/[0-9]/.test(next) || (next === '.' && after !== undefined && /[0-9]/.test(after)))) {
+    if (
+      next !== undefined &&
+      (/[0-9]/.test(next) || (next === '.' && after !== undefined && /[0-9]/.test(after)))
+    ) {
       return await this.#number()
     }
     const first = await this.#take() ?? ''
-    this.kind = Kind.Unknown
+    this.kind = KindType.Unknown
     this.raw = first
     this.value = first
     this.end = this.#absolute
@@ -424,7 +520,9 @@ class Scanner {
         raw += await this.#take()
         char = await this.#peek()
       }
-      if (char === undefined || !/[0-9]/.test(char)) throw this.error('turtle-number', 'Exponent requires at least one digit.')
+      if (char === undefined || !/[0-9]/.test(char)) {
+        throw this.error('turtle-number', 'Exponent requires at least one digit.')
+      }
       while (char !== undefined && /[0-9]/.test(char)) {
         raw += await this.#take()
         char = await this.#peek()
@@ -433,7 +531,7 @@ class Scanner {
     }
 
     if (!numericKind(raw)) throw this.error('turtle-number', `Invalid numeric literal '${raw}'.`)
-    this.kind = Kind.Number
+    this.kind = KindType.Number
     this.raw = raw
     this.value = raw
     this.end = this.#absolute
@@ -458,14 +556,18 @@ class Scanner {
         if (char === '\\') {
           raw += await this.#take()
           const escaped = await this.#peek()
-          if (escaped === undefined || !isLocalEscape(escaped)) throw this.error('turtle-pname-escape', 'Invalid prefixed-name escape.')
+          if (escaped === undefined || !isLocalEscape(escaped)) {
+            throw this.error('turtle-pname-escape', 'Invalid prefixed-name escape.')
+          }
           raw += await this.#take()
           continue
         }
         if (char === '%') {
           const a = await this.#peek(1)
           const b = await this.#peek(2)
-          if (a !== undefined && b !== undefined && /[0-9A-Fa-f]/.test(a) && /[0-9A-Fa-f]/.test(b)) {
+          if (
+            a !== undefined && b !== undefined && /[0-9A-Fa-f]/.test(a) && /[0-9A-Fa-f]/.test(b)
+          ) {
             raw += `${await this.#take()}${await this.#take()}${await this.#take()}`
             continue
           }
@@ -479,7 +581,7 @@ class Scanner {
         this.#rewindOne('.')
         raw = raw.slice(0, -1)
       }
-      this.kind = Kind.PName
+      this.kind = KindType.PName
       this.raw = raw
       this.value = raw
       this.end = this.#absolute
@@ -487,14 +589,14 @@ class Scanner {
     }
 
     const upper = raw.toUpperCase()
-    if (raw === 'a') this.kind = Kind.A
-    else if (raw === 'true') this.kind = Kind.True
-    else if (raw === 'false') this.kind = Kind.False
-    else if (upper === 'PREFIX') this.kind = Kind.Prefix
-    else if (upper === 'BASE') this.kind = Kind.Base
-    else if (upper === 'VERSION') this.kind = Kind.Version
-    else if (upper === 'GRAPH') this.kind = Kind.Graph
-    else this.kind = Kind.Unknown
+    if (raw === 'a') this.kind = KindType.A
+    else if (raw === 'true') this.kind = KindType.True
+    else if (raw === 'false') this.kind = KindType.False
+    else if (upper === 'PREFIX') this.kind = KindType.Prefix
+    else if (upper === 'BASE') this.kind = KindType.Base
+    else if (upper === 'VERSION') this.kind = KindType.Version
+    else if (upper === 'GRAPH') this.kind = KindType.GraphTermType
+    else this.kind = KindType.Unknown
     this.raw = raw
     this.value = raw
     this.end = this.#absolute
@@ -510,7 +612,9 @@ class Scanner {
       if (char === '\\') {
         raw += await this.#take()
         const escaped = await this.#peek()
-        if (escaped === undefined || !isLocalEscape(escaped)) throw this.error('turtle-pname-escape', 'Invalid prefixed-name escape.')
+        if (escaped === undefined || !isLocalEscape(escaped)) {
+          throw this.error('turtle-pname-escape', 'Invalid prefixed-name escape.')
+        }
         raw += await this.#take()
         continue
       }
@@ -531,21 +635,28 @@ class Scanner {
       this.#rewindOne('.')
       raw = raw.slice(0, -1)
     }
-    this.kind = Kind.PName
+    this.kind = KindType.PName
     this.raw = raw
     this.value = raw
     this.end = this.#absolute
   }
 
   /** Unicode escape as one isolated step of the Scanner state machine. */
-  async #unicodeEscape(): Promise<{ readonly raw: string; readonly value: string }> {
+  async #unicodeEscape(): Promise<{
+    /** Original escaped source spelling before decoding or normalization. */
+    readonly raw: string
+    /** Unicode scalar decoded from the Turtle escape sequence. */
+    readonly value: string
+  }> {
     const kind = await this.#take()
     if (kind !== 'u' && kind !== 'U') throw this.error('turtle-unicode', 'Expected Unicode escape.')
     const width = kind === 'u' ? 4 : 8
     let hex = ''
     for (let i = 0; i < width; i++) {
       const char = await this.#take()
-      if (char === undefined || !/[0-9A-Fa-f]/.test(char)) throw this.error('turtle-unicode', 'Invalid Unicode escape.')
+      if (char === undefined || !/[0-9A-Fa-f]/.test(char)) {
+        throw this.error('turtle-unicode', 'Invalid Unicode escape.')
+      }
       hex += char
     }
     const point = Number.parseInt(hex, 16)
@@ -588,7 +699,9 @@ class Scanner {
         return
       }
       const chunk = item.value
-      this.#buffer += typeof chunk === 'string' ? chunk : this.#decoder.decode(chunk, { stream: true })
+      this.#buffer += typeof chunk === 'string'
+        ? chunk
+        : this.#decoder.decode(chunk, { stream: true })
     }
   }
 
@@ -618,26 +731,39 @@ class Scanner {
   /** Applies configured parser resource limits before accepting more input. */
   #guard(start: number): void {
     if (this.#absolute - start > this.maxTokenLength) {
-      throw this.error('turtle-token-limit', `Token exceeds maxTokenLength (${this.maxTokenLength}).`)
+      throw this.error(
+        'turtle-token-limit',
+        `Token exceeds maxTokenLength (${this.maxTokenLength}).`,
+      )
     }
   }
 }
 
 /** RDF 1.2 Turtle/TriG semantic parser over the transient scanner state. */
 class Parser {
+  /** Scanner that owns lexical buffering and source-position tracking for this parser. */
   readonly scanner: Scanner
-  readonly options: CompactOptions
+  /** Validated parse options retained for the complete parser lifetime. */
+  readonly options: CompactOptionsType
+  /** Whether the current grammar permits TriG graph blocks instead of Turtle-only statements. */
   readonly allowGraphs: boolean
+  /** Prefix declarations available while serializing the current RDF or SPARQL document. */
   readonly prefixes = new Map<string, string>()
+  /** Maximum nested grammar depth accepted before the parser reports a configured limit. */
   readonly maxDepth: number
+  /** Maximum statement events emitted before the parser reports a configured limit. */
   readonly maxStatementEvents: number
+  /** Current base IRI used to resolve relative IRIs after BASE directives. */
   baseIri: string | undefined
-  version: CompactVersion | undefined
+  /** RDF syntax version announced or inferred for the current document. */
+  version: CompactVersionType | undefined
+  /** Blank-node counter used to create deterministic parser-local identifiers when the syntax requires them. */
   #generated = 0
+  /** Whether the parser has consumed the first significant token and therefore fixed first-statement rules. */
   #started = false
 
   /** Creates semantic Turtle/TriG parser state with isolated prefixes, base IRI, graph, and statement buffers. */
-  constructor(source: TextSource, options: CompactOptions, allowGraphs: boolean) {
+  constructor(source: TextSourceType, options: CompactOptionsType, allowGraphs: boolean) {
     this.scanner = new Scanner(source, options)
     this.options = options
     this.allowGraphs = allowGraphs
@@ -647,63 +773,63 @@ class Parser {
   }
 
   /** Parses the complete document and yields semantic/directive events. */
-  async *events(): AsyncGenerator<CompactEvent> {
+  async *events(): AsyncGenerator<CompactEventType> {
     try {
-    if (!this.#started) {
-      this.#started = true
-      await this.scanner.next()
-    }
-
-    while (this.#kind() !== Kind.Eof) {
-      throwIfAborted(this.options.signal)
-      if (isDirective(this.#kind())) {
-        try {
-          yield await this.#directive()
-        } catch (error) {
-          if (!this.options.tolerant) throw error
-          yield { kind: 'diagnostic', diagnostic: this.#diagnostic(error) }
-          await this.#recoverTop()
-        }
-        continue
+      if (!this.#started) {
+        this.#started = true
+        await this.scanner.next()
       }
 
-      if (this.allowGraphs && this.#kind() === Kind.Graph) {
-        await this.#advance()
-        const graph = await this.#graphLabel(0)
-        if (this.#kind() !== Kind.LBrace) {
-          const error = this.scanner.error('trig-graph-open', "Expected '{' after GRAPH label.")
-          if (!this.options.tolerant) throw error
-          yield { kind: 'diagnostic', diagnostic: this.#diagnostic(error) }
-          await this.#recoverTop()
+      while (this.#kind() !== KindType.Eof) {
+        throwIfAborted(this.options.signal)
+        if (isDirective(this.#kind())) {
+          try {
+            yield await this.#directive()
+          } catch (error) {
+            if (!this.options.tolerant) throw error
+            yield { kind: 'diagnostic', diagnostic: this.#diagnostic(error) }
+            await this.#recoverTop()
+          }
           continue
         }
-        yield* this.#graphBlock(graph)
-        continue
-      }
 
-      if (this.allowGraphs && this.#kind() === Kind.LBrace) {
-        yield* this.#graphBlock(defaultGraph())
-        continue
-      }
-
-      if (this.allowGraphs && this.#kind() === Kind.LBracket) {
-        yield* this.#trigBracket()
-        continue
-      }
-
-      if (this.allowGraphs && isGraphLabelStart(this.#kind())) {
-        const range = this.scanner.range()
-        const lead = await this.#graphLabel(0)
-        if (this.#kind() === Kind.LBrace) {
-          yield* this.#graphBlock(lead)
+        if (this.allowGraphs && this.#kind() === KindType.GraphTermType) {
+          await this.#advance()
+          const graph = await this.#graphLabel(0)
+          if (this.#kind() !== KindType.LBrace) {
+            const error = this.scanner.error('trig-graph-open', "Expected '{' after GRAPH label.")
+            if (!this.options.tolerant) throw error
+            yield { kind: 'diagnostic', diagnostic: this.#diagnostic(error) }
+            await this.#recoverTop()
+            continue
+          }
+          yield* this.#graphBlock(graph)
           continue
         }
-        yield* this.#statement(defaultGraph(), lead, range)
-        continue
-      }
 
-      yield* this.#statement(defaultGraph())
-    }
+        if (this.allowGraphs && this.#kind() === KindType.LBrace) {
+          yield* this.#graphBlock(defaultGraph())
+          continue
+        }
+
+        if (this.allowGraphs && this.#kind() === KindType.LBracket) {
+          yield* this.#trigBracket()
+          continue
+        }
+
+        if (this.allowGraphs && isGraphLabelStart(this.#kind())) {
+          const range = this.scanner.range()
+          const lead = await this.#graphLabel(0)
+          if (this.#kind() === KindType.LBrace) {
+            yield* this.#graphBlock(lead)
+            continue
+          }
+          yield* this.#statement(defaultGraph(), lead, range)
+          continue
+        }
+
+        yield* this.#statement(defaultGraph())
+      }
     } finally {
       await this.scanner.close()
     }
@@ -717,14 +843,14 @@ class Parser {
    * distinction is only visible after the opening bracket, so it cannot be
    * decided by the one-token lookahead in {@link Scanner}.
    */
-  async *#trigBracket(): AsyncGenerator<CompactEvent> {
+  async *#trigBracket(): AsyncGenerator<CompactEventType> {
     const start = this.scanner.range()
     await this.#advance()
     const node = this.#fresh()
 
-    if (this.#kind() === Kind.RBracket) {
+    if (this.#kind() === KindType.RBracket) {
       await this.#advance()
-      if (this.#kind() === Kind.LBrace) {
+      if (this.#kind() === KindType.LBrace) {
         yield* this.#graphBlock(node)
         return
       }
@@ -737,12 +863,15 @@ class Parser {
       return
     }
 
-    const buffered: CompactEvent[] = []
+    const buffered: CompactEventType[] = []
     try {
       for await (const event of this.#trigPropertyStatement(node, start)) {
         buffered.push(event)
         if (buffered.length > this.maxStatementEvents) {
-          throw this.scanner.error('turtle-event-limit', `Statement exceeds maxStatementEvents (${this.maxStatementEvents}).`)
+          throw this.scanner.error(
+            'turtle-event-limit',
+            `Statement exceeds maxStatementEvents (${this.maxStatementEvents}).`,
+          )
         }
       }
       yield* buffered
@@ -753,44 +882,61 @@ class Parser {
   }
 
   /** Parses the remainder of a non-empty top-level blank-node property-list statement. */
-  async *#trigPropertyStatement(node: Subject, start: CompactRange): AsyncGenerator<CompactEvent> {
-    yield* this.#predicateObjectList(node, defaultGraph(), 1, start, Kind.RBracket)
-    if (this.#kind() !== Kind.RBracket) {
-      throw this.scanner.error('turtle-property-list-end', "Expected ']' to close blank-node property list.")
+  async *#trigPropertyStatement(
+    node: SubjectTermType,
+    start: CompactRangeType,
+  ): AsyncGenerator<CompactEventType> {
+    yield* this.#predicateObjectList(node, defaultGraph(), 1, start, KindType.RBracket)
+    if (this.#kind() !== KindType.RBracket) {
+      throw this.scanner.error(
+        'turtle-property-list-end',
+        "Expected ']' to close blank-node property list.",
+      )
     }
     await this.#advance()
-    if (this.#kind() !== Kind.Dot) {
+    if (this.#kind() !== KindType.Dot) {
       yield* this.#predicateObjectList(node, defaultGraph(), 0, start)
     }
     await this.#expectDot()
   }
 
-  /** Graph block as one isolated step of the Parser state machine. */
-  async *#graphBlock(graph: Graph): AsyncGenerator<CompactEvent> {
-    if (this.#kind() !== Kind.LBrace) throw this.scanner.error('trig-graph-open', "Expected '{' to start graph block.")
+  /** GraphTermType block as one isolated step of the Parser state machine. */
+  async *#graphBlock(graph: GraphTermType): AsyncGenerator<CompactEventType> {
+    if (this.#kind() !== KindType.LBrace) {
+      throw this.scanner.error('trig-graph-open', "Expected '{' to start graph block.")
+    }
     await this.#advance()
 
-    while (this.#kind() !== Kind.RBrace && this.#kind() !== Kind.Eof) {
+    while (this.#kind() !== KindType.RBrace && this.#kind() !== KindType.Eof) {
       yield* this.#statement(graph)
     }
 
-    if (this.#kind() !== Kind.RBrace) throw this.scanner.error('trig-graph-end', "Expected '}' to close graph block.")
+    if (this.#kind() !== KindType.RBrace) {
+      throw this.scanner.error('trig-graph-end', "Expected '}' to close graph block.")
+    }
     await this.#advance()
   }
 
   /** Statement as one isolated step of the Parser state machine. */
-  async *#statement(graph: Graph, lead?: Subject, leadRange?: CompactRange): AsyncGenerator<CompactEvent> {
+  async *#statement(
+    graph: GraphTermType,
+    lead?: SubjectTermType,
+    leadRange?: CompactRangeType,
+  ): AsyncGenerator<CompactEventType> {
     if (!this.options.tolerant) {
       yield* this.#statementStrict(graph, lead, leadRange)
       return
     }
 
-    const buffered: CompactEvent[] = []
+    const buffered: CompactEventType[] = []
     try {
       for await (const event of this.#statementStrict(graph, lead, leadRange)) {
         buffered.push(event)
         if (buffered.length > this.maxStatementEvents) {
-          throw this.scanner.error('turtle-event-limit', `Statement exceeds maxStatementEvents (${this.maxStatementEvents}).`)
+          throw this.scanner.error(
+            'turtle-event-limit',
+            `Statement exceeds maxStatementEvents (${this.maxStatementEvents}).`,
+          )
         }
       }
       yield* buffered
@@ -801,22 +947,26 @@ class Parser {
   }
 
   /** Statement strict as one isolated step of the Parser state machine. */
-  async *#statementStrict(graph: Graph, lead?: Subject, leadRange?: CompactRange): AsyncGenerator<CompactEvent> {
+  async *#statementStrict(
+    graph: GraphTermType,
+    lead?: SubjectTermType,
+    leadRange?: CompactRangeType,
+  ): AsyncGenerator<CompactEventType> {
     const range = leadRange ?? this.scanner.range()
-    let subject: Subject
+    let subject: SubjectTermType
 
     if (lead !== undefined) {
       subject = lead
-    } else if (this.#kind() === Kind.LBracket) {
+    } else if (this.#kind() === KindType.LBracket) {
       subject = yield* this.#blankPropertyList(graph, 0)
-      if (this.#kind() !== Kind.Dot) {
+      if (this.#kind() !== KindType.Dot) {
         yield* this.#predicateObjectList(subject, graph, 0)
       }
       await this.#expectDot()
       return
-    } else if (this.#kind() === Kind.ReifiedStart) {
+    } else if (this.#kind() === KindType.ReifiedStart) {
       subject = yield* this.#reified(graph, 0)
-      if (this.#kind() !== Kind.Dot) yield* this.#predicateObjectList(subject, graph, 0)
+      if (this.#kind() !== KindType.Dot) yield* this.#predicateObjectList(subject, graph, 0)
       await this.#expectDot()
       return
     } else {
@@ -827,54 +977,61 @@ class Parser {
     await this.#expectDot()
   }
 
-  /** Predicate object list as one isolated step of the Parser state machine. */
+  /** PredicateTermType object list as one isolated step of the Parser state machine. */
   async *#predicateObjectList(
-    subject: Subject,
-    graph: Graph,
+    subject: SubjectTermType,
+    graph: GraphTermType,
     depth: number,
-    statementRange?: CompactRange,
-    terminator?: Kind,
-  ): AsyncGenerator<CompactEvent> {
+    statementRange?: CompactRangeType,
+    terminator?: KindType,
+  ): AsyncGenerator<CompactEventType> {
     this.#depth(depth)
     while (true) {
       const predicate = await this.#verb()
       yield* this.#objectList(subject, predicate, graph, depth + 1, statementRange)
 
-      if (this.#kind() !== Kind.Semicolon) return
+      if (this.#kind() !== KindType.Semicolon) return
       do await this.#advance()
-      while (this.#kind() === Kind.Semicolon)
+      while (this.#kind() === KindType.Semicolon)
       if (terminator !== undefined && this.#kind() === terminator) return
-      if (this.#kind() === Kind.Dot || this.#kind() === Kind.RBracket || this.#kind() === Kind.AnnotationEnd) return
+      if (
+        this.#kind() === KindType.Dot || this.#kind() === KindType.RBracket ||
+        this.#kind() === KindType.AnnotationEnd
+      ) return
     }
   }
 
   /** Object list as one isolated step of the Parser state machine. */
   async *#objectList(
-    subject: Subject,
-    predicate: Predicate,
-    graph: Graph,
+    subject: SubjectTermType,
+    predicate: PredicateTermType,
+    graph: GraphTermType,
     depth: number,
-    statementRange?: CompactRange,
-  ): AsyncGenerator<CompactEvent> {
+    statementRange?: CompactRangeType,
+  ): AsyncGenerator<CompactEventType> {
     while (true) {
       const start = statementRange ?? this.scanner.range()
       const object = yield* this.#object(graph, depth)
       const asserted = quad(subject, predicate, object, graph)
       yield { kind: 'quad', quad: asserted, range: mergeRange(start, this.scanner.range()) }
       yield* this.#annotations(asserted, graph, depth + 1)
-      if (this.#kind() !== Kind.Comma) return
+      if (this.#kind() !== KindType.Comma) return
       await this.#advance()
     }
   }
 
   /** Annotations as one isolated step of the Parser state machine. */
-  async *#annotations(asserted: Quad, graph: Graph, depth: number): AsyncGenerator<CompactEvent> {
+  async *#annotations(
+    asserted: Quad,
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType> {
     this.#depth(depth)
     const tripleTerm = triple(asserted.subject, asserted.predicate, asserted.object)
-    let activeReifier: Subject | undefined
+    let activeReifier: SubjectTermType | undefined
 
-    while (this.#kind() === Kind.Tilde || this.#kind() === Kind.AnnotationStart) {
-      if (this.#kind() === Kind.Tilde) {
+    while (this.#kind() === KindType.Tilde || this.#kind() === KindType.AnnotationStart) {
+      if (this.#kind() === KindType.Tilde) {
         const start = this.scanner.range()
         await this.#advance()
         activeReifier = isIriStart(this.#kind()) || isBlankStartKind(this.#kind())
@@ -885,13 +1042,13 @@ class Parser {
           quad: quad(activeReifier, namedNode(RDF.reifies), tripleTerm, graph),
           range: mergeRange(start, this.scanner.range()),
         }
-        if (this.#kind() !== Kind.AnnotationStart) {
+        if (this.#kind() !== KindType.AnnotationStart) {
           activeReifier = undefined
           continue
         }
       }
 
-      if (this.#kind() === Kind.AnnotationStart) {
+      if (this.#kind() === KindType.AnnotationStart) {
         const start = this.scanner.range()
         const reifier = activeReifier ?? this.#fresh()
         if (activeReifier === undefined) {
@@ -902,9 +1059,12 @@ class Parser {
           }
         }
         await this.#advance()
-        yield* this.#predicateObjectList(reifier, graph, depth + 1, start, Kind.AnnotationEnd)
-        if (this.#kind() !== Kind.AnnotationEnd) {
-          throw this.scanner.error('turtle-annotation-end', "Expected '|}' to close annotation block.")
+        yield* this.#predicateObjectList(reifier, graph, depth + 1, start, KindType.AnnotationEnd)
+        if (this.#kind() !== KindType.AnnotationEnd) {
+          throw this.scanner.error(
+            'turtle-annotation-end',
+            "Expected '|}' to close annotation block.",
+          )
         }
         await this.#advance()
         activeReifier = undefined
@@ -912,49 +1072,72 @@ class Parser {
     }
   }
 
-  /** Subject as one isolated step of the Parser state machine. */
-  async *#subject(graph: Graph, depth: number): AsyncGenerator<CompactEvent, Subject> {
+  /** SubjectTermType as one isolated step of the Parser state machine. */
+  async *#subject(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, SubjectTermType> {
     this.#depth(depth)
     if (isIriStart(this.#kind())) return await this.#iri()
-    if (this.#kind() === Kind.Blank) return await this.#labelledBlank()
-    if (this.#kind() === Kind.LParen) return yield* this.#collection(graph, depth + 1)
-    throw this.scanner.error('turtle-subject', 'Expected IRI, blank node, or collection as Turtle subject.')
+    if (this.#kind() === KindType.Blank) return await this.#labelledBlank()
+    if (this.#kind() === KindType.LParen) return yield* this.#collection(graph, depth + 1)
+    throw this.scanner.error(
+      'turtle-subject',
+      'Expected IRI, blank node, or collection as Turtle subject.',
+    )
   }
 
   /** Object as one isolated step of the Parser state machine. */
-  async *#object(graph: Graph, depth: number): AsyncGenerator<CompactEvent, ObjectTerm> {
+  async *#object(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, ObjectTermType> {
     this.#depth(depth)
     if (isIriStart(this.#kind())) return await this.#iri()
-    if (this.#kind() === Kind.Blank) return await this.#labelledBlank()
-    if (this.#kind() === Kind.LBracket) return yield* this.#blankPropertyList(graph, depth + 1)
-    if (this.#kind() === Kind.LParen) return yield* this.#collection(graph, depth + 1)
-    if (this.#kind() === Kind.String || this.#kind() === Kind.Number || this.#kind() === Kind.True || this.#kind() === Kind.False) {
+    if (this.#kind() === KindType.Blank) return await this.#labelledBlank()
+    if (this.#kind() === KindType.LBracket) return yield* this.#blankPropertyList(graph, depth + 1)
+    if (this.#kind() === KindType.LParen) return yield* this.#collection(graph, depth + 1)
+    if (
+      this.#kind() === KindType.String || this.#kind() === KindType.Number ||
+      this.#kind() === KindType.True || this.#kind() === KindType.False
+    ) {
       return await this.#literal()
     }
-    if (this.#kind() === Kind.TripleStart) return yield* this.#tripleTerm(graph, depth + 1)
-    if (this.#kind() === Kind.ReifiedStart) return yield* this.#reified(graph, depth + 1)
+    if (this.#kind() === KindType.TripleStart) return yield* this.#tripleTerm(graph, depth + 1)
+    if (this.#kind() === KindType.ReifiedStart) return yield* this.#reified(graph, depth + 1)
     throw this.scanner.error('turtle-object', 'Expected Turtle RDF object.')
   }
 
   /** Collection as one isolated step of the Parser state machine. */
-  async *#collection(graph: Graph, depth: number): AsyncGenerator<CompactEvent, Subject> {
+  async *#collection(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, SubjectTermType> {
     this.#depth(depth)
     const start = this.scanner.range()
-    if (this.#kind() !== Kind.LParen) throw this.scanner.error('turtle-collection', "Expected '(' to start collection.")
+    if (this.#kind() !== KindType.LParen) {
+      throw this.scanner.error('turtle-collection', "Expected '(' to start collection.")
+    }
     await this.#advance()
-    if (this.#kind() === Kind.RParen) {
+    if (this.#kind() === KindType.RParen) {
       await this.#advance()
       return namedNode(RDF.nil)
     }
 
     const head = this.#fresh()
     let current = head
-    while (this.#kind() !== Kind.RParen) {
-      if (this.#kind() === Kind.Eof) throw this.scanner.error('turtle-collection-end', "Expected ')' to close collection.")
+    while (this.#kind() !== KindType.RParen) {
+      if (this.#kind() === KindType.Eof) {
+        throw this.scanner.error('turtle-collection-end', "Expected ')' to close collection.")
+      }
       const object = yield* this.#object(graph, depth + 1)
       yield { kind: 'quad', quad: quad(current, namedNode(RDF.first), object, graph), range: start }
-      if (this.#kind() === Kind.RParen) {
-        yield { kind: 'quad', quad: quad(current, namedNode(RDF.rest), namedNode(RDF.nil), graph), range: start }
+      if (this.#kind() === KindType.RParen) {
+        yield {
+          kind: 'quad',
+          quad: quad(current, namedNode(RDF.rest), namedNode(RDF.nil), graph),
+          range: start,
+        }
         break
       }
       const next = this.#fresh()
@@ -966,52 +1149,73 @@ class Parser {
   }
 
   /** Blank property list as one isolated step of the Parser state machine. */
-  async *#blankPropertyList(graph: Graph, depth: number): AsyncGenerator<CompactEvent, Subject> {
+  async *#blankPropertyList(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, SubjectTermType> {
     this.#depth(depth)
-    if (this.#kind() !== Kind.LBracket) throw this.scanner.error('turtle-property-list', "Expected '['.")
+    if (this.#kind() !== KindType.LBracket) {
+      throw this.scanner.error('turtle-property-list', "Expected '['.")
+    }
     const start = this.scanner.range()
     await this.#advance()
     const node = this.#fresh()
-    if (this.#kind() === Kind.RBracket) {
+    if (this.#kind() === KindType.RBracket) {
       await this.#advance()
       return node
     }
-    yield* this.#predicateObjectList(node, graph, depth + 1, start, Kind.RBracket)
-    if (this.#kind() !== Kind.RBracket) throw this.scanner.error('turtle-property-list-end', "Expected ']' to close blank-node property list.")
+    yield* this.#predicateObjectList(node, graph, depth + 1, start, KindType.RBracket)
+    if (this.#kind() !== KindType.RBracket) {
+      throw this.scanner.error(
+        'turtle-property-list-end',
+        "Expected ']' to close blank-node property list.",
+      )
+    }
     await this.#advance()
     return node
   }
 
   /** Triple term as one isolated step of the Parser state machine. */
-  async *#tripleTerm(graph: Graph, depth: number): AsyncGenerator<CompactEvent, Quad> {
+  async *#tripleTerm(graph: GraphTermType, depth: number): AsyncGenerator<CompactEventType, Quad> {
     this.#depth(depth)
-    if (this.#kind() !== Kind.TripleStart) throw this.scanner.error('turtle-triple-term', "Expected '<<('.")
+    if (this.#kind() !== KindType.TripleStart) {
+      throw this.scanner.error('turtle-triple-term', "Expected '<<('.")
+    }
     await this.#advance()
     const subject = await this.#tripleSubject()
     const predicate = await this.#verb()
     const object = yield* this.#tripleObject(graph, depth + 1)
-    if (this.#kind() !== Kind.TripleEnd) throw this.scanner.error('turtle-triple-term-end', "Expected ')>>' after triple term.")
+    if (this.#kind() !== KindType.TripleEnd) {
+      throw this.scanner.error('turtle-triple-term-end', "Expected ')>>' after triple term.")
+    }
     await this.#advance()
     return triple(subject, predicate, object)
   }
 
   /** Reified as one isolated step of the Parser state machine. */
-  async *#reified(graph: Graph, depth: number): AsyncGenerator<CompactEvent, Subject> {
+  async *#reified(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, SubjectTermType> {
     this.#depth(depth)
     const start = this.scanner.range()
-    if (this.#kind() !== Kind.ReifiedStart) throw this.scanner.error('turtle-reified', "Expected '<<'.")
+    if (this.#kind() !== KindType.ReifiedStart) {
+      throw this.scanner.error('turtle-reified', "Expected '<<'.")
+    }
     await this.#advance()
     const subject = yield* this.#reifiedSubject(graph, depth + 1)
     const predicate = await this.#verb()
     const object = yield* this.#reifiedObject(graph, depth + 1)
-    let reifier: Subject | undefined
-    if (this.#kind() === Kind.Tilde) {
+    let reifier: SubjectTermType | undefined
+    if (this.#kind() === KindType.Tilde) {
       await this.#advance()
       reifier = isIriStart(this.#kind()) || isBlankStartKind(this.#kind())
         ? await this.#reifierTerm()
         : this.#fresh()
     }
-    if (this.#kind() !== Kind.ReifiedEnd) throw this.scanner.error('turtle-reified-end', "Expected '>>' after reified triple.")
+    if (this.#kind() !== KindType.ReifiedEnd) {
+      throw this.scanner.error('turtle-reified-end', "Expected '>>' after reified triple.")
+    }
     await this.#advance()
     const value = reifier ?? this.#fresh()
     yield {
@@ -1023,44 +1227,68 @@ class Parser {
   }
 
   /** Reified subject as one isolated step of the Parser state machine. */
-  async *#reifiedSubject(graph: Graph, depth: number): AsyncGenerator<CompactEvent, Subject> {
+  async *#reifiedSubject(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, SubjectTermType> {
     if (isIriStart(this.#kind())) return await this.#iri()
     if (isBlankStartKind(this.#kind())) return await this.#reifierTerm()
-    if (this.#kind() === Kind.ReifiedStart) return yield* this.#reified(graph, depth + 1)
-    throw this.scanner.error('turtle-reified-subject', 'Expected IRI, blank node, or nested reified triple.')
+    if (this.#kind() === KindType.ReifiedStart) return yield* this.#reified(graph, depth + 1)
+    throw this.scanner.error(
+      'turtle-reified-subject',
+      'Expected IRI, blank node, or nested reified triple.',
+    )
   }
 
   /** Reified object as one isolated step of the Parser state machine. */
-  async *#reifiedObject(graph: Graph, depth: number): AsyncGenerator<CompactEvent, ObjectTerm> {
+  async *#reifiedObject(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, ObjectTermType> {
     if (isIriStart(this.#kind())) return await this.#iri()
     if (isBlankStartKind(this.#kind())) return await this.#reifierTerm()
-    if (this.#kind() === Kind.String || this.#kind() === Kind.Number || this.#kind() === Kind.True || this.#kind() === Kind.False) return await this.#literal()
-    if (this.#kind() === Kind.TripleStart) return yield* this.#tripleTerm(graph, depth + 1)
-    if (this.#kind() === Kind.ReifiedStart) return yield* this.#reified(graph, depth + 1)
-    throw this.scanner.error('turtle-reified-object', 'Expected RDF term allowed in a reified triple object.')
+    if (
+      this.#kind() === KindType.String || this.#kind() === KindType.Number ||
+      this.#kind() === KindType.True || this.#kind() === KindType.False
+    ) return await this.#literal()
+    if (this.#kind() === KindType.TripleStart) return yield* this.#tripleTerm(graph, depth + 1)
+    if (this.#kind() === KindType.ReifiedStart) return yield* this.#reified(graph, depth + 1)
+    throw this.scanner.error(
+      'turtle-reified-object',
+      'Expected RDF term allowed in a reified triple object.',
+    )
   }
 
   /** Triple object as one isolated step of the Parser state machine. */
-  async *#tripleObject(graph: Graph, depth: number): AsyncGenerator<CompactEvent, ObjectTerm> {
+  async *#tripleObject(
+    graph: GraphTermType,
+    depth: number,
+  ): AsyncGenerator<CompactEventType, ObjectTermType> {
     if (isIriStart(this.#kind())) return await this.#iri()
-    if (this.#kind() === Kind.Blank) return await this.#labelledBlank()
-    if (this.#kind() === Kind.LBracket) return await this.#anonymous()
-    if (this.#kind() === Kind.String || this.#kind() === Kind.Number || this.#kind() === Kind.True || this.#kind() === Kind.False) return await this.#literal()
-    if (this.#kind() === Kind.TripleStart) return yield* this.#tripleTerm(graph, depth + 1)
-    throw this.scanner.error('turtle-triple-object', 'Expected RDF term allowed in a triple-term object.')
+    if (this.#kind() === KindType.Blank) return await this.#labelledBlank()
+    if (this.#kind() === KindType.LBracket) return await this.#anonymous()
+    if (
+      this.#kind() === KindType.String || this.#kind() === KindType.Number ||
+      this.#kind() === KindType.True || this.#kind() === KindType.False
+    ) return await this.#literal()
+    if (this.#kind() === KindType.TripleStart) return yield* this.#tripleTerm(graph, depth + 1)
+    throw this.scanner.error(
+      'turtle-triple-object',
+      'Expected RDF term allowed in a triple-term object.',
+    )
   }
 
   /** Triple subject as one isolated step of the Parser state machine. */
-  async #tripleSubject(): Promise<Subject> {
+  async #tripleSubject(): Promise<SubjectTermType> {
     if (isIriStart(this.#kind())) return await this.#iri()
-    if (this.#kind() === Kind.Blank) return await this.#labelledBlank()
-    if (this.#kind() === Kind.LBracket) return await this.#anonymous()
+    if (this.#kind() === KindType.Blank) return await this.#labelledBlank()
+    if (this.#kind() === KindType.LBracket) return await this.#anonymous()
     throw this.scanner.error('turtle-triple-subject', 'Expected IRI or blank node in triple term.')
   }
 
   /** Verb as one isolated step of the Parser state machine. */
-  async #verb(): Promise<Predicate> {
-    if (this.#kind() === Kind.A) {
+  async #verb(): Promise<PredicateTermType> {
+    if (this.#kind() === KindType.A) {
       await this.#advance()
       return namedNode(RDF.type)
     }
@@ -1069,22 +1297,24 @@ class Parser {
 
   /** Literal as one isolated step of the Parser state machine. */
   async #literal(): Promise<Literal> {
-    if (this.#kind() === Kind.True || this.#kind() === Kind.False) {
+    if (this.#kind() === KindType.True || this.#kind() === KindType.False) {
       const raw = this.scanner.raw
       await this.#advance()
       return literal(raw, namedNode(XSD.boolean))
     }
-    if (this.#kind() === Kind.Number) {
+    if (this.#kind() === KindType.Number) {
       const raw = this.scanner.raw
       const datatype = numericKind(raw)
       if (!datatype) throw this.scanner.error('turtle-number', `Invalid numeric literal '${raw}'.`)
       await this.#advance()
       return literal(raw, namedNode(datatype))
     }
-    if (this.#kind() !== Kind.String) throw this.scanner.error('turtle-literal', 'Expected RDF literal.')
+    if (this.#kind() !== KindType.String) {
+      throw this.scanner.error('turtle-literal', 'Expected RDF literal.')
+    }
     const value = this.scanner.value
     await this.#advance()
-    if (this.#kind() === Kind.Lang) {
+    if (this.#kind() === KindType.Lang) {
       const raw = this.scanner.value
       await this.#advance()
       const marker = raw.lastIndexOf('--')
@@ -1092,13 +1322,16 @@ class Parser {
         const language = raw.slice(0, marker)
         const direction = raw.slice(marker + 2).toLowerCase()
         if (direction !== 'ltr' && direction !== 'rtl') {
-          throw this.scanner.error('turtle-direction', `Initial text direction must be ltr or rtl, got '${direction}'.`)
+          throw this.scanner.error(
+            'turtle-direction',
+            `Initial text direction must be ltr or rtl, got '${direction}'.`,
+          )
         }
         return literal(value, { language, direction })
       }
       return literal(value, raw)
     }
-    if (this.#kind() === Kind.HatHat) {
+    if (this.#kind() === KindType.HatHat) {
       await this.#advance()
       return literal(value, await this.#iri())
     }
@@ -1106,20 +1339,30 @@ class Parser {
   }
 
   /** Directive as one isolated step of the Parser state machine. */
-  async #directive(): Promise<Exclude<CompactEvent, { readonly kind: 'quad' | 'diagnostic' }>> {
+  async #directive(): Promise<
+    Exclude<CompactEventType, {
+      /** Discriminates the concrete #directive variant. */
+      readonly kind: 'quad' | 'diagnostic'
+    }>
+  > {
     const kind = this.#kind()
     const raw = this.scanner.raw
     const start = this.scanner.range()
     const oldStyle = raw.startsWith('@')
     await this.#advance()
 
-    if (kind === Kind.Prefix) {
-      if (this.#kind() !== Kind.PName || !this.scanner.raw.endsWith(':')) {
-        throw this.scanner.error('turtle-prefix-name', 'PREFIX requires a prefix label ending in colon.')
+    if (kind === KindType.Prefix) {
+      if (this.#kind() !== KindType.PName || !this.scanner.raw.endsWith(':')) {
+        throw this.scanner.error(
+          'turtle-prefix-name',
+          'PREFIX requires a prefix label ending in colon.',
+        )
       }
       const prefix = this.scanner.raw.slice(0, -1)
       await this.#advance()
-      if (this.#kind() !== Kind.Iri) throw this.scanner.error('turtle-prefix-iri', 'PREFIX requires an IRI reference.')
+      if (this.#kind() !== KindType.Iri) {
+        throw this.scanner.error('turtle-prefix-iri', 'PREFIX requires an IRI reference.')
+      }
       const iri = this.#resolve(this.scanner.value)
       await this.#advance()
       if (oldStyle) await this.#expectDot()
@@ -1127,8 +1370,10 @@ class Parser {
       return { kind: 'prefix', prefix, iri, range: mergeRange(start, this.scanner.range()) }
     }
 
-    if (kind === Kind.Base) {
-      if (this.#kind() !== Kind.Iri) throw this.scanner.error('turtle-base-iri', 'BASE requires an IRI reference.')
+    if (kind === KindType.Base) {
+      if (this.#kind() !== KindType.Iri) {
+        throw this.scanner.error('turtle-base-iri', 'BASE requires an IRI reference.')
+      }
       const iri = this.#resolve(this.scanner.value)
       await this.#advance()
       if (oldStyle) await this.#expectDot()
@@ -1136,8 +1381,10 @@ class Parser {
       return { kind: 'base', iri, range: mergeRange(start, this.scanner.range()) }
     }
 
-    if (kind === Kind.Version) {
-      if (this.#kind() !== Kind.String) throw this.scanner.error('turtle-version', 'VERSION requires a quoted RDF version label.')
+    if (kind === KindType.Version) {
+      if (this.#kind() !== KindType.String) {
+        throw this.scanner.error('turtle-version', 'VERSION requires a quoted RDF version label.')
+      }
       const version = this.scanner.value
       if (version !== '1.1' && version !== '1.2-basic' && version !== '1.2') {
         throw this.scanner.error('turtle-version', `Unsupported RDF version '${version}'.`)
@@ -1153,66 +1400,74 @@ class Parser {
 
   /** Iri as one isolated step of the Parser state machine. */
   async #iri(): Promise<NamedNode> {
-    if (this.#kind() === Kind.Iri) {
+    if (this.#kind() === KindType.Iri) {
       const value = this.#resolve(this.scanner.value)
       await this.#advance()
       return namedNode(value)
     }
-    if (this.#kind() === Kind.PName) {
+    if (this.#kind() === KindType.PName) {
       const raw = this.scanner.raw
       const colon = raw.indexOf(':')
       const prefix = raw.slice(0, colon)
       const local = decodeLocal(raw.slice(colon + 1))
       const base = this.prefixes.get(prefix)
-      if (base === undefined) throw this.scanner.error('turtle-prefix', `Prefix '${prefix}' is not defined.`)
+      if (base === undefined) {
+        throw this.scanner.error('turtle-prefix', `Prefix '${prefix}' is not defined.`)
+      }
       await this.#advance()
       return namedNode(`${base}${local}`)
     }
     throw this.scanner.error('turtle-iri', 'Expected IRI reference or prefixed name.')
   }
 
-  /** Graph label as one isolated step of the Parser state machine. */
-  async #graphLabel(depth: number): Promise<Subject> {
+  /** GraphTermType label as one isolated step of the Parser state machine. */
+  async #graphLabel(depth: number): Promise<SubjectTermType> {
     this.#depth(depth)
     if (isIriStart(this.#kind())) return await this.#iri()
-    if (this.#kind() === Kind.Blank) return await this.#labelledBlank()
-    if (this.#kind() === Kind.LBracket) return await this.#anonymous()
+    if (this.#kind() === KindType.Blank) return await this.#labelledBlank()
+    if (this.#kind() === KindType.LBracket) return await this.#anonymous()
     throw this.scanner.error('trig-graph-label', 'Expected IRI or blank node as TriG graph label.')
   }
 
   /** Reifier term as one isolated step of the Parser state machine. */
-  async #reifierTerm(): Promise<Subject> {
+  async #reifierTerm(): Promise<SubjectTermType> {
     if (isIriStart(this.#kind())) return await this.#iri()
-    if (this.#kind() === Kind.Blank) return await this.#labelledBlank()
-    if (this.#kind() === Kind.LBracket) return await this.#anonymous()
+    if (this.#kind() === KindType.Blank) return await this.#labelledBlank()
+    if (this.#kind() === KindType.LBracket) return await this.#anonymous()
     throw this.scanner.error('turtle-reifier', 'Expected IRI or blank node as reifier.')
   }
 
   /** Labelled blank as one isolated step of the Parser state machine. */
-  async #labelledBlank(): Promise<Subject> {
-    if (this.#kind() !== Kind.Blank) throw this.scanner.error('turtle-blank', 'Expected blank node.')
+  async #labelledBlank(): Promise<SubjectTermType> {
+    if (this.#kind() !== KindType.Blank) {
+      throw this.scanner.error('turtle-blank', 'Expected blank node.')
+    }
     const value = `l${this.scanner.value.length}:${this.scanner.value}`
     await this.#advance()
     return blankNode(value)
   }
 
   /** Anonymous as one isolated step of the Parser state machine. */
-  async #anonymous(): Promise<Subject> {
-    if (this.#kind() !== Kind.LBracket) throw this.scanner.error('turtle-anon', "Expected '['.")
+  async #anonymous(): Promise<SubjectTermType> {
+    if (this.#kind() !== KindType.LBracket) throw this.scanner.error('turtle-anon', "Expected '['.")
     await this.#advance()
-    if (this.#kind() !== Kind.RBracket) throw this.scanner.error('turtle-anon', "Expected ']' for anonymous blank node.")
+    if (this.#kind() !== KindType.RBracket) {
+      throw this.scanner.error('turtle-anon', "Expected ']' for anonymous blank node.")
+    }
     await this.#advance()
     return this.#fresh()
   }
 
   /** Expect dot as one isolated step of the Parser state machine. */
   async #expectDot(): Promise<void> {
-    if (this.#kind() !== Kind.Dot) throw this.scanner.error('turtle-period', "Expected '.' after Turtle statement.")
+    if (this.#kind() !== KindType.Dot) {
+      throw this.scanner.error('turtle-period', "Expected '.' after Turtle statement.")
+    }
     await this.#advance()
   }
 
-  /** Kind as one isolated step of the Parser state machine. */
-  #kind(): Kind {
+  /** KindType as one isolated step of the Parser state machine. */
+  #kind(): KindType {
     return this.scanner.kind
   }
 
@@ -1227,23 +1482,33 @@ class Parser {
       if (this.baseIri !== undefined) return new URL(reference, this.baseIri).href
       return new URL(reference).href
     } catch {
-      throw this.scanner.error('turtle-relative-iri', `Relative IRI '${reference}' requires a base IRI.`)
+      throw this.scanner.error(
+        'turtle-relative-iri',
+        `Relative IRI '${reference}' requires a base IRI.`,
+      )
     }
   }
 
   /** Fresh as one isolated step of the Parser state machine. */
-  #fresh(): Subject {
+  #fresh(): SubjectTermType {
     return blankNode(`g:${++this.#generated}`)
   }
 
   /** Depth as one isolated step of the Parser state machine. */
   #depth(depth: number): void {
-    if (depth > this.maxDepth) throw this.scanner.error('turtle-depth', `Nested Turtle syntax exceeds maxDepth (${this.maxDepth}).`)
+    if (depth > this.maxDepth) {
+      throw this.scanner.error(
+        'turtle-depth',
+        `Nested Turtle syntax exceeds maxDepth (${this.maxDepth}).`,
+      )
+    }
   }
 
-  /** Diagnostic as one isolated step of the Parser state machine. */
-  #diagnostic(error: unknown): CompactDiagnostic {
-    if (error instanceof CompactError) return { code: error.code, message: error.message, range: error.range }
+  /** DiagnosticType as one isolated step of the Parser state machine. */
+  #diagnostic(error: unknown): CompactDiagnosticType {
+    if (error instanceof CompactError) {
+      return { code: error.code, message: error.message, range: error.range }
+    }
     return {
       code: 'turtle-syntax',
       message: error instanceof Error ? error.message : String(error),
@@ -1256,17 +1521,20 @@ class Parser {
     let square = 0
     let paren = 0
     let annotation = 0
-    while (this.#kind() !== Kind.Eof) {
-      if (this.#kind() === Kind.LBracket) square++
-      else if (this.#kind() === Kind.RBracket) square = Math.max(0, square - 1)
-      else if (this.#kind() === Kind.LParen) paren++
-      else if (this.#kind() === Kind.RParen) paren = Math.max(0, paren - 1)
-      else if (this.#kind() === Kind.AnnotationStart) annotation++
-      else if (this.#kind() === Kind.AnnotationEnd) annotation = Math.max(0, annotation - 1)
-      else if (this.#kind() === Kind.Dot && square === 0 && paren === 0 && annotation === 0) {
+    while (this.#kind() !== KindType.Eof) {
+      if (this.#kind() === KindType.LBracket) square++
+      else if (this.#kind() === KindType.RBracket) square = Math.max(0, square - 1)
+      else if (this.#kind() === KindType.LParen) paren++
+      else if (this.#kind() === KindType.RParen) paren = Math.max(0, paren - 1)
+      else if (this.#kind() === KindType.AnnotationStart) annotation++
+      else if (this.#kind() === KindType.AnnotationEnd) annotation = Math.max(0, annotation - 1)
+      else if (this.#kind() === KindType.Dot && square === 0 && paren === 0 && annotation === 0) {
         await this.#advance()
         return
-      } else if (this.allowGraphs && this.#kind() === Kind.RBrace && square === 0 && paren === 0 && annotation === 0) {
+      } else if (
+        this.allowGraphs && this.#kind() === KindType.RBrace && square === 0 && paren === 0 &&
+        annotation === 0
+      ) {
         return
       }
       await this.#advance()
@@ -1275,12 +1543,12 @@ class Parser {
 
   /** Recover top as one isolated step of the Parser state machine. */
   async #recoverTop(): Promise<void> {
-    while (this.#kind() !== Kind.Eof) {
-      if (this.#kind() === Kind.Dot) {
+    while (this.#kind() !== KindType.Eof) {
+      if (this.#kind() === KindType.Dot) {
         await this.#advance()
         return
       }
-      if (this.allowGraphs && this.#kind() === Kind.RBrace) {
+      if (this.allowGraphs && this.#kind() === KindType.RBrace) {
         await this.#advance()
         return
       }
@@ -1290,7 +1558,11 @@ class Parser {
 }
 
 /** Parses Turtle/TriG events; `allowGraphs` selects TriG graph syntax. */
-export function parseCompact(source: TextSource, options: CompactOptions, allowGraphs: boolean): AsyncGenerator<CompactEvent> {
+export function parseCompact(
+  source: TextSourceType,
+  options: CompactOptionsType,
+  allowGraphs: boolean,
+): AsyncGenerator<CompactEventType> {
   return new Parser(source, options, allowGraphs).events()
 }
 
@@ -1303,23 +1575,23 @@ function numericKind(raw: string): string | undefined {
 }
 
 /** Returns whether the supplied value satisfies the directive contract. */
-function isDirective(kind: Kind): boolean {
-  return kind === Kind.Prefix || kind === Kind.Base || kind === Kind.Version
+function isDirective(kind: KindType): boolean {
+  return kind === KindType.Prefix || kind === KindType.Base || kind === KindType.Version
 }
 
 /** Returns whether the supplied value satisfies the iri start contract. */
-function isIriStart(kind: Kind): boolean {
-  return kind === Kind.Iri || kind === Kind.PName
+function isIriStart(kind: KindType): boolean {
+  return kind === KindType.Iri || kind === KindType.PName
 }
 
 /** Returns whether the supplied value satisfies the blank start kind contract. */
-function isBlankStartKind(kind: Kind): boolean {
-  return kind === Kind.Blank || kind === Kind.LBracket
+function isBlankStartKind(kind: KindType): boolean {
+  return kind === KindType.Blank || kind === KindType.LBracket
 }
 
 /** Returns whether the supplied value satisfies the graph label start contract. */
-function isGraphLabelStart(kind: Kind): boolean {
-  return isIriStart(kind) || kind === Kind.Blank
+function isGraphLabelStart(kind: KindType): boolean {
+  return isIriStart(kind) || kind === KindType.Blank
 }
 
 /** Returns whether the supplied value satisfies the whitespace contract. */
@@ -1365,19 +1637,33 @@ function decodeLocal(value: string): string {
 /** Decodes Turtle backslash escapes used in local names and string-like scanner values. */
 function escapeValue(value: string): string {
   switch (value) {
-    case 't': return '\t'
-    case 'b': return '\b'
-    case 'n': return '\n'
-    case 'r': return '\r'
-    case 'f': return '\f'
-    case '"': return '"'
-    case "'": return "'"
-    case '\\': return '\\'
-    default: return value
+    case 't':
+      return '\t'
+    case 'b':
+      return '\b'
+    case 'n':
+      return '\n'
+    case 'r':
+      return '\r'
+    case 'f':
+      return '\f'
+    case '"':
+      return '"'
+    case "'":
+      return "'"
+    case '\\':
+      return '\\'
+    default:
+      return value
   }
 }
 
 /** Spans two source ranges so emitted semantic events retain the full originating syntax range. */
-function mergeRange(start: CompactRange, end: CompactRange): CompactRange {
-  return { start: start.start, end: Math.max(start.end, end.end), line: start.line, column: start.column }
+function mergeRange(start: CompactRangeType, end: CompactRangeType): CompactRangeType {
+  return {
+    start: start.start,
+    end: Math.max(start.end, end.end),
+    line: start.line,
+    column: start.column,
+  }
 }

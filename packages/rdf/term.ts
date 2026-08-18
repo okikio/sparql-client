@@ -9,55 +9,67 @@
  */
 
 /** Initial text direction attached to an RDF 1.2 directional language string. */
-export type Direction = 'ltr' | 'rtl'
+export type DirectionType = 'ltr' | 'rtl'
 
 /** RDF/JS-compatible base term. */
 export interface Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'NamedNode' | 'BlankNode' | 'Literal' | 'Variable' | 'DefaultGraph' | 'Quad'
+  /** RDF/JS lexical value. DefaultGraph and Quad use the required empty string. */
   readonly value: string
+  /** Returns whether the supplied RDF term is term-equal to this term. */
   equals(other?: Term | null): boolean
 }
 
 /** An RDF IRI term. */
 export interface NamedNode extends Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'NamedNode'
 }
 
 /** An RDF blank node. */
 export interface BlankNode extends Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'BlankNode'
 }
 
 /** An RDF query variable used by RDF/JS-compatible query surfaces. */
 export interface Variable extends Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'Variable'
 }
 
 /** The default graph name. */
 export interface DefaultGraph extends Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'DefaultGraph'
+  /** RDF/JS requires the default graph value to be the empty string. */
   readonly value: ''
 }
 
 /** RDF 1.2 literal, including optional language direction. */
 export interface Literal extends Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'Literal'
+  /** BCP 47 language tag associated with this localized RDF value. */
   readonly language: string
-  readonly direction: Direction | ''
+  /** RDF 1.2 base text direction associated with this language value. */
+  readonly direction: DirectionType | ''
+  /** Datatype IRI that defines how the RDF literal lexical form is interpreted. */
   readonly datatype: NamedNode
 }
 
 /** RDF triple subject. RDF 1.2 triple terms are object terms, not graph subjects. */
-export type Subject = NamedNode | BlankNode
+export type SubjectTermType = NamedNode | BlankNode
 
 /** RDF triple predicate. */
-export type Predicate = NamedNode
+export type PredicateTermType = NamedNode
 
 /** RDF triple object, including RDF 1.2 triple terms. */
-export type ObjectTerm = NamedNode | BlankNode | Literal | Quad
+export type ObjectTermType = NamedNode | BlankNode | Literal | Quad
 
 /** RDF dataset graph name. */
-export type Graph = DefaultGraph | NamedNode | BlankNode
+export type GraphTermType = DefaultGraph | NamedNode | BlankNode
 
 /**
  * RDF/JS-compatible quad.
@@ -67,21 +79,29 @@ export type Graph = DefaultGraph | NamedNode | BlankNode
  * triple's object so the native model remains consistent with RDF 1.2.
  */
 export interface Quad extends Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType: 'Quad'
+  /** RDF/JS requires a Quad term value to be the empty string. */
   readonly value: ''
-  readonly subject: Subject
-  readonly predicate: Predicate
-  readonly object: ObjectTerm
-  readonly graph: Graph
+  /** RDF subject term represented by this statement, pattern, or index entry. */
+  readonly subject: SubjectTermType
+  /** RDF predicate IRI represented by this statement, pattern, or index entry. */
+  readonly predicate: PredicateTermType
+  /** RDF object term represented by this statement, pattern, or index entry. */
+  readonly object: ObjectTermType
+  /** RDF graph name represented by this quad, statement, or query target. */
+  readonly graph: GraphTermType
 }
 
 /** Any public RDF term. */
 export type TermType = NamedNode | BlankNode | Literal | Variable | DefaultGraph | Quad
 
 /** RDF/JS-compatible directional-language factory input. */
-export interface DirectionalLanguage {
+export interface DirectionalLanguageType {
+  /** BCP 47 language tag associated with this localized RDF value. */
   readonly language: string
-  readonly direction?: Direction | null
+  /** RDF 1.2 base text direction associated with this language value. */
+  readonly direction?: DirectionType | null
 }
 
 /** RDF namespace constants used by the core term model. */
@@ -112,8 +132,10 @@ export const XSD = {
 
 /** Base immutable term implementation. */
 abstract class BaseTerm implements Term {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   abstract readonly termType: Term['termType']
 
+  /** Immutable lexical value used by simple RDF-term equality. */
   readonly value: string
 
   /** Stores the immutable lexical value shared by concrete RDF term implementations. */
@@ -123,29 +145,35 @@ abstract class BaseTerm implements Term {
 
   /** Compares simple RDF terms by term kind and lexical value. */
   equals(other?: Term | null): boolean {
-    return other !== null && other !== undefined && this.termType === other.termType && this.value === other.value
+    return other !== null && other !== undefined && this.termType === other.termType &&
+      this.value === other.value
   }
 }
 
 /** Immutable named-node implementation. */
 export class NamedNodeValue extends BaseTerm implements NamedNode {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType = 'NamedNode' as const
 }
 
 /** Immutable blank-node implementation. */
 export class BlankNodeValue extends BaseTerm implements BlankNode {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType = 'BlankNode' as const
 }
 
 /** Immutable variable implementation. */
 export class VariableValue extends BaseTerm implements Variable {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType = 'Variable' as const
 }
 
 /** Immutable default-graph singleton implementation. */
 export class DefaultGraphValue extends BaseTerm implements DefaultGraph {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType = 'DefaultGraph' as const
-  readonly value = '' as const
+  /** Required empty RDF/JS value for the default graph singleton. */
+  override readonly value = '' as const
 
   /** Creates the RDF default graph singleton value with the required empty lexical form. */
   constructor() {
@@ -160,13 +188,22 @@ export class DefaultGraphValue extends BaseTerm implements DefaultGraph {
 
 /** Immutable RDF literal implementation. */
 export class LiteralValue extends BaseTerm implements Literal {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType = 'Literal' as const
+  /** Datatype IRI that defines how the RDF literal lexical form is interpreted. */
   readonly datatype: NamedNode
+  /** BCP 47 language tag associated with this localized RDF value. */
   readonly language: string
-  readonly direction: Direction | ''
+  /** RDF 1.2 base text direction associated with this language value. */
+  readonly direction: DirectionType | ''
 
   /** Stores literal lexical form, datatype, language, and RDF 1.2 base direction without coercion. */
-  constructor(value: string, datatype: NamedNode, language = '', direction: Direction | '' = '') {
+  constructor(
+    value: string,
+    datatype: NamedNode,
+    language = '',
+    direction: DirectionType | '' = '',
+  ) {
     super(value)
     this.datatype = datatype
     this.language = language
@@ -186,15 +223,26 @@ export class LiteralValue extends BaseTerm implements Literal {
 
 /** Immutable quad and triple-term implementation. */
 export class QuadValue extends BaseTerm implements Quad {
+  /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   readonly termType = 'Quad' as const
-  readonly value = '' as const
-  readonly subject: Subject
-  readonly predicate: Predicate
-  readonly object: ObjectTerm
-  readonly graph: Graph
+  /** Required empty RDF/JS value for quad and triple-term objects. */
+  override readonly value = '' as const
+  /** RDF subject term represented by this statement, pattern, or index entry. */
+  readonly subject: SubjectTermType
+  /** RDF predicate IRI represented by this statement, pattern, or index entry. */
+  readonly predicate: PredicateTermType
+  /** RDF object term represented by this statement, pattern, or index entry. */
+  readonly object: ObjectTermType
+  /** RDF graph name represented by this quad, statement, or query target. */
+  readonly graph: GraphTermType
 
   /** Stores one immutable quad; default-graph quads can also represent RDF 1.2 triple terms. */
-  constructor(subject: Subject, predicate: Predicate, object: ObjectTerm, graph: Graph) {
+  constructor(
+    subject: SubjectTermType,
+    predicate: PredicateTermType,
+    object: ObjectTermType,
+    graph: GraphTermType,
+  ) {
     super('')
     this.subject = subject
     this.predicate = predicate
@@ -244,11 +292,15 @@ export function key(term: Term): string {
       return 'D'
     case 'Literal': {
       const literal = term as Literal
-      return `L${atom('', literal.value)}${atom('', literal.datatype.value)}${atom('', literal.language.toLowerCase())}${atom('', literal.direction)}`
+      return `L${atom('', literal.value)}${atom('', literal.datatype.value)}${
+        atom('', literal.language.toLowerCase())
+      }${atom('', literal.direction)}`
     }
     case 'Quad': {
       const quad = term as Quad
-      return `Q${atom('', key(quad.subject))}${atom('', key(quad.predicate))}${atom('', key(quad.object))}${atom('', key(quad.graph))}`
+      return `Q${atom('', key(quad.subject))}${atom('', key(quad.predicate))}${
+        atom('', key(quad.object))
+      }${atom('', key(quad.graph))}`
     }
   }
 }

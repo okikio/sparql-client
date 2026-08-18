@@ -1,16 +1,16 @@
 /**
  * Generic RDFS and OWL ontology interpretation helpers.
  *
- * The reader records named declarations and relationships without performing
+ * The inspector records named declarations and relationships without performing
  * entailment. Anonymous OWL expressions and unsupported axioms are retained as
- * assertions so a reasoner or future parser can interpret them later.
+ * assertions so a reasoner or future processor can interpret them later.
  *
  * @module
  */
 
 export { index, OntologyIndex } from './index.ts'
-export { read } from './read.ts'
-export type { OntologySourceType, ReadOptions } from './read.ts'
+export { inspect } from './inspect.ts'
+export type { InspectOptionsType, OntologySourceType } from './inspect.ts'
 export type {
   AssertionType,
   ClassType,

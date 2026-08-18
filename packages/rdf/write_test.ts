@@ -10,8 +10,12 @@ describe('@okikio/rdf line serializer primitives', () => {
   })
 
   it('serializes directional literals and RDF 1.2 triple terms', () => {
-    expect(writeTerm(literal('bonjour', { language: 'fr', direction: 'ltr' }))).toBe('"bonjour"@fr--ltr')
-    expect(writeTerm(triple(namedNode('urn:s'), namedNode('urn:p'), literal('o')))).toBe('<<( <urn:s> <urn:p> "o" )>>')
+    expect(writeTerm(literal('bonjour', { language: 'fr', direction: 'ltr' }))).toBe(
+      '"bonjour"@fr--ltr',
+    )
+    expect(writeTerm(triple(namedNode('urn:s'), namedNode('urn:p'), literal('o')))).toBe(
+      '<<( <urn:s> <urn:p> "o" )>>',
+    )
   })
 
   it('includes named graphs only for N-Quads output', () => {

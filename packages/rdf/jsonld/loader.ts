@@ -15,7 +15,9 @@ const JSON_LD_CONTEXT_REL = 'http://www.w3.org/ns/json-ld#context'
 
 /** Shared cache contract for caller-owned remote JSON-LD documents. */
 export interface DocumentCacheType {
+  /** Returns the previously issued or cached value without changing ordering state. */
   get(url: string): RemoteDocumentType | undefined
+  /** Stores one loaded remote document in the caller-provided JSON-LD cache. */
   set(url: string, value: RemoteDocumentType): void
 }
 
@@ -31,10 +33,15 @@ export interface LoaderOptionsType {
   readonly allowUrl?: (url: URL) => boolean | Promise<boolean>
   /** Optional caller-owned cross-operation cache. */
   readonly cache?: DocumentCacheType
+  /** Maximum number of remote JSON-LD documents admitted by one loader instance. */
   readonly maxDocuments?: number
+  /** Maximum decoded bytes admitted by JSON-LD processing. */
   readonly maxBytes?: number
+  /** Maximum HTTP redirects followed while loading one remote JSON-LD document. */
   readonly maxRedirects?: number
+  /** Maximum elapsed milliseconds allowed for one remote JSON-LD fetch. */
   readonly timeoutMs?: number
+  /** Abort signal checked before and during JSON-LD processing. */
   readonly signal?: AbortSignal
 }
 
@@ -60,14 +67,26 @@ export function createDocumentLoader(options: LoaderOptionsType = {}): DocumentL
     if (cached) return cached
     const pending = inflight.get(url)
     if (pending) return await pending
-    if (++documents > maxDocuments) throw new JsonLdLoadError('document-limit', `JSON-LD remote document count exceeds maxDocuments (${maxDocuments}).`, url)
+    if (++documents > maxDocuments) {
+      throw new JsonLdLoadError(
+        'document-limit',
+        `JSON-LD remote document count exceeds maxDocuments (${maxDocuments}).`,
+        url,
+      )
+    }
 
     const promise = load(url)
     inflight.set(url, promise)
     try {
       const document = await promise
       const bytes = measure(document.document)
-      if (bytes > maxBytes) throw new JsonLdLoadError('document-size', `JSON-LD remote document exceeds maxBytes (${maxBytes}).`, url)
+      if (bytes > maxBytes) {
+        throw new JsonLdLoadError(
+          'document-size',
+          `JSON-LD remote document exceeds maxBytes (${maxBytes}).`,
+          url,
+        )
+      }
       local.set(url, document)
       local.set(document.documentUrl, document)
       options.cache?.set(url, document)
@@ -81,7 +100,13 @@ export function createDocumentLoader(options: LoaderOptionsType = {}): DocumentL
   /** Resolves one remote JSON-LD document through the bounded cache/deduplication and redirect policy. */
   async function load(url: string): Promise<RemoteDocumentType> {
     if (options.loadDocument) return await options.loadDocument(url)
-    if (!options.remote) throw new JsonLdLoadError('remote-disabled', 'Remote JSON-LD document loading is disabled.', url)
+    if (!options.remote) {
+      throw new JsonLdLoadError(
+        'remote-disabled',
+        'Remote JSON-LD document loading is disabled.',
+        url,
+      )
+    }
     const fetchOptions: FetchOptionsType = {
       fetch: options.fetch ?? fetch,
       maxBytes,
@@ -96,7 +121,18 @@ export function createDocumentLoader(options: LoaderOptionsType = {}): DocumentL
 
 /** Stable failure from the bounded remote-document layer. */
 export class JsonLdLoadError extends Error {
-  readonly kind: 'remote-disabled' | 'url' | 'document-limit' | 'document-size' | 'redirect-limit' | 'http' | 'json' | 'timeout' | 'abort'
+  /** Discriminates the concrete JsonLdLoadError variant. */
+  readonly kind:
+    | 'remote-disabled'
+    | 'url'
+    | 'document-limit'
+    | 'document-size'
+    | 'redirect-limit'
+    | 'http'
+    | 'json'
+    | 'timeout'
+    | 'abort'
+  /** Remote document URL associated with this JSON-LD load failure. */
   readonly url: string
 
   /** Creates a stable JSON-LD loading failure with the requested URL and underlying cause. */
@@ -110,21 +146,34 @@ export class JsonLdLoadError extends Error {
 
 /** Fully resolved remote-fetch policy passed through every redirect so limits and URL approval cannot be bypassed mid-chain. */
 interface FetchOptionsType {
+  /** Fetch implementation used to load remote JSON-LD documents. */
   readonly fetch: typeof fetch
+  /** Caller policy that decides whether a resolved remote URL may be fetched. */
   readonly allowUrl?: (url: URL) => boolean | Promise<boolean>
+  /** Maximum decoded bytes admitted by JSON-LD processing. */
   readonly maxBytes: number
+  /** Maximum HTTP redirects followed while loading one remote JSON-LD document. */
   readonly maxRedirects: number
+  /** Maximum elapsed milliseconds allowed for one remote JSON-LD fetch. */
   readonly timeoutMs: number
+  /** Abort signal checked before and during JSON-LD processing. */
   readonly signal?: AbortSignal
 }
 
 /** Fetches one JSON-LD document while applying redirect, byte, timeout, and URL policy. */
-async function fetchDocument(input: string, options: FetchOptionsType): Promise<RemoteDocumentType> {
+async function fetchDocument(
+  input: string,
+  options: FetchOptionsType,
+): Promise<RemoteDocumentType> {
   let current = toHttpUrl(input)
-  for (let redirects = 0; ; redirects++) {
+  for (let redirects = 0;; redirects++) {
     abort(options.signal)
     if (options.allowUrl && !(await options.allowUrl(current))) {
-      throw new JsonLdLoadError('url', `JSON-LD remote URL is not allowed: ${current.href}`, current.href)
+      throw new JsonLdLoadError(
+        'url',
+        `JSON-LD remote URL is not allowed: ${current.href}`,
+        current.href,
+      )
     }
 
     const timed = timeout(options.signal, options.timeoutMs)
@@ -136,38 +185,88 @@ async function fetchDocument(input: string, options: FetchOptionsType): Promise<
         signal: timed.signal,
       })
     } catch (error) {
-      if (options.signal?.aborted) throw new JsonLdLoadError('abort', 'JSON-LD remote load was aborted.', current.href, error)
-      if (timed.expired()) throw new JsonLdLoadError('timeout', `JSON-LD remote load exceeded ${options.timeoutMs}ms.`, current.href, error)
+      if (options.signal?.aborted) {
+        throw new JsonLdLoadError('abort', 'JSON-LD remote load was aborted.', current.href, error)
+      }
+      if (timed.expired()) {
+        throw new JsonLdLoadError(
+          'timeout',
+          `JSON-LD remote load exceeded ${options.timeoutMs}ms.`,
+          current.href,
+          error,
+        )
+      }
       throw error
     } finally {
       timed.dispose()
     }
 
     if (response.status >= 300 && response.status < 400) {
-      if (redirects >= options.maxRedirects) throw new JsonLdLoadError('redirect-limit', `JSON-LD redirects exceed maxRedirects (${options.maxRedirects}).`, current.href)
+      if (redirects >= options.maxRedirects) {
+        throw new JsonLdLoadError(
+          'redirect-limit',
+          `JSON-LD redirects exceed maxRedirects (${options.maxRedirects}).`,
+          current.href,
+        )
+      }
       const location = response.headers.get('location')
-      if (!location) throw new JsonLdLoadError('http', `JSON-LD redirect ${response.status} has no Location header.`, current.href)
+      if (!location) {
+        throw new JsonLdLoadError(
+          'http',
+          `JSON-LD redirect ${response.status} has no Location header.`,
+          current.href,
+        )
+      }
       current = toHttpUrl(new URL(location, current).href)
       continue
     }
-    if (!response.ok) throw new JsonLdLoadError('http', `JSON-LD remote load returned HTTP ${response.status}.`, current.href)
+    if (!response.ok) {
+      throw new JsonLdLoadError(
+        'http',
+        `JSON-LD remote load returned HTTP ${response.status}.`,
+        current.href,
+      )
+    }
 
     const contentLength = Number(response.headers.get('content-length'))
     if (Number.isFinite(contentLength) && contentLength > options.maxBytes) {
-      throw new JsonLdLoadError('document-size', `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`, current.href)
+      throw new JsonLdLoadError(
+        'document-size',
+        `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`,
+        current.href,
+      )
     }
     const bytes = new Uint8Array(await response.arrayBuffer())
-    if (bytes.byteLength > options.maxBytes) throw new JsonLdLoadError('document-size', `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`, current.href)
+    if (bytes.byteLength > options.maxBytes) {
+      throw new JsonLdLoadError(
+        'document-size',
+        `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`,
+        current.href,
+      )
+    }
 
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? ''
     let document: JsonLdValueType
     try {
-      document = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as JsonLdValueType
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+      document = contentType.includes('text/html') || contentType.includes('application/xhtml+xml')
+        ? text
+        : JSON.parse(text) as JsonLdValueType
     } catch (error) {
-      throw new JsonLdLoadError('json', 'Remote JSON-LD document is not valid UTF-8 JSON.', current.href, error)
+      throw new JsonLdLoadError(
+        'json',
+        'Remote JSON-LD document is not valid UTF-8 JSON or HTML text.',
+        current.href,
+        error,
+      )
     }
 
     return {
-      contextUrl: contextLink(response.headers.get('link'), response.headers.get('content-type'), current),
+      contextUrl: contextLink(
+        response.headers.get('link'),
+        response.headers.get('content-type'),
+        current,
+      ),
       documentUrl: response.url || current.href,
       document,
     }
@@ -185,7 +284,13 @@ function contextLink(header: string | null, contentType: string | null, base: UR
     const rel = /(?:^|;)\s*rel\s*=\s*(?:"([^"]*)"|([^;\s]+))/iu.exec(parameters)
     const relations = (rel?.[1] ?? rel?.[2] ?? '').split(/\s+/u)
     if (!relations.includes(JSON_LD_CONTEXT_REL)) continue
-    if (context !== null) throw new JsonLdLoadError('http', 'Remote document contains more than one JSON-LD context Link relation.', base.href)
+    if (context !== null) {
+      throw new JsonLdLoadError(
+        'http',
+        'Remote document contains more than one JSON-LD context Link relation.',
+        base.href,
+      )
+    }
     context = new URL(match[1]!, base).href
   }
   return context
@@ -220,7 +325,11 @@ function toHttpUrl(value: string): URL {
     throw new JsonLdLoadError('url', `Invalid JSON-LD remote URL '${value}'.`, value, error)
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new JsonLdLoadError('url', `Unsupported JSON-LD remote URL protocol '${url.protocol}'.`, url.href)
+    throw new JsonLdLoadError(
+      'url',
+      `Unsupported JSON-LD remote URL protocol '${url.protocol}'.`,
+      url.href,
+    )
   }
   return url
 }
@@ -232,8 +341,11 @@ function measure(value: JsonLdValueType): number {
 
 /** Creates a disposable timeout signal without transferring ownership of the caller signal. */
 function timeout(signal: AbortSignal | undefined, timeoutMs: number): {
+  /** Abort signal checked before and during JSON-LD processing. */
   readonly signal: AbortSignal
+  /** Returns whether the JSON-LD fetch deadline elapsed before the request completed. */
   expired(): boolean
+  /** Releases the timeout resource after the JSON-LD fetch settles. */
   dispose(): void
 } {
   const controller = new AbortController()
@@ -265,12 +377,16 @@ function abort(signal?: AbortSignal): void {
 
 /** Validates a positive finite loader limit such as bytes, redirects, or context count. */
 function positive(value: number, name: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new RangeError(`${name} must be a positive safe integer.`)
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${name} must be a positive safe integer.`)
+  }
   return value
 }
 
 /** Validates a non-negative finite loader limit that may be explicitly disabled with zero. */
 function nonNegative(value: number, name: string): number {
-  if (!Number.isSafeInteger(value) || value < 0) throw new RangeError(`${name} must be a non-negative safe integer.`)
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`${name} must be a non-negative safe integer.`)
+  }
   return value
 }

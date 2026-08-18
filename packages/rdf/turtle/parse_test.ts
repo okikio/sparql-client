@@ -25,7 +25,11 @@ describe('@okikio/rdf/turtle', () => {
   })
 
   it('buffers a malformed statement before tolerant diagnostics are released', async () => {
-    const values = await collect(events('PREFIX : <https://example.com/>\n:a :p [ :q :r ; BROKEN ] .\n:b :p :c .', { tolerant: true }))
+    const values = await collect(
+      events('PREFIX : <https://example.com/>\n:a :p [ :q :r ; BROKEN ] .\n:b :p :c .', {
+        tolerant: true,
+      }),
+    )
     expect(values.filter((value) => value.kind === 'quad')).toHaveLength(1)
     expect(values.filter((value) => value.kind === 'diagnostic')).toHaveLength(1)
   })

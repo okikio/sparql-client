@@ -5,7 +5,9 @@ import type { NamedNode } from './term.ts'
 
 /** A callable namespace that expands local names into RDF named nodes. */
 export interface Namespace {
+  /** Creates a named node by resolving the supplied suffix against this namespace base IRI. */
   (local: string): NamedNode
+  /** Absolute IRI represented by this record. */
   readonly iri: string
 }
 

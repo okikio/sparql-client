@@ -48,7 +48,9 @@ describe('@okikio/rdf Dataset', () => {
 
     const controller = new AbortController()
     controller.abort(new Error('stop-import'))
-    await expect(dataset().import(values(), { signal: controller.signal })).rejects.toThrow('stop-import')
+    await expect(dataset().import(values(), { signal: controller.signal })).rejects.toThrow(
+      'stop-import',
+    )
   })
 
   it('compares datasets semantically and builds insertion-order-independent keys', () => {

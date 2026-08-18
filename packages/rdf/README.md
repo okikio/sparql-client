@@ -27,33 +27,28 @@ AbortSignal
 
 ## Formats and semantics
 
-Use explicit subpaths:
+Project-owned syntax and semantic capabilities use explicit `@okikio/rdf` subpaths:
 
 ```ts
 import * as nquads from '@okikio/rdf/nquads'
 import * as turtle from '@okikio/rdf/turtle'
-import * as jsonld from '@okikio/rdf/jsonld'
 import * as ontology from '@okikio/rdf/ontology'
 import * as shape from '@okikio/rdf/shape'
 ```
 
-Available public subpaths include:
+The package exports:
 
 ```text
-ntriples
-nquads
-turtle
-trig
-jsonld
-xml
-rdfa
-microdata
-canon
-ontology
-shape
+@okikio/rdf/ntriples
+@okikio/rdf/nquads
+@okikio/rdf/turtle
+@okikio/rdf/trig
+@okikio/rdf/ontology
+@okikio/rdf/shape
+@okikio/rdf/stream
 ```
 
-The root module does not import or initialize the focused third-party processors used by JSON-LD, RDFC-1.0, RDF/XML, RDFa, or Microdata. The npm package manifest is package-scoped, however, so installing `@okikio/rdf` currently installs those dependencies.
+`@okikio/rdf` has no third-party runtime implementation dependency. JSON-LD, RDFC-1.0, RDF/XML, RDFa, and Microdata are implemented natively at `@okikio/rdf/jsonld`, `@okikio/rdf/canon`, `@okikio/rdf/xml`, `@okikio/rdf/rdfa`, and `@okikio/rdf/microdata`. Tests, conformance suites, and benchmarks can use external implementations only as independent correctness and performance references.
 
 ## Parser lifecycle
 
@@ -63,6 +58,6 @@ Project-owned streaming parsers use bounded source windows and cancel pending We
 
 `@okikio/rdf/ontology` interprets generic named RDFS/OWL relationships while retaining unsupported assertions.
 
-`@okikio/rdf/shape` reads loss-preserving SHACL shape structure. Ontology domain/range semantics are not treated as closed-world JSON requiredness.
+`@okikio/rdf/shape` inspects loss-preserving SHACL shape structure. Ontology domain/range semantics are not treated as closed-world JSON requiredness.
 
 See the repository architecture and testing guides for the current standards/version posture and release gates.

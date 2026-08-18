@@ -1,4 +1,4 @@
-/** RDFS and directly interpretable OWL ontology reader. @module */
+/** RDFS and directly interpretable OWL ontology inspector. @module */
 
 import { iterate } from '../source.ts'
 import { key, XSD } from '../term.ts'
@@ -93,78 +93,122 @@ const PROPERTY_CHARACTERISTICS = new Map<string, PropertyCharacteristicType>([
 
 /** One RDF source contributing to an ontology model. */
 export interface OntologySourceType extends SourceType {
+  /** RDF quads supplied by or retained for this source. */
   readonly quads: Iterable<Quad> | AsyncIterable<Quad>
 }
 
 /** Extension predicates and resource limits for ontology ingestion. */
-export interface ReadOptions {
+export interface InspectOptionsType {
   /** Additional predicates that behave like vocabulary-domain declarations. */
   readonly domainPredicates?: readonly string[]
   /** Additional predicates that behave like vocabulary-range declarations. */
   readonly rangePredicates?: readonly string[]
   /** Maximum quads across all sources. Default is 5,000,000. */
   readonly maxQuads?: number
+  /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
 }
 
 /** Mutable accumulation record for one named class before deterministic sets/metadata are frozen into the public ontology model. */
-interface MutableClass {
+interface MutableClassType {
+  /** Absolute IRI represented by this record. */
   readonly iri: string
+  /** Localized labels retained from the RDF source. */
   readonly labels: TextType[]
+  /** Localized descriptive comments retained from the RDF source. */
   readonly comments: TextType[]
+  /** Direct superclass IRIs declared for this class. */
   readonly superClasses: Set<string>
+  /** Class IRIs declared equivalent to this class. */
   readonly equivalentClasses: Set<string>
+  /** Class IRIs declared disjoint with this class. */
   readonly disjointClasses: Set<string>
+  /** Whether the source explicitly marks this ontology term as deprecated. */
   deprecated: boolean
 }
 
 /** Mutable accumulation record for one named property before relationship sets and characteristics are normalized. */
-interface MutableProperty {
+interface MutablePropertyType {
+  /** Absolute IRI represented by this record. */
   readonly iri: string
+  /** RDF/OWL property kinds observed for this property. */
   readonly kinds: Set<PropertyKindType>
+  /** Localized labels retained from the RDF source. */
   readonly labels: TextType[]
+  /** Localized descriptive comments retained from the RDF source. */
   readonly comments: TextType[]
+  /** Class IRIs declared as domains of this property. */
   readonly domains: Set<string>
+  /** Class or datatype IRIs declared as ranges of this property. */
   readonly ranges: Set<string>
+  /** Direct super-property IRIs declared for this property. */
   readonly superProperties: Set<string>
+  /** Property IRIs declared equivalent to this property. */
   readonly equivalentProperties: Set<string>
+  /** Property IRIs declared as inverses of this property. */
   readonly inverseOf: Set<string>
+  /** Property IRIs declared disjoint with this property. */
   readonly disjointProperties: Set<string>
+  /** OWL property characteristics, such as functional or transitive, retained as normalized identifiers. */
   readonly characteristics: Set<PropertyCharacteristicType>
+  /** Whether the source explicitly marks this ontology term as deprecated. */
   deprecated: boolean
 }
 
 /** Label/comment assertion deferred until its subject is known to be a modeled class, property, or datatype. */
-interface PendingText {
+interface PendingTextType {
+  /** Stable identifier of the source document that contributed this record. */
   readonly sourceId: string
+  /** Semantic model field that receives the deferred ontology value after all source declarations are known. */
   readonly field: 'labels' | 'comments'
+  /** Source quad retained until the referenced ontology term is available. */
   readonly quad: Quad
 }
 
 /** `owl:deprecated` assertion deferred until the subject kind is known, avoiding premature lossy classification. */
-interface PendingDeprecated {
+interface PendingDeprecatedType {
+  /** Stable identifier of the source document that contributed this record. */
   readonly sourceId: string
+  /** Source quad retained until deprecation metadata can be attached to its ontology term. */
   readonly quad: Quad
 }
 
 /**
- * Reads named RDFS/OWL declarations into a deterministic ontology model.
+ * Inspects named RDFS/OWL declarations into a deterministic ontology model.
  *
  * This operation does not perform RDFS or OWL entailment. It records declared
  * named relationships and preserves every unsupported assertion so reasoning
- * engines or future readers can interpret richer class expressions later.
+ * engines or future consumers can interpret richer class expressions later.
+ *
+ * Input sources remain caller-owned. `maxQuads` limits materialized work across
+ * all sources, and `signal` can stop ingestion between quads.
+ *
+ * @example
+ * ```ts
+ * import { namedNode, quad } from '@okikio/rdf'
+ * import * as ontology from '@okikio/rdf/ontology'
+ *
+ * const model = await ontology.inspect([{
+ *   id: 'example',
+ *   quads: [quad(
+ *     namedNode('https://example.test/Person'),
+ *     namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+ *     namedNode('http://www.w3.org/2002/07/owl#Class'),
+ *   )],
+ * }])
+ * ```
  */
-export async function read(
+export async function inspect(
   sources: readonly OntologySourceType[],
-  options: ReadOptions = {},
+  options: InspectOptionsType = {},
 ): Promise<ModelType> {
-  const classes = new Map<string, MutableClass>()
-  const properties = new Map<string, MutableProperty>()
+  const classes = new Map<string, MutableClassType>()
+  const properties = new Map<string, MutablePropertyType>()
   const datatypes = new Set<string>()
   const assertions: AssertionType[] = []
   const diagnostics: DiagnosticType[] = []
-  const pendingText: PendingText[] = []
-  const pendingDeprecated: PendingDeprecated[] = []
+  const pendingText: PendingTextType[] = []
+  const pendingDeprecated: PendingDeprecatedType[] = []
   const domainPredicates = new Set([RDFS_DOMAIN, ...(options.domainPredicates ?? [])])
   const rangePredicates = new Set([RDFS_RANGE, ...(options.rangePredicates ?? [])])
   const maxQuads = options.maxQuads ?? 5_000_000
@@ -172,8 +216,12 @@ export async function read(
 
   for (const source of sources) {
     for await (const quad of iterate(source.quads)) {
-      if (options.signal?.aborted) throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
-      if (++count > maxQuads) throw new RangeError(`Ontology input exceeds the configured ${maxQuads} quad limit.`)
+      if (options.signal?.aborted) {
+        throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+      }
+      if (++count > maxQuads) {
+        throw new RangeError(`Ontology input exceeds the configured ${maxQuads} quad limit.`)
+      }
       if (quad.subject.termType !== 'NamedNode') {
         assertions.push(toAssertion(quad, source.id))
         continue
@@ -198,7 +246,10 @@ export async function read(
           getProperty(properties, subject).characteristics.add(characteristic)
           continue
         }
-        if (objectIri === RDFS_DATATYPE || objectIri.startsWith(`${XSD.string.slice(0, XSD.string.lastIndexOf('#') + 1)}`)) {
+        if (
+          objectIri === RDFS_DATATYPE ||
+          objectIri.startsWith(`${XSD.string.slice(0, XSD.string.lastIndexOf('#') + 1)}`)
+        ) {
           datatypes.add(subject)
           continue
         }
@@ -272,9 +323,9 @@ export async function read(
 
 /** Attaches labels/comments only to classified named ontology resources and records otherwise-unclassified text. */
 function attachText(
-  classes: ReadonlyMap<string, MutableClass>,
-  properties: ReadonlyMap<string, MutableProperty>,
-  pending: readonly PendingText[],
+  classes: ReadonlyMap<string, MutableClassType>,
+  properties: ReadonlyMap<string, MutablePropertyType>,
+  pending: readonly PendingTextType[],
   assertions: AssertionType[],
   diagnostics: DiagnosticType[],
 ): void {
@@ -299,9 +350,9 @@ function attachText(
 
 /** Interprets supported deprecation literals while retaining malformed or unclassified declarations diagnostically. */
 function attachDeprecation(
-  classes: ReadonlyMap<string, MutableClass>,
-  properties: ReadonlyMap<string, MutableProperty>,
-  pending: readonly PendingDeprecated[],
+  classes: ReadonlyMap<string, MutableClassType>,
+  properties: ReadonlyMap<string, MutablePropertyType>,
+  pending: readonly PendingDeprecatedType[],
   assertions: AssertionType[],
   diagnostics: DiagnosticType[],
 ): void {
@@ -339,7 +390,7 @@ function attachDeprecation(
 }
 
 /** Returns or creates the mutable accumulator for one named ontology class. */
-function getClass(values: Map<string, MutableClass>, iri: string): MutableClass {
+function getClass(values: Map<string, MutableClassType>, iri: string): MutableClassType {
   let value = values.get(iri)
   if (!value) {
     value = {
@@ -357,7 +408,7 @@ function getClass(values: Map<string, MutableClass>, iri: string): MutableClass 
 }
 
 /** Returns or creates the mutable accumulator for one named ontology property. */
-function getProperty(values: Map<string, MutableProperty>, iri: string): MutableProperty {
+function getProperty(values: Map<string, MutablePropertyType>, iri: string): MutablePropertyType {
   let value = values.get(iri)
   if (!value) {
     value = {
@@ -380,7 +431,7 @@ function getProperty(values: Map<string, MutableProperty>, iri: string): Mutable
 }
 
 /** Converts a mutable class accumulator into stable sorted serializable ontology output. */
-function freezeClass(value: MutableClass): ClassType {
+function freezeClass(value: MutableClassType): ClassType {
   return {
     iri: value.iri,
     labels: sortText(value.labels),
@@ -393,7 +444,7 @@ function freezeClass(value: MutableClass): ClassType {
 }
 
 /** Converts a mutable property accumulator into stable sorted serializable ontology output. */
-function freezeProperty(value: MutableProperty): PropertyType {
+function freezeProperty(value: MutablePropertyType): PropertyType {
   return {
     iri: value.iri,
     kinds: [...value.kinds].sort(),
@@ -412,7 +463,14 @@ function freezeProperty(value: MutableProperty): PropertyType {
 
 /** Converts the supplied value to text without changing semantic identity. */
 function toText(value: Literal): TextType {
-  const text: { value: string; language?: string; direction?: 'ltr' | 'rtl' } = { value: value.value }
+  const text: {
+    /** Literal lexical form preserved for localized ontology text. */
+    value: string
+    /** BCP 47 language tag retained for this localized RDF value. */
+    language?: string
+    /** RDF 1.2 base text direction retained for this localized RDF value. */
+    direction?: 'ltr' | 'rtl'
+  } = { value: value.value }
   if (value.language) text.language = value.language
   if (value.direction) text.direction = value.direction
   return text
@@ -438,7 +496,16 @@ function toAssertion(value: Quad, sourceId: string): AssertionType {
 
 /** Converts retained RDF assertions to stable string records without carrying runtime term objects. */
 function stripQuads(source: OntologySourceType): SourceType {
-  const value: { id: string; iri?: string; version?: string; hash?: string } = { id: source.id }
+  const value: {
+    /** Stable source identifier retained for this stripped ontology source record. */
+    id: string
+    /** IRI retained by this value. */
+    iri?: string
+    /** Version marker retained by this syntax record. */
+    version?: string
+    /** N-degree hash selected for this canonicalization candidate. */
+    hash?: string
+  } = { id: source.id }
   if (source.iri !== undefined) value.iri = source.iri
   if (source.version !== undefined) value.version = source.version
   if (source.hash !== undefined) value.hash = source.hash
@@ -456,9 +523,10 @@ function sortText(values: readonly TextType[]): TextType[] {
 
 /** Compare assertion using deterministic semantic ordering. */
 function compareAssertion(left: AssertionType, right: AssertionType): number {
-  return `${left.sourceId}\u0000${left.subject}\u0000${left.predicate}\u0000${left.object}`.localeCompare(
-    `${right.sourceId}\u0000${right.subject}\u0000${right.predicate}\u0000${right.object}`,
-  )
+  return `${left.sourceId}\u0000${left.subject}\u0000${left.predicate}\u0000${left.object}`
+    .localeCompare(
+      `${right.sourceId}\u0000${right.subject}\u0000${right.predicate}\u0000${right.object}`,
+    )
 }
 
 /** Compare diagnostic using deterministic semantic ordering. */
@@ -469,6 +537,11 @@ function compareDiagnostic(left: DiagnosticType, right: DiagnosticType): number 
 }
 
 /** Orders named ontology resources by IRI so source file order does not affect the model. */
-function byIri<T extends { readonly iri: string }>(left: T, right: T): number {
+function byIri<
+  T extends {
+    /** IRI retained by this byIri. */
+    readonly iri: string
+  },
+>(left: T, right: T): number {
   return left.iri.localeCompare(right.iri)
 }

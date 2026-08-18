@@ -10,24 +10,40 @@
  */
 
 import { key } from './term.ts'
-import type { Graph, ObjectTerm, Predicate, Quad, Subject, Term } from './term.ts'
+import type {
+  GraphTermType,
+  ObjectTermType,
+  PredicateTermType,
+  Quad,
+  SubjectTermType,
+  Term,
+} from './term.ts'
 import { iterate } from './source.ts'
 
 /** RDF dataset match pattern. `null` and `undefined` mean wildcard. */
-export interface MatchOptions {
-  readonly subject?: Subject | null
-  readonly predicate?: Predicate | null
-  readonly object?: ObjectTerm | null
-  readonly graph?: Graph | null
+export interface MatchOptionsType {
+  /** RDF subject term represented by this statement, pattern, or index entry. */
+  readonly subject?: SubjectTermType | null
+  /** RDF predicate IRI represented by this statement, pattern, or index entry. */
+  readonly predicate?: PredicateTermType | null
+  /** RDF object term represented by this statement, pattern, or index entry. */
+  readonly object?: ObjectTermType | null
+  /** RDF graph name represented by this quad, statement, or query target. */
+  readonly graph?: GraphTermType | null
 }
 
 /** Mutable RDF/JS-style DatasetCore implementation. */
 export class Dataset implements Iterable<Quad> {
+  /** Primary semantic-key map containing the quads currently owned by this dataset. */
   readonly #quads = new Map<string, Quad>()
-  readonly #subject = new Map<string, IndexBucket>()
-  readonly #predicate = new Map<string, IndexBucket>()
-  readonly #object = new Map<string, IndexBucket>()
-  readonly #graph = new Map<string, IndexBucket>()
+  /** Secondary dataset index from subject key to matching quad keys. */
+  readonly #subject = new Map<string, IndexBucketType>()
+  /** Secondary dataset index from predicate key to matching quad keys. */
+  readonly #predicate = new Map<string, IndexBucketType>()
+  /** Secondary dataset index from object key to matching quad keys. */
+  readonly #object = new Map<string, IndexBucketType>()
+  /** Secondary dataset index from graph key to matching quad keys. */
+  readonly #graph = new Map<string, IndexBucketType>()
 
   /** Seeds the dataset through `addAll` so initial quads and all exact-term indexes use the normal deduplication path. */
   constructor(quads?: Iterable<Quad>) {
@@ -58,9 +74,14 @@ export class Dataset implements Iterable<Quad> {
   }
 
   /** Imports a sync or async source with cooperative cancellation. */
-  async import(source: Iterable<Quad> | AsyncIterable<Quad>, options: { readonly signal?: AbortSignal } = {}): Promise<this> {
+  async import(source: Iterable<Quad> | AsyncIterable<Quad>, options: {
+    /** Abort signal checked before and during this operation. */
+    readonly signal?: AbortSignal
+  } = {}): Promise<this> {
     for await (const quad of iterate(source)) {
-      if (options.signal?.aborted) throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+      if (options.signal?.aborted) {
+        throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+      }
       this.add(quad)
     }
     return this
@@ -101,22 +122,38 @@ export class Dataset implements Iterable<Quad> {
    * dominant selective lookup shapes while retaining correct wildcard behavior.
    */
   match(
-    subject: Subject | null = null,
-    predicate: Predicate | null = null,
-    object: ObjectTerm | null = null,
-    graph: Graph | null = null,
+    subject: SubjectTermType | null = null,
+    predicate: PredicateTermType | null = null,
+    object: ObjectTermType | null = null,
+    graph: GraphTermType | null = null,
   ): Dataset {
     return new Dataset(this.matchIter({ subject, predicate, object, graph }))
   }
 
   /** Lazily iterates matching quads without materializing another dataset. */
-  *matchIter(options: MatchOptions = {}): Generator<Quad> {
+  *matchIter(options: MatchOptionsType = {}): Generator<Quad> {
     const { subject = null, predicate = null, object = null, graph = null } = options
-    const indexed: IndexBucket[] = []
-    if (subject) { const value = this.#subject.get(key(subject)); if (!value) return; indexed.push(value) }
-    if (predicate) { const value = this.#predicate.get(key(predicate)); if (!value) return; indexed.push(value) }
-    if (object) { const value = this.#object.get(key(object)); if (!value) return; indexed.push(value) }
-    if (graph) { const value = this.#graph.get(key(graph)); if (!value) return; indexed.push(value) }
+    const indexed: IndexBucketType[] = []
+    if (subject) {
+      const value = this.#subject.get(key(subject))
+      if (!value) return
+      indexed.push(value)
+    }
+    if (predicate) {
+      const value = this.#predicate.get(key(predicate))
+      if (!value) return
+      indexed.push(value)
+    }
+    if (object) {
+      const value = this.#object.get(key(object))
+      if (!value) return
+      indexed.push(value)
+    }
+    if (graph) {
+      const value = this.#graph.get(key(graph))
+      if (!value) return
+      indexed.push(value)
+    }
 
     const candidates = indexed.length === 0 ? this.#quads.keys() : bucketValues(smallest(indexed))
 
@@ -133,17 +170,17 @@ export class Dataset implements Iterable<Quad> {
 
   /** Deletes all quads matching a pattern and returns this dataset. */
   deleteMatches(
-    subject: Subject | null = null,
-    predicate: Predicate | null = null,
-    object: ObjectTerm | null = null,
-    graph: Graph | null = null,
+    subject: SubjectTermType | null = null,
+    predicate: PredicateTermType | null = null,
+    object: ObjectTermType | null = null,
+    graph: GraphTermType | null = null,
   ): this {
     for (const quad of [...this.matchIter({ subject, predicate, object, graph })]) this.delete(quad)
     return this
   }
 
   /** Returns an inexpensive exact-term cardinality estimate when an index exists. */
-  estimate(options: MatchOptions = {}): number | undefined {
+  estimate(options: MatchOptionsType = {}): number | undefined {
     const counts: number[] = []
     if (options.subject) counts.push(bucketSize(this.#subject.get(key(options.subject))))
     if (options.predicate) counts.push(bucketSize(this.#predicate.get(key(options.predicate))))
@@ -160,14 +197,19 @@ export class Dataset implements Iterable<Quad> {
 }
 
 /** Exact-term index bucket that stores a singleton quad key directly and promotes to a Set only after a second match. */
-type IndexBucket = string | Set<string>
+type IndexBucketType = string | Set<string>
 
 /** Canonical semantic keys computed once per quad for deduplication plus subject/predicate/object/graph indexing. */
 interface QuadKeysType {
+  /** Collision-safe semantic key for the indexed quad. */
   readonly quad: string
+  /** RDF subject term represented by this statement, pattern, or index entry. */
   readonly subject: string
+  /** RDF predicate IRI represented by this statement, pattern, or index entry. */
   readonly predicate: string
+  /** RDF object term represented by this statement, pattern, or index entry. */
   readonly object: string
+  /** RDF graph name represented by this quad, statement, or query target. */
   readonly graph: string
 }
 
@@ -177,7 +219,13 @@ function quadKeys(quad: Quad): QuadKeysType {
   const predicate = key(quad.predicate)
   const object = key(quad.object)
   const graph = key(quad.graph)
-  return { quad: `Q${part(subject)}${part(predicate)}${part(object)}${part(graph)}`, subject, predicate, object, graph }
+  return {
+    quad: `Q${part(subject)}${part(predicate)}${part(object)}${part(graph)}`,
+    subject,
+    predicate,
+    object,
+    graph,
+  }
 }
 
 /** Length-prefixes one already-serialized term key exactly like the public quad key format. */
@@ -191,7 +239,7 @@ export function dataset(quads?: Iterable<Quad>): Dataset {
 }
 
 /** Adds one quad key, allocating a Set only after a term has multiple quads. */
-function addIndex(index: Map<string, IndexBucket>, termKey: string, quadKey: string): void {
+function addIndex(index: Map<string, IndexBucketType>, termKey: string, quadKey: string): void {
   const current = index.get(termKey)
   if (current === undefined) {
     index.set(termKey, quadKey)
@@ -205,7 +253,7 @@ function addIndex(index: Map<string, IndexBucket>, termKey: string, quadKey: str
 }
 
 /** Removes one quad key and demotes two-entry Sets back to singleton strings. */
-function deleteIndex(index: Map<string, IndexBucket>, termKey: string, quadKey: string): void {
+function deleteIndex(index: Map<string, IndexBucketType>, termKey: string, quadKey: string): void {
   const current = index.get(termKey)
   if (current === undefined) return
   if (typeof current === 'string') {
@@ -218,19 +266,19 @@ function deleteIndex(index: Map<string, IndexBucket>, termKey: string, quadKey: 
 }
 
 /** Returns the cardinality of one optional compact index bucket. */
-function bucketSize(value: IndexBucket | undefined): number {
+function bucketSize(value: IndexBucketType | undefined): number {
   if (value === undefined) return 0
   return typeof value === 'string' ? 1 : value.size
 }
 
 /** Iterates singleton and multi-quad buckets through one allocation-free lookup shape. */
-function* bucketValues(value: IndexBucket): Generator<string> {
+function* bucketValues(value: IndexBucketType): Generator<string> {
   if (typeof value === 'string') yield value
   else yield* value
 }
 
 /** Chooses the narrowest exact-term index before semantic verification. */
-function smallest(values: readonly IndexBucket[]): IndexBucket {
+function smallest(values: readonly IndexBucketType[]): IndexBucketType {
   let selected = values[0]!
   let selectedSize = bucketSize(selected)
   for (let index = 1; index < values.length; index++) {

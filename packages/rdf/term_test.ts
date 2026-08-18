@@ -1,8 +1,6 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import {
-  RDF,
-  XSD,
   blankNode,
   defaultGraph,
   equals,
@@ -11,8 +9,10 @@ import {
   literal,
   namedNode,
   quad,
+  RDF,
   triple,
   variable,
+  XSD,
 } from './mod.ts'
 
 describe('@okikio/rdf terms and factories', () => {

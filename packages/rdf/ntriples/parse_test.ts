@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { namedNode, quad, literal, type Quad } from '../mod.ts'
+import { literal, namedNode, type Quad, quad } from '../mod.ts'
 import { parse, write } from './mod.ts'
 
 describe('@okikio/rdf/ntriples', () => {

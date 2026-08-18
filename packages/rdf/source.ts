@@ -10,7 +10,11 @@ export interface AsyncSource extends AsyncIterable<Quad> {}
 
 /** A sink that consumes an RDF quad sequence without taking source ownership. */
 export interface Sink<Result = void> {
-  import(source: Iterable<Quad> | AsyncIterable<Quad>, options?: { readonly signal?: AbortSignal }): Promise<Result>
+  /** Consumes quads from the supplied source and returns the sink-specific terminal result. */
+  import(source: Iterable<Quad> | AsyncIterable<Quad>, options?: {
+    /** Abort signal checked before and during this operation. */
+    readonly signal?: AbortSignal
+  }): Promise<Result>
 }
 
 /** Converts sync or async quad input into one async iteration contract. */

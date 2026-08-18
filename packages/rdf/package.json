@@ -9,22 +9,16 @@
     "./nquads": "./nquads/mod.ts",
     "./turtle": "./turtle/mod.ts",
     "./trig": "./trig/mod.ts",
+    "./shape": "./shape/mod.ts",
+    "./ontology": "./ontology/mod.ts",
+    "./stream": "./stream.ts",
     "./jsonld": "./jsonld/mod.ts",
-    "./canon": "./canon/mod.ts",
     "./xml": "./xml/mod.ts",
     "./rdfa": "./rdfa/mod.ts",
     "./microdata": "./microdata/mod.ts",
-    "./shape": "./shape/mod.ts",
-    "./ontology": "./ontology/mod.ts"
+    "./canon": "./canon/mod.ts"
   },
-  "dependencies": {
-    "jsonld": "^9.0.0",
-    "rdf-canonize": "^5.0.0",
-    "rdfxml-streaming-parser": "^3.2.0",
-    "rdfa-streaming-parser": "^3.0.2",
-    "microdata-rdf-streaming-parser": "^3.0.0"
-  },
-  "description": "Complete RDF programming model for TypeScript runtimes.",
+  "description": "Dependency-free RDF terms, datasets, native syntax processors, canonicalization, ontology models, and shape models for TypeScript runtimes.",
   "license": "MIT",
   "repository": {
     "type": "git",

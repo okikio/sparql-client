@@ -2,16 +2,16 @@ import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { blankNode, literal, namedNode, quad, RDF, XSD } from '../mod.ts'
 import { parse } from '../turtle/mod.ts'
-import { read } from './mod.ts'
+import { inspect } from './mod.ts'
 
 const SH = 'http://www.w3.org/ns/shacl#'
 
-function getShape(graph: Awaited<ReturnType<typeof read>>, suffix: string) {
+function getShape(graph: Awaited<ReturnType<typeof inspect>>, suffix: string) {
   return graph.shapes.find((shape) => shape.id.value.endsWith(suffix))
 }
 
 describe('@okikio/rdf/shape', () => {
-  it('reads SHACL 1.2 Core paths, constraints, metadata, and extension assertions', async () => {
+  it('inspects SHACL 1.2 Core paths, constraints, metadata, and extension assertions', async () => {
     const source = `
       @prefix sh: <http://www.w3.org/ns/shacl#> .
       @prefix ex: <https://example.com/> .
@@ -35,23 +35,36 @@ describe('@okikio/rdf/shape', () => {
         ] .
     `
 
-    const graph = await read(parse(source), { version: '1.2' })
+    const graph = await inspect(parse(source), { version: '1.2' })
     expect(graph.diagnostics).toHaveLength(0)
 
     const person = getShape(graph, 'PersonShape')
     expect(person?.types.includes('https://example.com/Profile')).toBe(true)
-    expect(person?.constraints.some((value) => value.kind === 'closed' && value.mode === 'byTypes')).toBe(true)
-    expect(person?.constraints.some((value) => value.kind === 'uniqueValuesFor' && value.paths.length === 2)).toBe(true)
+    expect(person?.constraints.some((value) => value.kind === 'closed' && value.mode === 'byTypes'))
+      .toBe(true)
+    expect(
+      person?.constraints.some((value) =>
+        value.kind === 'uniqueValuesFor' && value.paths.length === 2
+      ),
+    ).toBe(true)
 
-    const property = graph.shapes.find((shape) => shape.kind === 'property' && shape.id.kind === 'blank')
+    const property = graph.shapes.find((shape) =>
+      shape.kind === 'property' && shape.id.kind === 'blank'
+    )
     expect(property?.path?.kind).toBe('alternative')
     if (property?.path?.kind === 'alternative') {
       expect(property.path.items).toHaveLength(2)
       expect(property.path.items[1]?.kind).toBe('inverse')
     }
-    expect(property?.constraints.some((value) => value.kind === 'class' && value.choices.length === 2)).toBe(true)
+    expect(
+      property?.constraints.some((value) => value.kind === 'class' && value.choices.length === 2),
+    ).toBe(true)
     expect(property?.metadata.names[0]?.value).toBe('Display name')
-    expect(property?.assertions.some((value) => value.predicate === 'https://example.com/customConstraint')).toBe(true)
+    expect(
+      property?.assertions.some((value) =>
+        value.predicate === 'https://example.com/customConstraint'
+      ),
+    ).toBe(true)
   })
 
   it('reports cyclic property paths without recursive overflow', async () => {
@@ -63,7 +76,7 @@ describe('@okikio/rdf/shape', () => {
       quad(path, namedNode(`${SH}inversePath`), path),
     ]
 
-    const graph = await read(values)
+    const graph = await inspect(values)
     expect(graph.diagnostics.some((value) => value.code === 'path-cycle')).toBe(true)
     expect(graph.shapes[0]?.path?.kind).toBe('inverse')
   })
@@ -76,16 +89,20 @@ describe('@okikio/rdf/shape', () => {
       quad(shape, namedNode(`${SH}closed`), literal('not-a-boolean', namedNode(XSD.boolean))),
     ]
 
-    const graph = await read(values)
+    const graph = await inspect(values)
     expect(graph.shapes[0]?.constraints).toHaveLength(0)
     expect(graph.diagnostics.filter((value) => value.code === 'invalid-value')).toHaveLength(2)
-    expect(graph.shapes[0]?.assertions.some((value) => value.predicate === `${SH}minCount`)).toBe(true)
-    expect(graph.shapes[0]?.assertions.some((value) => value.predicate === `${SH}closed`)).toBe(true)
+    expect(graph.shapes[0]?.assertions.some((value) => value.predicate === `${SH}minCount`)).toBe(
+      true,
+    )
+    expect(graph.shapes[0]?.assertions.some((value) => value.predicate === `${SH}closed`)).toBe(
+      true,
+    )
   })
 
-  it('warns when 1.2-only Core terms are read through the 1.0 interpretation mode', async () => {
+  it('warns when 1.2-only Core terms are inspected through the 1.0 interpretation mode', async () => {
     const shape = namedNode('https://example.com/Shape')
-    const graph = await read([
+    const graph = await inspect([
       quad(shape, namedNode(RDF.type), namedNode(`${SH}NodeShape`)),
       quad(shape, namedNode(`${SH}singleLine`), literal('true', namedNode(XSD.boolean))),
     ], { version: '1.0' })

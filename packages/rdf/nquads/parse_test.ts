@@ -28,7 +28,8 @@ describe('@okikio/rdf/nquads', () => {
   })
 
   it('emits a source-ranged diagnostic and resumes at the next record in tolerant mode', async () => {
-    const source = '<https://example/a> <https://example/p> "ok" .\nnot rdf\n<https://example/b> <https://example/p> "ok" .\n'
+    const source =
+      '<https://example/a> <https://example/p> "ok" .\nnot rdf\n<https://example/b> <https://example/p> "ok" .\n'
     const events = []
     for await (const event of analyze(source, { tolerant: true })) events.push(event)
     expect(events.map((event) => event.kind)).toEqual(['quad', 'diagnostic', 'quad'])
