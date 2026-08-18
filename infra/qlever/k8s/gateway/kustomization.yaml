@@ -1,6 +1,6 @@
 ---
 # Kustomization for QLever Deployment
-# 
+#
 # Usage:
 #   kubectl apply -k k8s/gateway/
 #

@@ -71,7 +71,7 @@ services:
       # Map host port -> container port.
       # Default is 9999 (Blazegraph standard), but you can override via .env
       # if you need to run multiple instances or avoid conflicts.
-      - "${NEPTUNE_PORT:-9999}:9999"
+      - '${NEPTUNE_PORT:-9999}:9999'
 
     volumes:
       # Persistent storage for the RDF journal file.
@@ -107,7 +107,7 @@ services:
     # The Dockerfile defines a default health check, but we repeat it here
     # so it's easy to tweak per-environment (e.g., longer intervals in prod).
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9999/blazegraph/status"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9999/blazegraph/status']
       interval: ${NEPTUNE_HEALTH_INTERVAL:-30s}
       timeout: ${NEPTUNE_HEALTH_TIMEOUT:-10s}
       retries: ${NEPTUNE_HEALTH_RETRIES:-3}
@@ -117,7 +117,7 @@ services:
     # Blazegraph can be chatty (especially with query logging enabled).
     # This caps logs at 10MB per file, keeping only 3 rotations (~30MB max).
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
         max-size: ${NEPTUNE_LOG_MAX_SIZE:-10m}
         max-file: ${NEPTUNE_LOG_MAX_FILE:-3}

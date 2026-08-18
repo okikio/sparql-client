@@ -36,7 +36,7 @@ metadata:
   annotations:
     # Caddy-specific annotations for HTTPS
     # Email for Let's Encrypt notifications
-    caddy.gateway.kubernetes.io/email: "gateway@popmodern.dev"  # ⚠️ CHANGE THIS
+    caddy.gateway.kubernetes.io/email: 'gateway@popmodern.dev' # ⚠️ CHANGE THIS
 spec:
   gatewayClassName: caddy
   listeners:
@@ -47,7 +47,7 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
-    
+
     # HTTPS listener (automatic TLS via Caddy)
     - name: https
       protocol: HTTPS
@@ -74,16 +74,16 @@ spec:
   parentRefs:
     - name: qlever-gateway
       namespace: qlever
-  
+
   hostnames:
-    - "qlever.popmodern.dev"  # ⚠️ CHANGE THIS to your domain
-  
+    - 'qlever.popmodern.dev' # ⚠️ CHANGE THIS to your domain
+
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: qlever-server  # ClusterIP service
+        - name: qlever-server # ClusterIP service
           port: 7001
           weight: 1

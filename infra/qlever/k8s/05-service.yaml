@@ -37,7 +37,7 @@ metadata:
     app.kubernetes.io/component: sparql-database
     app.kubernetes.io/environment: dev
   annotations:
-    description: "NodePort service for local development - remove in production"
+    description: 'NodePort service for local development - remove in production'
 spec:
   type: NodePort
   selector:
@@ -46,5 +46,5 @@ spec:
     - name: http
       port: 7001
       targetPort: 7001
-      nodePort: 30701  # Fixed port 30701 for consistency
+      nodePort: 30701 # Fixed port 30701 for consistency
       protocol: TCP

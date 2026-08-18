@@ -14,36 +14,36 @@ metadata:
     app.kubernetes.io/component: sparql-database
 data:
   # Config file generation
-  QLEVER_GENERATE_CONFIG_FILE: "true"
+  QLEVER_GENERATE_CONFIG_FILE: 'true'
 
   # [data]
-  QLEVER_DATA_NAME: "local"
-  QLEVER_DATA_DESCRIPTION: "Local dataset for QLever"
+  QLEVER_DATA_NAME: 'local'
+  QLEVER_DATA_DESCRIPTION: 'Local dataset for QLever'
 
   # [index]
-  QLEVER_INDEX_INPUT_FILES: "../qlever/input/**/*.ttl"
-  QLEVER_INDEX_CAT_INPUT_FILES: "cat ../qlever/input/**/*.ttl"
-  QLEVER_INDEX_PARALLEL_PARSING: "false"
+  QLEVER_INDEX_INPUT_FILES: '../qlever/input/**/*.ttl'
+  QLEVER_INDEX_CAT_INPUT_FILES: 'cat ../qlever/input/**/*.ttl'
+  QLEVER_INDEX_PARALLEL_PARSING: 'false'
   QLEVER_INDEX_SETTINGS_JSON: '{ "ascii-prefixes-only": false, "num-triples-per-batch": 100000 }'
 
   # [server]
-  QLEVER_SERVER_HOST_NAME: "0.0.0.0"
-  QLEVER_SERVER_PORT: "7001"
-  QLEVER_SERVER_MEMORY_FOR_QUERIES: "8G"
-  QLEVER_SERVER_CACHE_MAX_SIZE: "4G"
-  QLEVER_SERVER_TIMEOUT: "300s"
+  QLEVER_SERVER_HOST_NAME: '0.0.0.0'
+  QLEVER_SERVER_PORT: '7001'
+  QLEVER_SERVER_MEMORY_FOR_QUERIES: '8G'
+  QLEVER_SERVER_CACHE_MAX_SIZE: '4G'
+  QLEVER_SERVER_TIMEOUT: '300s'
 
   # [runtime]
-  QLEVER_RUNTIME_SYSTEM: "native"
+  QLEVER_RUNTIME_SYSTEM: 'native'
 
   # Entrypoint behavior
-  SHOULD_DOWNLOAD: "false"
-  FORCE_DOWNLOAD: "false"
-  SHOULD_INDEX: "true"
-  FORCE_INDEXING: "false"
-  STOP_ON_CALL_ENABLED: "false"
-  START_ADDITIONAL_ARGS: ""
+  SHOULD_DOWNLOAD: 'false'
+  FORCE_DOWNLOAD: 'false'
+  SHOULD_INDEX: 'true'
+  FORCE_INDEXING: 'false'
+  STOP_ON_CALL_ENABLED: 'false'
+  START_ADDITIONAL_ARGS: ''
 
   # User/Group IDs (used by init container)
-  UID: "1000"
-  GID: "1000"
+  UID: '1000'
+  GID: '1000'

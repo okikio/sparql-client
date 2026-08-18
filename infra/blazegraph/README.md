@@ -1,6 +1,6 @@
 # Blazegraph Notebooks Playground
 
-An interactive JupyterLab‑based environment for learning and experimenting with Blazegraph graph databases.  
+An interactive JupyterLab‑based environment for learning and experimenting with Blazegraph graph databases.\
 This repository provides hands‑on examples and tutorials for understanding graph database concepts through practical examples.
 
 We use Blazegraph as a local stand‑in for **Amazon Neptune** (via its SPARQL REST API). This lets you practice SPARQL queries, graph modeling, and visualization without needing a cloud cluster.
@@ -14,7 +14,7 @@ We use Blazegraph as a local stand‑in for **Amazon Neptune** (via its SPARQL R
 - **SPARQL Tutorials**: Learn querying through interactive examples
 - **Sample Datasets**: Install example notebooks with pre‑loaded data
 - **Docker Support**: One‑command containerized setup
-- **Graph‑Notebook Magics**: Use `%%sparql`, `%%gremlin`, `%%oc` directly in notebooks
+- **GraphTermType‑Notebook Magics**: Use `%%sparql`, `%%gremlin`, `%%oc` directly in notebooks
 
 ---
 
@@ -31,6 +31,7 @@ We use Blazegraph as a local stand‑in for **Amazon Neptune** (via its SPARQL R
 We recommend using [mise](https://mise.jdx.dev/lang/python.html) to manage Python versions and virtual environments. This ensures reproducibility across machines and avoids conflicts with system Python.
 
 ### 1. Install mise
+
 - **macOS/Linux**:
   ```bash
   curl https://mise.run | sh
@@ -45,6 +46,7 @@ We recommend using [mise](https://mise.jdx.dev/lang/python.html) to manage Pytho
   ```
 
 ### 2. Configure Python with mise
+
 - Pin Python for this project:
   ```bash
   mise use python@3.11 uv@latest
@@ -89,13 +91,16 @@ We recommend using [mise](https://mise.jdx.dev/lang/python.html) to manage Pytho
 ## 🚀 Getting Started
 
 ### 1. Clone the repository
+
 ```bash
 git clone https://github.com/ThunderStrike/neptune-playground.git
 cd neptune-playground
 ```
 
 ### 2. Set up Python environment
+
 Using [mise](https://mise.jdx.dev/):
+
 ```bash
 mise use python@3.11 uv@latest
 uv pip install -r requirements.txt
@@ -107,6 +112,7 @@ python -m graph_notebook.ipython_profile.configure_ipython_profile
 ```
 
 Or with venv:
+
 ```bash
 python -m venv venv
 source venv/bin/activate   # On Windows: venv\Scripts\activate
@@ -119,13 +125,15 @@ python -m graph_notebook.ipython_profile.configure_ipython_profile
 ```
 
 > **Note**: The `uv pip install` installs all required packages (JupyterLab 4, graph‑notebook, widgets, etc.):
->  ```bash
->  uv pip install -r requirements.txt
->  # OR the slower alternative:
->  pip install -r requirements.txt
->  ```
+>
+> ```bash
+> uv pip install -r requirements.txt
+> # OR the slower alternative:
+> pip install -r requirements.txt
+> ```
 
 ### 3. Run Blazegraph in Docker
+
 ```bash
 docker compose up --build -d
 ```
@@ -133,6 +141,7 @@ docker compose up --build -d
 This exposes Blazegraph at: `http://localhost:9999/blazegraph/sparql`
 
 ### 4. Open in VS Code
+
 - Open a `.ipynb` file from `./notebooks`
 - Select your Python environment as the kernel
 - Run the first cell to configure Blazegraph:
@@ -163,14 +172,14 @@ If there are errors with the notebooks in general, try re-cloning the notebooks 
 python -m graph_notebook.notebooks.install --destination ./notebook_examples
 ```
 
-
 ---
 
 ## ⚠️ Widget Rendering in VS Code
 
-Graph‑notebook uses **ipywidgets** for tables and graph visualizations. In VS Code, the Jupyter extension sometimes fails to render these widgets, leaving you with a blank cell.
+GraphTermType‑notebook uses **ipywidgets** for tables and graph visualizations. In VS Code, the Jupyter extension sometimes fails to render these widgets, leaving you with a blank cell.
 
 ### Workarounds:
+
 - **Plain text/table mode**: Switch the output presentation to “Plain Text” or “Table” to see results.
 - **Test widgets**: Run:
   ```python
@@ -191,7 +200,7 @@ Graph‑notebook uses **ipywidgets** for tables and graph visualizations. In VS 
 
 ## 📦 Requirements
 
-We follow the [official graph‑notebook requirements](https://github.com/aws/graph-notebook/blob/main/requirements.txt).  
+We follow the [official graph‑notebook requirements](https://github.com/aws/graph-notebook/blob/main/requirements.txt).\
 Install with:
 
 ```bash
@@ -232,6 +241,7 @@ The Docker image is pre-seeded with comic data during build time:
    - **Character tags** for themed discovery
 
 To reseed with fresh data:
+
 ```bash
 cd /workspaces/knowledge-grapht-platform/infra/blazegraph
 
@@ -247,17 +257,17 @@ docker compose up --build -d
 
 You can also load data into a running Blazegraph instance:
 
-1. **Interactive seeding**  
+1. **Interactive seeding**\
    In a notebook cell:
    ```python
    %seed
    ```
    Use the form to insert triples or load `.ttl/.rdf/.sparql` files.
 
-2. **Example notebooks**  
-   Many installed notebooks (e.g. *Air‑Routes*, *EPL*) walk you through loading datasets step by step.
+2. **Example notebooks**\
+   Many installed notebooks (e.g. _Air‑Routes_, _EPL_) walk you through loading datasets step by step.
 
-3. **Scripts**  
+3. **Scripts**\
    Use your own `.sparql` files with:
    ```bash
    curl -X POST http://localhost:9999/blazegraph/sparql \
@@ -270,11 +280,11 @@ You can also load data into a running Blazegraph instance:
    # Load TTL ontology files
    python3 scripts/seed_helper.py load-ttl data/narrative.ttl
    python3 scripts/seed_helper.py load-ttl data/narrative-rec.ttl
-   
+
    # Convert and load comic data (limit to 1000 issues)
    python3 scripts/comic_to_sparql.py data/comic_output.jsonl.zip -l 1000 -o comic_data.sparql
    python3 scripts/seed_helper.py load-sparql comic_data.sparql
-   
+
    # Check statistics
    python3 scripts/seed_helper.py stats
    ```
@@ -295,17 +305,17 @@ The seeded data now includes rich recommendation metadata from `narrative-rec.tt
 
 1. **Getting Started**
    - Environment Setup
-   - Basic Graph Concepts
+   - Basic GraphTermType Concepts
    - Your First SPARQL Query
 
 2. **Basic Operations**
    - CRUD Operations
    - Simple Queries
-   - Graph Traversal
+   - GraphTermType Traversal
 
 3. **Advanced Queries**
    - Complex SPARQL Patterns
-   - Graph Analytics
+   - GraphTermType Analytics
    - Performance Optimization
 
 4. **Use Cases**
@@ -329,8 +339,8 @@ This project is licensed under the Apache‑2.0 License – see the LICENSE file
 
 ## 📚 Resources
 
-- [Graph‑Notebook README](https://github.com/aws/graph-notebook/blob/main/README.md)
-- [Graph‑Notebook Requirements](https://github.com/aws/graph-notebook/blob/main/requirements.txt)
+- [GraphTermType‑Notebook README](https://github.com/aws/graph-notebook/blob/main/README.md)
+- [GraphTermType‑Notebook Requirements](https://github.com/aws/graph-notebook/blob/main/requirements.txt)
 - [Blazegraph Documentation](https://github.com/blazegraph/database/)
 - [SPARQL 1.1 Query Language](https://www.w3.org/TR/sparql11-query/)
 - [Jupyter Documentation](https://jupyter.org/documentation)

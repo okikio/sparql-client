@@ -4,33 +4,33 @@ services:
     container_name: qlever-init
     env_file:
       - ./qlever.env
-    user: "0:0"
+    user: '0:0'
     volumes:
       - qlever-server-data:/data
     command:
       - sh
       - -lc
       - |
-        echo "Fixing /data ownership to ${UID:-1000}:${GID:-1000}"
-        chown -R ${UID:-1000}:${GID:-1000} /data
-        chmod -R u+rwX,g+rwX,o+rX /data
-    restart: "no"
+          echo "Fixing /data ownership to ${UID:-1000}:${GID:-1000}"
+          chown -R ${UID:-1000}:${GID:-1000} /data
+          chmod -R u+rwX,g+rwX,o+rX /data
+    restart: 'no'
 
   qlever-server:
     build:
       context: .
       dockerfile: ./Dockerfile
-    
+
     image: ghcr.io/popmodern/qlever-wrapper:latest
     container_name: qlever-server
 
     # Optional (Apple Silicon workaround you already discovered):
     # set QLEVER_PLATFORM=linux/amd64 in a .env file when needed
-    platform: "${QLEVER_PLATFORM:-linux/amd64}"
+    platform: '${QLEVER_PLATFORM:-linux/amd64}'
 
     # Not strictly required because your entrypoint does `cd /data`,
     # but it keeps everything consistent and avoids surprises.
-    user: "${UID:-1000}:${GID:-1000}"   # <-- MUST match qlever.env UID/GID
+    user: '${UID:-1000}:${GID:-1000}' # <-- MUST match qlever.env UID/GID
     working_dir: /data
     depends_on:
       qlever-init:
@@ -42,12 +42,12 @@ services:
     volumes:
       # QLever working dir (Qleverfile + index artifacts)
       - qlever-server-data:/data
-      
+
       # Your raw host data folder, mounted read-only
       - ./data:/input:ro
 
     ports:
-      - "7001:7001" # server
+      - '7001:7001' # server
 
     restart: unless-stopped
 
@@ -57,7 +57,7 @@ services:
     depends_on:
       - qlever-server
     ports:
-      - "7002:7000"
+      - '7002:7000'
     restart: unless-stopped
     volumes:
       - qlever-ui-db:/app/db

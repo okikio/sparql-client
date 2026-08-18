@@ -1,6 +1,6 @@
 ---
 # Kustomization for QLever Deployment
-# 
+#
 # Usage:
 #   kubectl apply -k k8s/
 #
@@ -18,7 +18,7 @@ resources:
   - 03-storage.yaml
   - 04-deployment.yaml
   - 05-service.yaml
-  
+
   # Only uncomment for Production
   # - ./gateway
 

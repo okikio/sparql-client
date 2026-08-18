@@ -1,5 +1,5 @@
 # Zero-Trust Network Policies for QLever
-# 
+#
 # Architecture:
 # 1. Default deny all traffic
 # 2. Explicitly allow QLever ingress from Caddy
@@ -18,7 +18,7 @@ metadata:
   labels:
     app.kubernetes.io/name: qlever
 spec:
-  podSelector: {}  # Applies to all pods
+  podSelector: {} # Applies to all pods
   policyTypes:
     - Ingress
     - Egress

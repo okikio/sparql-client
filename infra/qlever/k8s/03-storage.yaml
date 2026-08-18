@@ -1,5 +1,5 @@
-# Install local-path-storage from rauncher during development 
-# 
+# Install local-path-storage from rauncher during development
+#
 #     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
 ---
 # Persistent volume for /data (Qleverfile + index artifacts)
@@ -18,4 +18,4 @@ spec:
     requests:
       storage: 1Gi
   # Optional: Uncomment to pin to specific storage class
-  storageClassName: local-path  # Common for local clusters (k3s, Talos)
+  storageClassName: local-path # Common for local clusters (k3s, Talos)
