@@ -1,13 +1,16 @@
+> **Historical research note:** This file records design exploration. Current package names and implementation authority are in `docs/architecture.md`, `README.md`, and the source tree. External RDF processors mentioned here are comparison references, not core runtime dependencies.
+
 # `@okikio/rdf` + `@okikio/sparql` architecture and implementation handoff
 
-## Complete RDF, SPARQL, vocabulary generation, local query engines, persistent triplestore, and Kaiju Crawl semantic-data integration
+## Historical RDF, SPARQL, vocabulary, query-engine, and triplestore design record
 
-**Status:** Canonical design and implementation handoff  
-**Date:** 2026-08-14  
-**Primary repository:** `okikio/sparql-client` / `@okikio/sparql`  
-**Related libraries:** `@okikio/opfs`, Kaiju Platform, Kaiju Crawl, Wikitext parser work  
-**Runtime posture:** Deno 2 first, strict TypeScript, ESM, explicit file extensions, same production source across Deno, Node.js, Bun, browsers, and workers where the capability is available  
-**Compatibility posture:** Pre-launch architectural cleanup. Do not retain an obsolete public shape only because version `0.0.2` already exposes it.  
+**Status:** Historical design record retained for rationale. Current authority: `../architecture.md` and `../implementation.md`.\
+**Important:** API names, package names, file trees, and dependency choices in this record can describe superseded design stages. Do not use them as current implementation instructions.\
+**Date:** 2026-08-14\
+**Primary repository:** `okikio/sparql-client` / `@okikio/sparql`\
+**Related libraries:** `@okikio/opfs`, Kaiju Platform, Kaiju Crawl, Wikitext parser work\
+**Runtime posture:** Deno 2 first, strict TypeScript, ESM, explicit file extensions, same production source across Deno, Node.js, Bun, browsers, and workers where the capability is available\
+**Compatibility posture:** Pre-launch architectural cleanup. Do not retain an obsolete public shape only because version `0.0.2` already exposes it.\
 **Performance posture:** Correctness first, then evidence-led data-oriented optimization. Benchmarks are a release and architecture tool, not decorative microbenchmarks.
 
 ---
@@ -169,13 +172,13 @@ These names follow one rule: **the package name describes the capability or tech
 
 The storage package needs a name that remains true if its bytes live in browser OPFS, Node, Deno, Bun, memory, RxDB-backed files, a SQL-backed OPFS adapter, or another future `@okikio/opfs` backend.
 
-| Candidate | Strength | Problem | Decision |
-|---|---|---|---|
-| `@okikio/rdf-opfs` | immediately says RDF + OPFS | encodes one backend into the package identity; becomes false on Node/Deno/Bun/DB adapters | reject |
-| `@okikio/rdf-store` | recognizable | repeats `rdf`, less consistent with the explicit package family, ambiguous between in-memory dataset and database | reject |
-| `@okikio/store` | short | too vague outside local context | reject |
-| `@okikio/dataset` | RDF-domain term | sounds like an in-memory collection and does not communicate persistence/indexing | reject |
-| `@okikio/triplestore` | standard RDF-domain concept; says persistent/queryable graph store | conventional name says triples even though RDF datasets contain quads | **use** |
+| Candidate             | Strength                                                           | Problem                                                                                                           | Decision |
+| --------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------- |
+| `@okikio/rdf-opfs`    | immediately says RDF + OPFS                                        | encodes one backend into the package identity; becomes false on Node/Deno/Bun/DB adapters                         | reject   |
+| `@okikio/rdf-store`   | recognizable                                                       | repeats `rdf`, less consistent with the explicit package family, ambiguous between in-memory dataset and database | reject   |
+| `@okikio/store`       | short                                                              | too vague outside local context                                                                                   | reject   |
+| `@okikio/dataset`     | RDF-domain term                                                    | sounds like an in-memory collection and does not communicate persistence/indexing                                 | reject   |
+| `@okikio/triplestore` | standard RDF-domain concept; says persistent/queryable graph store | conventional name says triples even though RDF datasets contain quads                                             | **use**  |
 
 The package documentation must state that it stores RDF datasets and therefore supports named graphs/quads. “Triplestore” is the conventional product category, not a restriction to three-term records.
 
@@ -184,20 +187,20 @@ The package documentation must state that it stores RDF datasets and therefore s
 The intended one-way graph is:
 
 ```text
-                         @okikio/oxigraph
-                        /                \
-                       v                  v
-              @okikio/sparql -------> @okikio/rdf
-                       ^                  ^
-                       |                  |
-                       |                  +--------- @okikio/vocab
-                       |                  |
-                       |                  +--------- @okikio/triplestore
-                       |                              |
-                       |                              v
-                       |                       @okikio/opfs
-                       |
-                         @okikio/comunica
+           @okikio/oxigraph
+          /                \
+         v                  v
+@okikio/sparql -------> @okikio/rdf
+         ^                  ^
+         |                  |
+         |                  +--------- @okikio/vocab
+         |                  |
+         |                  +--------- @okikio/triplestore
+         |                              |
+         |                              v
+         |                       @okikio/opfs
+         |
+           @okikio/comunica
 ```
 
 More exactly:
@@ -223,14 +226,14 @@ The API needs two different import styles because the use cases are different.
 Use namespace imports when the module is a coherent family of short operations:
 
 ```ts
-import * as rdf from '@okikio/rdf';
-import * as sparql from '@okikio/sparql';
+import * as rdf from '@okikio/rdf'
+import * as sparql from '@okikio/sparql'
 
-const product = rdf.namedNode('https://example.com/products/1');
-const label = rdf.literal('Widget', 'en');
+const product = rdf.namedNode('https://example.com/products/1')
+const label = rdf.literal('Widget', 'en')
 
 const query = sparql.select(['?product', '?name'])
-  .where(sparql.triple('?product', '?predicate', '?name'));
+  .where(sparql.triple('?product', '?predicate', '?name'))
 ```
 
 The namespace supplies the missing context. `rdf.literal()` and `sparql.select()` are clearer than long direct names such as `createRdfLiteral()` or `createSparqlSelectQuery()`.
@@ -240,14 +243,7 @@ The namespace supplies the missing context. `rdf.literal()` and `sparql.select()
 Generated vocabulary values should be directly importable:
 
 ```ts
-import {
-  Product,
-  ProductSchema,
-  name,
-  offers,
-  price,
-  type ProductType,
-} from '@okikio/vocab/schema';
+import { name, offers, price, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 ```
 
 This is the preferred vocabulary style.
@@ -255,10 +251,10 @@ This is the preferred vocabulary style.
 Avoid making this the normal form:
 
 ```ts
-import * as schema from '@okikio/vocab/schema';
+import * as schema from '@okikio/vocab/schema'
 
-schema.Product;
-schema.ProductSchema;
+schema.Product
+schema.ProductSchema
 ```
 
 The latter creates the `lowercase.CamelCase` appearance that the project deliberately avoids and makes the imported surface less explicit.
@@ -266,10 +262,10 @@ The latter creates the `lowercase.CamelCase` appearance that the project deliber
 Namespace imports can still be valid for deliberate operation modules, for example:
 
 ```ts
-import * as vocab from '@okikio/vocab/generate';
+import * as vocab from '@okikio/vocab/generate'
 
-const model = await vocab.read(sources);
-const output = vocab.emit(model, options);
+const model = await vocab.inspect(sources)
+const output = vocab.emit(model, options)
 ```
 
 ## 5.3 Runtime class terms and generated types
@@ -277,9 +273,9 @@ const output = vocab.emit(model, options);
 A generated class should normally expose:
 
 ```ts
-Product        // RDF NamedNode term for https://schema.org/Product
-ProductType    // TypeScript JSON-LD / vocabulary data type
-ProductSchema  // Standard Schema-compatible runtime validator
+Product // RDF NamedNode term for https://schema.org/Product
+ProductType // TypeScript JSON-LD / vocabulary data type
+ProductSchema // Standard Schema-compatible runtime validator
 ```
 
 A generated property should normally expose the source property name as an RDF NamedNode term:
@@ -294,27 +290,27 @@ priceCurrency
 This makes RDF construction direct:
 
 ```ts
-import * as rdf from '@okikio/rdf';
-import { Product, name } from '@okikio/vocab/schema';
+import * as rdf from '@okikio/rdf'
+import { name, Product } from '@okikio/vocab/schema'
 
 const quad = rdf.quad(
   rdf.namedNode('https://example.com/product/1'),
   name,
   rdf.literal('Widget'),
-);
+)
 ```
 
 The type/schema form remains equally direct:
 
 ```ts
-import { ProductSchema, type ProductType } from '@okikio/vocab/schema';
+import { ProductSchema, type ProductType } from '@okikio/vocab/schema'
 
 const product: ProductType = {
   '@type': 'Product',
   name: 'Widget',
-};
+}
 
-const result = await ProductSchema['~standard'].validate(product);
+const result = await ProductSchema['~standard'].validate(product)
 ```
 
 ## 5.4 Collision policy
@@ -466,8 +462,8 @@ Do not repeat the current executor behavior where RDF terms are casually flatten
 Useful explicit conversions can live behind operations such as:
 
 ```ts
-rdf.toValue(literal, options);
-rdf.fromValue(value, options);
+rdf.toValue(literal, options)
+rdf.fromValue(value, options)
 ```
 
 These operations must document precision loss, timezone behavior, numeric range, and unsupported datatypes.
@@ -479,8 +475,8 @@ The namespace capability should be generated or data-driven instead of maintaini
 A namespace operation can be:
 
 ```ts
-const schema = rdf.namespace('https://schema.org/');
-const Product = schema('Product');
+const schema = rdf.namespace('https://schema.org/')
+const Product = schema('Product')
 ```
 
 Generated curated vocabularies belong in `@okikio/vocab`, not in a giant RDF root constants file.
@@ -675,8 +671,8 @@ For string input:
 
 ```ts
 export interface RangeType {
-  readonly start: number;
-  readonly end: number;
+  readonly start: number
+  readonly end: number
 }
 ```
 
@@ -692,9 +688,9 @@ Start with stable small records:
 
 ```ts
 interface TokenType {
-  readonly kind: TokenKind;
-  readonly start: number;
-  readonly end: number;
+  readonly kind: TokenKind
+  readonly start: number
+  readonly end: number
 }
 ```
 
@@ -730,13 +726,13 @@ SPARQL queries are normally small enough that a findings-first lane can be usefu
 
 ```ts
 export interface ParseFindingsType {
-  readonly source: string;
-  readonly events: readonly SyntaxEventType[];
-  readonly diagnostics: readonly DiagnosticType[];
+  readonly source: string
+  readonly events: readonly SyntaxEventType[]
+  readonly diagnostics: readonly DiagnosticType[]
 }
 
-export function analyze(source: string, options?: AnalyzeOptionsType): ParseFindingsType;
-export function materialize(findings: ParseFindingsType): QuerySyntaxType;
+export function analyze(source: string, options?: AnalyzeOptionsType): ParseFindingsType
+export function materialize(findings: ParseFindingsType): QuerySyntaxType
 ```
 
 This is **exploratory public API** until real tooling uses it.
@@ -848,9 +844,9 @@ export const BatchPolicySchema = z.object({
   maxRecords: z.number().int().positive(),
   maxBytes: z.number().int().positive(),
   maxDelayMs: z.number().nonnegative(),
-});
+})
 
-export type BatchPolicyType = z.output<typeof BatchPolicySchema>;
+export type BatchPolicyType = z.output<typeof BatchPolicySchema>
 ```
 
 For a pure synchronous string parser, `maxDelayMs` may not apply. Do not force one batch policy onto every input model.
@@ -871,7 +867,7 @@ Public:
 
 ```ts
 for await (const quad of parse(source)) {
-  console.log(quad.subject.value);
+  console.log(quad.subject.value)
 }
 ```
 
@@ -909,7 +905,6 @@ Every index must answer:
 
 Do not automatically build all subject/predicate/object/graph permutations. Quadstore is a useful baseline because it makes those permutations explicit and exposes the cost/coverage trade-off.
 
-
 ---
 
 # 9. `@okikio/sparql`: language, query model, protocol, and execution seams
@@ -939,10 +934,10 @@ The current executor is HTTP-endpoint-centric:
 
 ```ts
 interface ExecutionConfig {
-  endpoint: string;
-  fetch?: typeof fetch;
-  headers?: HeadersInit;
-  timeoutMs?: number;
+  endpoint: string
+  fetch?: typeof fetch
+  headers?: HeadersInit
+  timeoutMs?: number
 }
 ```
 
@@ -963,7 +958,7 @@ The most important correctness defect is that its `query` documentation and impl
 The supplied repository also has a material validation gap:
 
 - no `*_test.ts`, `*.test.ts`, `*_bench.ts`, or `*.bench.ts` files are present;
-- `deno.jsonc` still defines `test` and `bench` tasks;
+- Historical snapshot note: `deno.jsonc` defined the old flat-package tasks; the current repository removed that stale authority.
 - the `check` task runs `deno check src/**/*.ts`, but the package source is flat and there is no `src/` tree;
 - the current `./generate` export points directly at the starter file under root `scripts/`.
 
@@ -980,22 +975,22 @@ export interface Queryable {
   queryBindings(
     query: QueryInputType,
     options?: QueryOptionsType,
-  ): Promise<AsyncIterable<BindingType>>;
+  ): Promise<AsyncIterable<BindingType>>
 
   queryQuads(
     query: QueryInputType,
     options?: QueryOptionsType,
-  ): Promise<AsyncIterable<QuadType>>;
+  ): Promise<AsyncIterable<QuadType>>
 
   queryBoolean(
     query: QueryInputType,
     options?: QueryOptionsType,
-  ): Promise<boolean>;
+  ): Promise<boolean>
 
   queryVoid(
     query: QueryInputType,
     options?: QueryOptionsType,
-  ): Promise<void>;
+  ): Promise<void>
 }
 ```
 
@@ -1010,7 +1005,7 @@ A binding is not `Record<string, unknown>` after automatic coercion.
 Canonical shape:
 
 ```ts
-export type BindingType = ReadonlyMap<string, rdf.TermType>;
+export type BindingType = ReadonlyMap<string, rdf.TermType>
 ```
 
 or another measured immutable lookup shape with equivalent semantics.
@@ -1021,7 +1016,7 @@ Ergonomic projection is a separate operation:
 const rows = sparql.mapBindings(bindings, {
   name: rdf.toString,
   price: rdf.toNumber,
-});
+})
 ```
 
 The package must not lose:
@@ -1066,16 +1061,16 @@ Do not make the root package read global environment variables or configure cred
 SPARQL values should accept `@okikio/rdf` terms directly:
 
 ```ts
-import * as rdf from '@okikio/rdf';
-import * as sparql from '@okikio/sparql';
-import { Product, name } from '@okikio/vocab/schema';
+import * as rdf from '@okikio/rdf'
+import * as sparql from '@okikio/sparql'
+import { name, Product } from '@okikio/vocab/schema'
 
-const product = sparql.v('product');
-const value = rdf.literal('Widget');
+const product = sparql.v('product')
+const value = rdf.literal('Widget')
 
 const query = sparql.select([product])
   .where(sparql.triple(product, rdf.type, Product))
-  .where(sparql.triple(product, name, value));
+  .where(sparql.triple(product, name, value))
 ```
 
 The exact export for the standard RDF `type` term should be decided with the vocabulary naming/collision rules rather than adding a one-off alias to this example.
@@ -1143,9 +1138,9 @@ export const CapabilitiesSchema = z.object({
   update: z.boolean(),
   service: z.boolean(),
   extensions: z.array(z.string()),
-});
+})
 
-export type CapabilitiesType = z.output<typeof CapabilitiesSchema>;
+export type CapabilitiesType = z.output<typeof CapabilitiesSchema>
 ```
 
 Do not infer complete support from the package name.
@@ -1186,12 +1181,12 @@ The package should make Oxigraph feel native to the Okikio RDF/SPARQL model with
 Target operations might include:
 
 ```ts
-import * as oxigraph from '@okikio/oxigraph';
+import * as oxigraph from '@okikio/oxigraph'
 
-await using store = await oxigraph.open();
-await store.load(source, options);
+await using store = await oxigraph.open()
+await store.load(source, options)
 
-const rows = await store.queryBindings(query);
+const rows = await store.queryBindings(query)
 ```
 
 The actual operation names should be chosen after inspecting the final Oxigraph wrapper contract.
@@ -1239,8 +1234,8 @@ A caller should be able to depend on the query contract:
 
 ```ts
 async function getProducts(queryable: sparql.Queryable) {
-  const query = createProductQuery();
-  return queryable.queryBindings(query);
+  const query = createProductQuery()
+  return queryable.queryBindings(query)
 }
 ```
 
@@ -1266,13 +1261,13 @@ The persistent store is the most benchmark-sensitive package in the design.
 The public store should feel like a persistent RDF Dataset/Source/Store:
 
 ```ts
-import * as store from '@okikio/triplestore';
+import * as store from '@okikio/triplestore'
 
 await using db = await store.open(fileSystem, {
   path: '/knowledge',
-});
+})
 
-await db.add(quad);
+await db.add(quad)
 for await (const result of db.match(subject, predicate, null, graph)) {
   // ...
 }
@@ -1439,9 +1434,9 @@ export const ManifestSchema = z.object({
   dictionary: z.object({ version: z.number().int().positive() }),
   indexes: z.array(z.string()),
   segments: z.array(z.string()),
-});
+})
 
-export type ManifestType = z.output<typeof ManifestSchema>;
+export type ManifestType = z.output<typeof ManifestSchema>
 ```
 
 The final fields should be derived from the actual storage design.
@@ -1562,9 +1557,9 @@ export const ClassSchema = z.object({
   superClasses: z.array(z.string()),
   equivalentClasses: z.array(z.string()),
   deprecated: z.boolean(),
-});
+})
 
-export type ClassType = z.output<typeof ClassSchema>;
+export type ClassType = z.output<typeof ClassSchema>
 ```
 
 The full model should include:
@@ -1603,11 +1598,11 @@ Do not flatten an OWL expression to a string merely because TypeScript emission 
 Input API should support:
 
 ```ts
-const model = await readOntology([
+const model = await inspect([
   schemaOrgSource,
   gs1Source,
   owlSource,
-], options);
+], options)
 ```
 
 The reader must define:
@@ -1657,7 +1652,7 @@ Evaluate runtime bundle size **and TypeScript compiler/language-server cost**.
 The desired consumer API remains:
 
 ```ts
-import { Product, ProductSchema, type ProductType } from '@okikio/vocab/schema';
+import { Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 ```
 
 Internal file layout exists to make that API cheap, not to force consumers into generated directory knowledge.
@@ -1676,11 +1671,11 @@ A more scalable direction is a property-map/generic-node model:
 
 ```ts
 export interface ProductPropertiesType extends ThingPropertiesType {
-  name?: ValueType<TextType>;
-  offers?: ValueType<OfferType | IdReferenceType>;
+  name?: ValueType<TextType>
+  offers?: ValueType<OfferType | IdReferenceType>
 }
 
-export type ProductType = NodeType<'Product', ProductPropertiesType>;
+export type ProductType = NodeType<'Product', ProductPropertiesType>
 ```
 
 Multi-type entities can use a generic composition:
@@ -1689,7 +1684,7 @@ Multi-type entities can use a generic composition:
 export type ProductSoftwareType = MergeType<[
   ProductType,
   SoftwareApplicationType,
-]>;
+]>
 ```
 
 or a generated `NodeType<['Product', 'SoftwareApplication'], ...>` form.
@@ -1854,9 +1849,9 @@ export const VocabularyManifestSchema = z.object({
   properties: z.number().int().nonnegative(),
   datatypes: z.number().int().nonnegative(),
   diagnostics: z.number().int().nonnegative(),
-});
+})
 
-export type VocabularyManifestType = z.output<typeof VocabularyManifestSchema>;
+export type VocabularyManifestType = z.output<typeof VocabularyManifestSchema>
 ```
 
 Each source should retain:
@@ -2128,8 +2123,8 @@ Early iterator return must propagate cleanup to owned source readers/producers w
 Use Explicit Resource Management for live resources:
 
 ```ts
-await using store = await triplestore.open(fileSystem, options);
-await using engine = await oxigraph.open(options);
+await using store = await triplestore.open(fileSystem, options)
+await using engine = await oxigraph.open(options)
 ```
 
 A parser that only consumes a caller-owned stream does not suddenly own the stream unless the API explicitly says so.
@@ -2384,8 +2379,8 @@ Avoid broad `export *` unless the whole underlying module is deliberately public
 Prefer explicit export review:
 
 ```ts
-export { dataset, literal, namedNode, quad } from './factory.ts';
-export type { Dataset, QuadType, TermType } from './types.ts';
+export { dataset, literal, namedNode, quad } from './factory.ts'
+export type { Dataset, QuadType, TermType } from './types.ts'
 ```
 
 The exact `types.ts` example should not create a permanent broad root `types` dumping ground. Keep related types with their owning modules or use a focused file only when the concept is genuinely cohesive.
@@ -2486,7 +2481,6 @@ const ctx = ...; // only for a documented execution/parser context
 
 A public API should not export `getData()` when it actually gets an ontology class or index page.
 
-
 ---
 
 # 19. TSDoc and comment standard
@@ -2518,7 +2512,7 @@ A public module should explain its role before enumerating exports.
 
 Good:
 
-```ts
+````ts
 /**
  * Parses N-Quads into RDF quads without materializing the complete document.
  *
@@ -2534,7 +2528,7 @@ Good:
  * }
  * ```
  */
-```
+````
 
 The exact cleanup wording must match the implementation. Do not promise cancellation propagation until it is tested.
 
@@ -2726,15 +2720,15 @@ Use mature implementations as oracles, not as unquestioned truth.
 
 Examples:
 
-| Capability | Differential baseline |
-|---|---|
-| N-Triples/N-Quads/Turtle/TriG | N3, Oxigraph |
-| JSON-LD to RDF | jsonld.js, `jsonld-streaming-parser`, Oxigraph where applicable |
-| RDF canonicalization | `rdf-canonize` |
-| RDFJS dataset/source behavior | N3 Store / relevant RDFJS suites |
-| SPARQL query evaluation | Oxigraph, Comunica, QLever/Fuseki fixtures where semantic feature matches |
-| persistent RDF | Quadstore + BrowserLevel baseline |
-| Schema.org generated typing | `schema-dts` consumer fixtures |
+| Capability                    | Differential baseline                                                     |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| N-Triples/N-Quads/Turtle/TriG | N3, Oxigraph                                                              |
+| JSON-LD to RDF                | jsonld.js, `jsonld-streaming-parser`, Oxigraph where applicable           |
+| RDF canonicalization          | `rdf-canonize`                                                            |
+| RDFJS dataset/source behavior | N3 Store / relevant RDFJS suites                                          |
+| SPARQL query evaluation       | Oxigraph, Comunica, QLever/Fuseki fixtures where semantic feature matches |
+| persistent RDF                | Quadstore + BrowserLevel baseline                                         |
+| Schema.org generated typing   | `schema-dts` consumer fixtures                                            |
 
 Compare normalized semantic output, not implementation-specific ordering unless the standard defines the order.
 
@@ -3255,15 +3249,15 @@ Calibrate thresholds from several baseline runs on the same machine.
 
 Suggested starting review triggers, not universal laws:
 
-| Metric | Review trigger |
-|---|---:|
-| stable warm latency | >10% regression with meaningful absolute cost |
-| large parse throughput | >10% regression |
-| p95 async query/import | >15% regression |
-| peak memory | >15% regression |
-| persistent bytes | >15% growth without a documented feature/index reason |
-| TypeScript compile memory | >15% regression |
-| cold import/start | >10% and meaningful absolute change |
+| Metric                    |                                        Review trigger |
+| ------------------------- | ----------------------------------------------------: |
+| stable warm latency       |         >10% regression with meaningful absolute cost |
+| large parse throughput    |                                       >10% regression |
+| p95 async query/import    |                                       >15% regression |
+| peak memory               |                                       >15% regression |
+| persistent bytes          | >15% growth without a documented feature/index reason |
+| TypeScript compile memory |                                       >15% regression |
+| cold import/start         |                   >10% and meaningful absolute change |
 
 A representation change that adds substantial complexity should normally show a stable end-to-end improvement above measurement noise, not a 2% microbenchmark win.
 
@@ -3289,9 +3283,9 @@ export const BenchmarkRecordSchema = z.object({
   samples: z.number().int().positive(),
   correctness: z.string(),
   notes: z.array(z.string()),
-});
+})
 
-export type BenchmarkRecordType = z.output<typeof BenchmarkRecordSchema>;
+export type BenchmarkRecordType = z.output<typeof BenchmarkRecordSchema>
 ```
 
 The exact schema can expand to preserve runner-specific estimates/raw samples.
@@ -3519,25 +3513,25 @@ This lets research evolve without rewriting the stable public programming model 
 
 The exact patch should be planned after a fresh repository checkout, but the current `0.0.2` source implies these actions.
 
-| Current path | Target action | Reason |
-|---|---|---|
-| `mod.ts` | replace with intentional `packages/sparql/mod.ts` exports | current broad `export *` surface mixes builder, HTTP execution, namespaces, and helpers |
-| `sparql.ts` | split by values/expressions/serialization as code demands | 43 KB single file is carrying several concepts |
-| `builder.ts` | migrate to structured query model | preserve fluent DX without string-first architecture |
-| `update.ts` | migrate beside query model/update syntax | keep SPARQL mutation semantics explicit |
-| `executor.ts` | split into query contract + HTTP adapter + optional resource helpers | current endpoint-only model and wrong graph result path |
-| `namespaces.ts` | replace curated giant constants with generated vocab/namespace utilities | vocab data belongs in `@okikio/vocab` |
-| `patterns/triples.ts` | retain/adapt | useful pattern capability |
-| `patterns/objects.ts` | retain/adapt after RDF term/type review | strong ergonomic graph pattern |
-| `patterns/cypher.ts` | retain if tests prove syntax remains safe/clear | useful visual DSL but must not accept unsafe relation text |
-| `scripts/ttl-to-ts.ts` | delete after `@okikio/vocab` replacement | starter generator violates target parsing/model/codegen structure |
-| `docs/*` | migrate and rewrite around package family | current docs describe one monolithic package |
-| `examples/*` | split by package/use case | examples should prove public packages independently |
-| `infra/qlever` | retain as endpoint integration fixture if maintained | valuable real-engine tests |
-| `infra/blazegraph` | retain only if still an actively tested compatibility target | avoid stale infrastructure merely because it exists |
-| `.github/workflows/publish.yml` | review against actual release policy | generated multi-package release will change publishing needs; do not preserve blindly |
-| `deno.jsonc` | convert to workspace/export map | current exports refer to old flat files and root generator script |
-| `mise.toml` | expand repository tasks through `.mise/tasks/` | complex test/bench/gen work should not accumulate shell strings in one TOML |
+| Current path                    | Target action                                                            | Reason                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `mod.ts`                        | replace with intentional `packages/sparql/mod.ts` exports                | current broad `export *` surface mixes builder, HTTP execution, namespaces, and helpers |
+| `sparql.ts`                     | split by values/expressions/serialization as code demands                | 43 KB single file is carrying several concepts                                          |
+| `builder.ts`                    | migrate to structured query model                                        | preserve fluent DX without string-first architecture                                    |
+| `update.ts`                     | migrate beside query model/update syntax                                 | keep SPARQL mutation semantics explicit                                                 |
+| `executor.ts`                   | split into query contract + HTTP adapter + optional resource helpers     | current endpoint-only model and wrong graph result path                                 |
+| `namespaces.ts`                 | replace curated giant constants with generated vocab/namespace utilities | vocab data belongs in `@okikio/vocab`                                                   |
+| `patterns/triples.ts`           | retain/adapt                                                             | useful pattern capability                                                               |
+| `patterns/objects.ts`           | retain/adapt after RDF term/type review                                  | strong ergonomic graph pattern                                                          |
+| `patterns/cypher.ts`            | retain if tests prove syntax remains safe/clear                          | useful visual DSL but must not accept unsafe relation text                              |
+| `scripts/ttl-to-ts.ts`          | delete after `@okikio/vocab` replacement                                 | starter generator violates target parsing/model/codegen structure                       |
+| `docs/*`                        | migrate and rewrite around package family                                | current docs describe one monolithic package                                            |
+| `examples/*`                    | split by package/use case                                                | examples should prove public packages independently                                     |
+| historical `infra/qlever`       | removed                                                                  | endpoint interoperability now belongs to Testcontainers-owned service tests             |
+| historical `infra/blazegraph`   | removed                                                                  | no active compatibility target justified retaining fixed-port deployment files          |
+| `.github/workflows/publish.yml` | review against actual release policy                                     | generated multi-package release will change publishing needs; do not preserve blindly   |
+| historical `deno.jsonc`         | removed                                                                  | `deno.json` is the single workspace authority                                           |
+| `mise.toml`                     | expand repository tasks through `.mise/tasks/`                           | complex test/bench/gen work should not accumulate shell strings in one TOML             |
 
 Do not combine this functional migration with unrelated repository-wide formatting churn.
 
@@ -3963,14 +3957,14 @@ The architecture is successful when these user stories are straightforward.
 ## 28.1 Small RDF use
 
 ```ts
-import * as rdf from '@okikio/rdf';
-import { Product, name } from '@okikio/vocab/schema';
+import * as rdf from '@okikio/rdf'
+import { name, Product } from '@okikio/vocab/schema'
 
-const product = rdf.namedNode('https://example.com/product/1');
+const product = rdf.namedNode('https://example.com/product/1')
 const graph = rdf.dataset([
   rdf.quad(product, rdf.type, Product),
   rdf.quad(product, name, rdf.literal('Widget')),
-]);
+])
 ```
 
 No JSON-LD or engine code enters the bundle.
@@ -3978,10 +3972,10 @@ No JSON-LD or engine code enters the bundle.
 ## 28.2 Parse a large RDF stream
 
 ```ts
-import { parse } from '@okikio/rdf/nquads';
+import { parse } from '@okikio/rdf/nquads'
 
 for await (const quad of parse(response.body!)) {
-  await sink.add(quad);
+  await sink.add(quad)
 }
 ```
 
@@ -3990,10 +3984,10 @@ Memory is bounded and returning early stops parser-owned reading.
 ## 28.3 Direct generated types
 
 ```ts
-import { ProductSchema, type ProductType } from '@okikio/vocab/schema';
+import { ProductSchema, type ProductType } from '@okikio/vocab/schema'
 
-const product: ProductType = input;
-const result = await ProductSchema['~standard'].validate(product);
+const product: ProductType = input
+const result = await ProductSchema['~standard'].validate(product)
 ```
 
 No namespace-qualified `schema.ProductType` is required.
@@ -4001,11 +3995,11 @@ No namespace-qualified `schema.ProductType` is required.
 ## 28.4 Local Oxigraph query
 
 ```ts
-import * as oxigraph from '@okikio/oxigraph';
-import * as sparql from '@okikio/sparql';
+import * as oxigraph from '@okikio/oxigraph'
+import * as sparql from '@okikio/sparql'
 
-await using store = await oxigraph.open();
-await store.load(source);
+await using store = await oxigraph.open()
+await store.load(source)
 
 for await (const row of await store.queryBindings(query)) {
   // RDF terms preserved
@@ -4015,27 +4009,27 @@ for await (const row of await store.queryBindings(query)) {
 ## 28.5 Comunica over persistent store
 
 ```ts
-import * as comunica from '@okikio/comunica';
-import * as triplestore from '@okikio/triplestore';
+import * as comunica from '@okikio/comunica'
+import * as triplestore from '@okikio/triplestore'
 
-await using graph = await triplestore.open(fileSystem, { path: '/graph' });
-await using engine = await comunica.open({ sources: [graph] });
+await using graph = await triplestore.open(fileSystem, { path: '/graph' })
+await using engine = await comunica.open({ sources: [graph] })
 
-const rows = await engine.queryBindings(query);
+const rows = await engine.queryBindings(query)
 ```
 
 ## 28.6 Generate a custom vocabulary
 
 ```ts
-import * as vocab from '@okikio/vocab/generate';
+import * as vocab from '@okikio/vocab/generate'
 
-const model = await vocab.read([ontologySource, extensionSource]);
+const model = await vocab.inspect([ontologySource, extensionSource])
 const output = vocab.emit(model, {
   name: 'example',
   context: 'https://example.com/vocab/',
-});
+})
 
-await vocab.write(output, destination);
+await vocab.write(output, destination)
 ```
 
 The generated package exposes direct term/type/schema imports.
@@ -4312,17 +4306,11 @@ The public developer experience follows two intentional patterns:
 
 ```ts
 // coherent operation families
-import * as rdf from '@okikio/rdf';
-import * as sparql from '@okikio/sparql';
+import * as rdf from '@okikio/rdf'
+import * as sparql from '@okikio/sparql'
 
 // exact generated terms/types/schemas
-import {
-  Product,
-  ProductSchema,
-  name,
-  offers,
-  type ProductType,
-} from '@okikio/vocab/schema';
+import { name, offers, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 ```
 
 Parsing is designed from the data path:

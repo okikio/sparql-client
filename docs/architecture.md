@@ -4,45 +4,60 @@
 **Repository:** `okikio/sparql-client`
 **Runtime direction:** Deno 2 first, strict TypeScript, ESM, browser/Node/Bun compatible where the capability exists
 
-This document describes the architecture that the current source is intended to implement. Historical design exploration is retained under `docs/research/architecture-design-20260814.md`.
+This document describes the architecture that the current source is intended to implement. Historical design exploration is retained under `docs/research/architecture-design.md`.
 
 ## Goals
 
-The repository provides a complete RDF programming model, SPARQL construction and execution contracts, generated vocabulary tooling, optional query-engine adapters, and persistent RDF storage without turning them into one monolithic runtime.
+The repository provides a dependency-free RDF core, native RDF syntax and JSON-LD processors, SPARQL construction and execution contracts, generated vocabulary tooling, optional query-engine adapters, and persistent RDF storage without turning them into one monolithic runtime. Conformance claims are limited to the evidence-backed profiles in `support.json`.
 
-The design has six primary rules:
+The design has seven primary rules:
 
 1. RDF semantics do not depend on a query engine.
-2. SPARQL construction does not own network or engine execution.
-3. Generated vocabularies depend on RDF terms and ontology data, not on SPARQL.
-4. Engine integrations depend on the generic SPARQL contract, not the reverse.
-5. Persistent RDF storage borrows a filesystem capability instead of naming one runtime backend in the package identity.
-6. Format parsers and draft standards can evolve behind focused seams without forcing unrelated public APIs to change.
+2. Core packages do not import third-party runtime implementations.
+3. An external RDF/SPARQL implementation is allowed only in an explicit interoperability package such as Oxigraph or Comunica, or in tests, conformance suites, and benchmarks.
+4. SPARQL construction does not own network or engine execution.
+5. Generated vocabularies depend on RDF terms and ontology data, not on SPARQL.
+6. Engine integrations depend on the generic SPARQL contract, not the reverse.
+7. Persistent RDF storage borrows a filesystem capability instead of naming one runtime backend in the package identity.
 
 ## Package graph
 
 ```text
-                         @okikio/rdf
-                        /      |      \
-                       /       |       \
-                      v        v        v
-          @okikio/sparql  @okikio/vocab  @okikio/triplestore
-                 |\
-                 | \
-                 v  v
-   @okikio/oxigraph  @okikio/comunica
+                              @okikio/rdf
+             +--------------------+--------------------+
+             |                    |                    |
+             v                    v                    v
+      @okikio/sparql        @okikio/vocab      @okikio/triplestore
+          /       \
+         v         v
+@okikio/oxigraph  @okikio/comunica
+
+Native standards processors are subpaths of @okikio/rdf:
+
+@okikio/rdf/jsonld
+@okikio/rdf/canon
+@okikio/rdf/xml
+@okikio/rdf/rdfa
+@okikio/rdf/microdata
 ```
 
 Allowed direct package dependencies:
 
-| Package | Depends on |
-| --- | --- |
-| `@okikio/rdf` | no project package |
-| `@okikio/sparql` | `@okikio/rdf` |
-| `@okikio/vocab` | `@okikio/rdf` |
-| `@okikio/triplestore` | `@okikio/rdf` |
-| `@okikio/oxigraph` | `@okikio/rdf`, `@okikio/sparql` |
-| `@okikio/comunica` | `@okikio/rdf`, `@okikio/sparql` |
+| Package                 | Depends on                                                        |
+| ----------------------- | ----------------------------------------------------------------- |
+| `@okikio/rdf`           | no runtime package                                                |
+| `@okikio/sparql`        | `@okikio/rdf`                                                     |
+| `@okikio/vocab`         | `@okikio/rdf`                                                     |
+| `@okikio/triplestore`   | `@okikio/rdf`                                                     |
+| `@okikio/rdf/jsonld`    | native subpath of `@okikio/rdf`                                   |
+| `@okikio/rdf/canon`     | native subpath of `@okikio/rdf`                                   |
+| `@okikio/rdf/xml`       | native subpath of `@okikio/rdf`                                   |
+| `@okikio/rdf/rdfa`      | native subpath of `@okikio/rdf`                                   |
+| `@okikio/rdf/microdata` | native subpath of `@okikio/rdf`                                   |
+| `@okikio/oxigraph`      | `@okikio/rdf`, `@okikio/sparql`; caller supplies the engine store |
+| `@okikio/comunica`      | `@okikio/rdf`, `@okikio/sparql`; caller supplies the query engine |
+
+The core set is `@okikio/rdf`, `@okikio/sparql`, `@okikio/vocab`, and `@okikio/triplestore`. These packages may depend on each other only in the directions shown above. They cannot import an npm, JSR, or other third-party runtime implementation. Tests, conformance runners, and benchmarks can import competitors because those imports do not become production implementation dependencies.
 
 `@okikio/sparql` must not depend on a generated vocabulary or a concrete engine. That would make a generic syntax library depend on one ontology/compiler or one execution implementation.
 
@@ -70,25 +85,33 @@ Allowed direct package dependencies:
 
 The root module does not import a syntax processor just because the processor exists in the npm package.
 
-### Format subpaths
+### Native subpaths
+
+Project-owned RDF capabilities remain inside `@okikio/rdf`:
 
 ```text
 @okikio/rdf/ntriples
 @okikio/rdf/nquads
 @okikio/rdf/turtle
 @okikio/rdf/trig
+@okikio/rdf/ontology
+@okikio/rdf/shape
+@okikio/rdf/stream
+```
+
+N-Triples, N-Quads, Turtle, and TriG use project-owned parsers. The package manifest contains no third-party runtime implementation dependency.
+
+The remaining standards processors are also project-owned subpaths:
+
+```text
 @okikio/rdf/jsonld
+@okikio/rdf/canon
 @okikio/rdf/xml
 @okikio/rdf/rdfa
 @okikio/rdf/microdata
-@okikio/rdf/canon
-@okikio/rdf/ontology
-@okikio/rdf/shape
 ```
 
-N-Triples, N-Quads, Turtle, and TriG use project-owned parsers. JSON-LD, RDFC-1.0 canonicalization, RDF/XML, RDFa, and Microdata currently use focused upstream processors behind project-owned contracts.
-
-The npm package has one dependency manifest, so installing `@okikio/rdf` installs those processor dependencies today. The important import guarantee is narrower: importing the root module does not initialize or import those optional processor implementations.
+These subpaths own their algorithms directly. They do not delegate through dynamic imports, generic processor injection, or hidden optional dependencies. External implementations remain test and benchmark references only.
 
 ### Parser lifecycle
 
@@ -119,11 +142,11 @@ Generic RDFS/OWL interpretation belongs under `@okikio/rdf/ontology`.
 
 The ontology model distinguishes semantic relationships from validation rules. In particular, RDFS domain/range statements do not mean that a JSON property is required.
 
-Unknown or not-yet-normalized ontology assertions are retained so future readers can add semantics without the older reader irreversibly discarding data.
+Unknown or not-yet-normalized ontology assertions are retained so future inspectors can add semantics without the earlier inspector irreversibly discarding data.
 
 ### Shape model
 
-`@okikio/rdf/shape` is version-aware and loss-preserving. It reads known SHACL structure while retaining unsupported, extension, and malformed-known assertions with diagnostics where appropriate.
+`@okikio/rdf/shape` is version-aware and loss-preserving. It inspects known SHACL structure while retaining unsupported, extension, and malformed-known assertions with diagnostics where appropriate.
 
 SHACL 1.2 is evolving as a family of drafts. The IR therefore does not pretend that one current parser is a frozen universal validator.
 
@@ -150,11 +173,11 @@ It does not own a concrete database or query engine.
 The public model keeps grammar roles distinct:
 
 ```text
-SparqlTerm       one RDF/SPARQL term or legal predicate path
-SparqlExpr       one expression
-PatternValue     one graph-pattern fragment
-SparqlQuery      one complete query document
-SparqlUpdate     one complete Update document
+SparqlTermType       one RDF/SPARQL term or legal predicate path
+SparqlExprType       one expression
+PatternValueType     one graph-pattern fragment
+SparqlQueryType      one complete query document
+SparqlUpdateType     one complete Update document
 ```
 
 Complete documents are not embeddable fragments. A complete SELECT query cannot accidentally be interpolated where a term is legal. A complete update cannot be sent through `queryBindings()` by structural accident.
@@ -170,7 +193,7 @@ Generated vocabulary terms therefore compose without a `@okikio/sparql -> @okiki
 ```ts
 import * as rdf from '@okikio/rdf'
 import * as sparql from '@okikio/sparql'
-import { Product, name } from '@okikio/vocab/schema'
+import { name, Product } from '@okikio/vocab/schema'
 
 const query = sparql.select(['?product', '?name']).where(
   sparql.triple('?product', rdf.namedNode(rdf.RDF.type), Product),
@@ -250,7 +273,7 @@ The runtime is open-world and does not convert ontology domain/range metadata in
 
 ```text
 compile()        reusable library orchestration
-read()           RDF ontology -> compiler model
+inspect()        RDF ontology -> compiler model
 name planning    deterministic symbols/collisions
 emit()           compiler model -> TypeScript + manifest
 .mise task       files/network/process orchestration only
@@ -320,17 +343,17 @@ Neither adapter disposes the caller-created engine/store unless a future public 
 
 The repository uses several explicit seams so changing specifications do not force a monolithic rewrite.
 
-| Evolving area | Stable seam |
-| --- | --- |
-| RDF serialization | RDF quad/term model |
-| JSON-LD processing | project loader/result contract around focused processor |
-| RDFS/OWL vocabulary semantics | loss-preserving ontology model |
-| SHACL drafts | versioned, loss-preserving shape model |
-| SPARQL 1.2 grammar | source-ranged syntax event/token layer |
-| query engines | `Queryable` |
-| vocabulary source formats | quad-source compiler input |
-| schema libraries | Standard Schema structural protocol |
-| persistent filesystems | structural filesystem capability |
+| Evolving area                 | Stable seam                                             |
+| ----------------------------- | ------------------------------------------------------- |
+| RDF serialization             | RDF quad/term model                                     |
+| JSON-LD processing            | project loader/result contract around focused processor |
+| RDFS/OWL vocabulary semantics | loss-preserving ontology model                          |
+| SHACL drafts                  | versioned, loss-preserving shape model                  |
+| SPARQL 1.2 grammar            | source-ranged syntax event/token layer                  |
+| query engines                 | `Queryable`                                             |
+| vocabulary source formats     | quad-source compiler input                              |
+| schema libraries              | Standard Schema structural protocol                     |
+| persistent filesystems        | structural filesystem capability                        |
 
 ## Cancellation and ownership flow
 
@@ -340,7 +363,7 @@ caller AbortSignal
       +--> parser source read/cancel
       +--> HTTP request
       +--> Comunica stream destroy
-      +--> supported external processors
+      +--> native standards processors
 
 caller resource
       |
@@ -413,7 +436,12 @@ The intended main entry points are:
 
 ```text
 @okikio/rdf
-@okikio/rdf/{ntriples,nquads,turtle,trig,jsonld,xml,rdfa,microdata,canon,ontology,shape}
+@okikio/rdf/{ntriples,nquads,turtle,trig,ontology,shape,stream}
+@okikio/rdf/jsonld
+@okikio/rdf/canon
+@okikio/rdf/xml
+@okikio/rdf/rdfa
+@okikio/rdf/microdata
 @okikio/sparql
 @okikio/sparql/http
 @okikio/sparql/syntax

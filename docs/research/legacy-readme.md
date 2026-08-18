@@ -9,7 +9,7 @@ deno add @okikio/sparql
 ```
 
 ```ts
-import { select, triple, node, v, filter } from '@okikio/sparql'
+import { filter, node, select, triple, v } from '@okikio/sparql'
 ```
 
 ## Quick Start
@@ -24,7 +24,7 @@ const adults = select(['?name', '?age'])
 
 const sparql = adults.build()
 const results = await adults.execute({
-  endpoint: 'http://localhost:3030/dataset/sparql'
+  endpoint: 'http://localhost:3030/dataset/sparql',
 })
 ```
 
@@ -35,13 +35,15 @@ That `v('age').gte(18)` is the fluent API - variables become values with chainab
 Every library feature maps directly to standard SPARQL 1.1. The library provides 100% spec coverage with enhanced developer experience through type safety, fluent chaining, and multiple pattern styles.
 
 **Key mappings:**
+
 - `v('age').gte(18)` → `?age >= 18`
 - `select([v('price').mul(1.2).as('total')])` → `SELECT (?price * 1.2 AS ?total)`
 - `triple('?s', 'rdf:type', 'ex:Person')` → `?s rdf:type ex:Person .`
 - `md5(v('email'))` → `MD5(?email)`
 - `now()` → `NOW()`
 
-**See [sparql-mapping.md](./docs/sparql-mapping.md) for:**
+**See [sparql-mapping.md](../sparql-mapping.md) for:**
+
 - Complete function reference (85+ functions)
 - Library → SPARQL examples for all features
 - SPARQL → Library migration guide
@@ -73,10 +75,10 @@ select(['?title', '?publisherName', '?city'])
         'schema:name': v('publisherName'),
         'schema:location': node('location', 'schema:Place', {
           'schema:city': v('city'),
-          'schema:country': v('country')
-        })
-      })
-    })
+          'schema:country': v('country'),
+        }),
+      }),
+    }),
   )
 ```
 
@@ -86,11 +88,11 @@ ASCII art syntax emphasizes visual clarity. The cypher template tag lets you dra
 
 ```ts
 const product = node('product', 'schema:Product', {
-  'schema:name': v('title')
+  'schema:name': v('title'),
 })
 
 const publisher = node('publisher', 'schema:Organization', {
-  'schema:name': v('pubName')
+  'schema:name': v('pubName'),
 })
 
 const query = select(['?title', '?pubName'])
@@ -105,7 +107,7 @@ Combine patterns with `match()` when you want to build complex structures from s
 const pattern = match(
   node('person', 'foaf:Person', { 'foaf:name': v('personName') }),
   rel('person', 'foaf:knows', 'friend'),
-  node('friend', 'foaf:Person', { 'foaf:name': v('friendName') })
+  node('friend', 'foaf:Person', { 'foaf:name': v('friendName') }),
 )
 
 select(['?personName', '?friendName']).where(pattern)
@@ -118,9 +120,12 @@ select(['?person', '?skill', '?friendName'])
   .where(triple('?person', 'ex:hasSkill', '?skill'))
   .where(
     node('person')
-      .prop('foaf:knows', node('friend', {
-        'foaf:name': v('friendName')
-      }))
+      .prop(
+        'foaf:knows',
+        node('friend', {
+          'foaf:name': v('friendName'),
+        }),
+      ),
   )
 ```
 
@@ -133,10 +138,10 @@ const pricing = select(['?product', '?total'])
   .where(triple('?product', 'schema:price', '?basePrice'))
   .bind(
     v('basePrice')
-      .mul(1.2)      // Apply markup
-      .add(5)        // Add shipping
-      .round()       // Clean up decimals
-      .as('total')
+      .mul(1.2) // Apply markup
+      .add(5) // Add shipping
+      .round() // Clean up decimals
+      .as('total'),
   )
   .filter(v('total').gte(20))
 ```
@@ -153,7 +158,7 @@ select(['?displayName'])
       .concat(' ')
       .concat(v('last').ucase().substr(1, 1))
       .concat('.')
-      .as('displayName')
+      .as('displayName'),
   )
 ```
 
@@ -174,9 +179,9 @@ select(['?item', '?price', '?status'])
       ifElse(
         v('stock').gt(0),
         v('base').mul(0.95),
-        v('base').add(20)
-      )
-    ).round().as('price')
+        v('base').add(20),
+      ),
+    ).round().as('price'),
   )
   .bind(
     ifElse(
@@ -185,9 +190,9 @@ select(['?item', '?price', '?status'])
       ifElse(
         v('stock').gt(0),
         'Low Stock',
-        'Out of Stock'
-      )
-    ).as('status')
+        'Out of Stock',
+      ),
+    ).as('status'),
   )
 ```
 
@@ -203,7 +208,7 @@ const analytics = select([
   count().as('users'),
   avg(v('age')).as('avgAge'),
   countDistinct(v('city')).as('cities'),
-  sum(v('purchases')).as('revenue')
+  sum(v('purchases')).as('revenue'),
 ])
   .where(triple('?user', 'schema:country', '?country'))
   .where(triple('?user', 'foaf:age', '?age'))
@@ -236,8 +241,8 @@ const enriched = select(['?product', '?name', '?price', '?sales'])
   .where(
     node('product', {
       'schema:name': v('name'),
-      'schema:price': v('price')
-    })
+      'schema:price': v('price'),
+    }),
   )
   .orderBy('?sales', 'DESC')
 ```
@@ -282,10 +287,10 @@ const bosses = select(['?employee', '?boss'])
       '?employee',
       sequence(
         oneOrMore('org:reportsTo'),
-        alternative('org:manages', 'org:supervises')
+        alternative('org:manages', 'org:supervises'),
       ),
-      '?boss'
-    )
+      '?boss',
+    ),
   )
 ```
 
@@ -313,8 +318,8 @@ const markSeniors = modify()
   .insert(
     node('person', {
       'ex:seniorCitizen': true,
-      'ex:discount': 0.15
-    })
+      'ex:discount': 0.15,
+    }),
   )
   .where(triple('?person', 'foaf:age', '?age'))
   .where(filter(v('age').gte(65)))
@@ -328,8 +333,8 @@ const cleanup = modify()
   .delete(
     node('account', {
       'ex:status': v('status'),
-      'ex:lastLogin': v('lastLogin')
-    })
+      'ex:lastLogin': v('lastLogin'),
+    }),
   )
   .where(triple('?account', 'ex:status', 'inactive'))
   .where(triple('?account', 'ex:lastLogin', '?lastLogin'))
@@ -347,7 +352,7 @@ const productSearch = select([
   v('displayPrice'),
   v('stockStatus'),
   v('categoryName'),
-  v('averageRating')
+  v('averageRating'),
 ])
   .where(
     node('product', 'schema:Product', {
@@ -355,15 +360,18 @@ const productSearch = select([
       'schema:price': v('basePrice'),
       'schema:inventory': v('stock'),
       'schema:category': node('category', 'schema:Category', {
-        'schema:name': v('categoryName')
-      })
-    })
+        'schema:name': v('categoryName'),
+      }),
+    }),
   )
   .optional(
     node('product')
-      .prop('schema:review', node('review', 'schema:Review', {
-        'schema:ratingValue': v('rating')
-      }))
+      .prop(
+        'schema:review',
+        node('review', 'schema:Review', {
+          'schema:ratingValue': v('rating'),
+        }),
+      ),
   )
   .bind(
     ifElse(
@@ -372,9 +380,9 @@ const productSearch = select([
       ifElse(
         v('stock').gt(0),
         v('basePrice').mul(0.95),
-        v('basePrice').mul(1.1)
-      )
-    ).round().as('displayPrice')
+        v('basePrice').mul(1.1),
+      ),
+    ).round().as('displayPrice'),
   )
   .bind(
     ifElse(
@@ -383,9 +391,9 @@ const productSearch = select([
       ifElse(
         v('stock').gt(0),
         v('stock').concat(' left'),
-        'Out of Stock'
-      )
-    ).as('stockStatus')
+        'Out of Stock',
+      ),
+    ).as('stockStatus'),
   )
   .filter(v('displayPrice').gte(10))
   .groupBy('?product', '?title', '?displayPrice', '?stockStatus', '?categoryName')
@@ -395,7 +403,7 @@ const productSearch = select([
   .limit(50)
 
 const results = await productSearch.execute({
-  endpoint: 'http://localhost:3030/catalog/sparql'
+  endpoint: 'http://localhost:3030/catalog/sparql',
 })
 ```
 
@@ -420,8 +428,8 @@ const federated = select(['?person', '?name', '?birthPlace', '?abstract'])
     service(
       'http://dbpedia.org/sparql',
       triple('?person', 'dbo:birthPlace', '?birthPlace'),
-      triple('?person', 'dbo:abstract', '?abstract')
-    )
+      triple('?person', 'dbo:abstract', '?abstract'),
+    ),
   )
   .filter(v('abstract').regex('scientist'))
 ```
@@ -435,10 +443,10 @@ Everything is fully typed. TypeScript catches errors at compile time:
 ```ts
 const age = v('age')
 
-age.gte(18)              // ✓ Returns SparqlValue for filters
-age.add(5)               // ✓ Returns FluentValue, can chain
-age.add(5).mul(2)        // ✓ Chains continue naturally
-age.gte('not a number')  // ✗ TypeScript error
+age.gte(18) // ✓ Returns SparqlValueType for filters
+age.add(5) // ✓ Returns FluentValue, can chain
+age.add(5).mul(2) // ✓ Chains continue naturally
+age.gte('not a number') // ✗ TypeScript error
 ```
 
 You get autocomplete in your editor. The library guides you toward correct code. Generated SPARQL is safe from injection attacks because values are properly escaped automatically.
@@ -452,22 +460,25 @@ Building complex queries from reusable pieces makes your code cleaner and more m
 Extract common triple patterns into functions. This reduces duplication and makes queries easier to understand:
 
 ```ts
-import { RDF, FOAF, SCHEMA } from '@okikio/sparql'
+import { FOAF, RDF, SCHEMA } from '@okikio/sparql'
 
 // Define reusable pattern fragments
 function personPattern(personVar = 'person') {
   return node(personVar, FOAF.Person, {
     [FOAF.name]: v('name'),
-    [FOAF.age]: v('age')
+    [FOAF.age]: v('age'),
   })
 }
 
 function addressPattern(personVar = 'person') {
   return node(personVar)
-    .prop(SCHEMA.address, node('address', SCHEMA.PostalAddress, {
-      [SCHEMA.addressLocality]: v('city'),
-      [SCHEMA.addressCountry]: v('country')
-    }))
+    .prop(
+      SCHEMA.address,
+      node('address', SCHEMA.PostalAddress, {
+        [SCHEMA.addressLocality]: v('city'),
+        [SCHEMA.addressCountry]: v('country'),
+      }),
+    )
 }
 
 // Use them in queries
@@ -493,9 +504,7 @@ function olderThan(age: number) {
 }
 
 function nameMatches(pattern: string, caseInsensitive = true) {
-  return caseInsensitive
-    ? v('name').regex(pattern, 'i')
-    : v('name').regex(pattern)
+  return caseInsensitive ? v('name').regex(pattern, 'i') : v('name').regex(pattern)
 }
 
 function inCountry(country: string) {
@@ -577,8 +586,8 @@ const baseProductQuery = select(['?product', '?name', '?price'])
   .where(
     node('product', SCHEMA.Product, {
       [SCHEMA.name]: v('name'),
-      [SCHEMA.price]: v('price')
-    })
+      [SCHEMA.price]: v('price'),
+    }),
   )
 
 // Extend for specific needs
@@ -619,15 +628,15 @@ const enrichedProducts = select([
   '?name',
   '?price',
   '?sales',
-  '?category'
+  '?category',
 ])
   .where(subquery(topSellers))
   .where(
     node('product', {
       [SCHEMA.name]: v('name'),
       [SCHEMA.price]: v('price'),
-      [SCHEMA.category]: v('category')
-    })
+      [SCHEMA.category]: v('category'),
+    }),
   )
   .orderBy('?sales', 'DESC')
 ```
@@ -645,7 +654,7 @@ const ecommerce = {
     return node(productVar, SCHEMA.Product, {
       [SCHEMA.name]: v('productName'),
       [SCHEMA.price]: v('price'),
-      [SCHEMA.sku]: v('sku')
+      [SCHEMA.sku]: v('sku'),
     })
   },
 
@@ -653,14 +662,14 @@ const ecommerce = {
     return node(orderVar, SCHEMA.Order, {
       [SCHEMA.orderDate]: v('orderDate'),
       [SCHEMA.orderNumber]: v('orderNumber'),
-      [SCHEMA.customer]: v('customer')
+      [SCHEMA.customer]: v('customer'),
     })
   },
 
   customer(customerVar = 'customer') {
     return node(customerVar, SCHEMA.Person, {
       [SCHEMA.name]: v('customerName'),
-      [SCHEMA.email]: v('email')
+      [SCHEMA.email]: v('email'),
     })
   },
 
@@ -671,7 +680,7 @@ const ecommerce = {
 
   orderBy(orderVar = 'order', customerVar = 'customer') {
     return triple(`?${orderVar}`, SCHEMA.customer, `?${customerVar}`)
-  }
+  },
 }
 
 // Use pattern collection
@@ -679,7 +688,7 @@ const orderAnalysis = select([
   '?orderNumber',
   '?customerName',
   '?productName',
-  '?price'
+  '?price',
 ])
   .where(ecommerce.order())
   .where(ecommerce.orderBy())
@@ -698,8 +707,8 @@ Build queries programmatically from user input or configuration:
 ```ts
 interface FieldSelection {
   fields: string[]
-  filters: Array<{ field: string, operator: string, value: any }>
-  sort?: { field: string, direction: 'ASC' | 'DESC' }
+  filters: Array<{ field: string; operator: string; value: any }>
+  sort?: { field: string; direction: 'ASC' | 'DESC' }
   limit?: number
 }
 
@@ -709,11 +718,11 @@ function buildDynamicQuery(config: FieldSelection) {
     name: FOAF.name,
     age: FOAF.age,
     email: SCHEMA.email,
-    city: SCHEMA.addressLocality
+    city: SCHEMA.addressLocality,
   }
 
   // Start with base pattern
-  let query = select(config.fields.map(f => `?${f}`))
+  let query = select(config.fields.map((f) => `?${f}`))
     .where(triple('?person', RDF.type, uri(FOAF.Person)))
 
   // Add triples for each requested field
@@ -760,16 +769,16 @@ function buildDynamicQuery(config: FieldSelection) {
 const query1 = buildDynamicQuery({
   fields: ['name', 'email'],
   filters: [{ field: 'name', operator: 'contains', value: 'John' }],
-  limit: 10
+  limit: 10,
 })
 
 const query2 = buildDynamicQuery({
   fields: ['name', 'age', 'city'],
   filters: [
     { field: 'age', operator: 'gt', value: 18 },
-    { field: 'city', operator: 'eq', value: 'London' }
+    { field: 'city', operator: 'eq', value: 'London' },
   ],
-  sort: { field: 'age', direction: 'DESC' }
+  sort: { field: 'age', direction: 'DESC' },
 })
 ```
 

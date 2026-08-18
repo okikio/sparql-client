@@ -1,6 +1,7 @@
 # SPARQL Mapping Guide
 
 This guide shows how every library feature maps to SPARQL 1.1, and vice versa. Use this to:
+
 - Understand what SPARQL is generated
 - Migrate from raw SPARQL to type-safe code
 - Migrate from library code back to SPARQL
@@ -681,74 +682,74 @@ WHERE {
 
 ### All 85+ Functions Mapped
 
-| Category | Library Function | SPARQL |
-|----------|-----------------|--------|
-| **Comparison** | `eq(a, b)` | `a = b` |
-| | `neq(a, b)` | `a != b` |
-| | `lt(a, b)` | `a < b` |
-| | `lte(a, b)` | `a <= b` |
-| | `gt(a, b)` | `a > b` |
-| | `gte(a, b)` | `a >= b` |
-| **Arithmetic** | `add(a, b)` | `a + b` |
-| | `sub(a, b)` | `a - b` |
-| | `mul(a, b)` | `a * b` |
-| | `div(a, b)` | `a / b` |
-| | `mod(a, b)` | `(a % b)` |
-| **Math** | `abs(x)` | `ABS(x)` |
-| | `round(x)` | `ROUND(x)` |
-| | `ceil(x)` | `CEIL(x)` |
-| | `floor(x)` | `FLOOR(x)` |
-| **String** | `concat(...args)` | `CONCAT(...)` |
-| | `str(x)` | `STR(x)` |
-| | `strlen(x)` | `STRLEN(x)` |
-| | `ucase(x)` | `UCASE(x)` |
-| | `lcase(x)` | `LCASE(x)` |
-| | `substr(s, start, len?)` | `SUBSTR(s, start, len)` |
-| | `startsWith(s, prefix)` | `STRSTARTS(s, prefix)` |
-| | `endsWith(s, suffix)` | `STRENDS(s, suffix)` |
-| | `contains(s, substr)` | `CONTAINS(s, substr)` |
-| | `regex(s, pattern, flags?)` | `REGEX(s, pattern, flags)` |
-| | `replaceStr(s, old, new)` | `REPLACE(s, old, new)` |
-| | `encodeForUri(s)` | `ENCODE_FOR_URI(s)` |
-| **Hash** | `md5(x)` | `MD5(x)` |
-| | `sha1(x)` | `SHA1(x)` |
-| | `sha256(x)` | `SHA256(x)` |
-| | `sha384(x)` | `SHA384(x)` |
-| | `sha512(x)` | `SHA512(x)` |
-| **Random/Unique** | `now()` | `NOW()` |
-| | `uuid()` | `UUID()` |
-| | `struuid()` | `STRUUID()` |
-| | `rand()` | `RAND()` |
-| **Type Check** | `isIri(x)` | `isIRI(x)` |
-| | `isBlank(x)` | `isBlank(x)` |
-| | `isLiteral(x)` | `isLiteral(x)` |
-| | `bound(x)` | `BOUND(x)` |
-| | `isNull(x)` | `!BOUND(x)` |
-| | `isNotNull(x)` | `BOUND(x)` |
-| | `getlang(x)` | `LANG(x)` |
-| | `datatype(x)` | `DATATYPE(x)` |
-| | `langMatches(lang, range)` | `langMatches(lang, range)` |
-| **Logical** | `and(...conds)` | `cond1 && cond2 && ...` |
-| | `or(...conds)` | `cond1 \|\| cond2 \|\| ...` |
-| | `not(cond)` | `!(cond)` |
-| | `exists(pattern)` | `EXISTS { pattern }` |
-| | `notExists(pattern)` | `NOT EXISTS { pattern }` |
-| **Conditional** | `ifElse(cond, then, else)` | `IF(cond, then, else)` |
-| | `coalesce(...vals)` | `COALESCE(...)` |
-| **IRI** | `iri(str)` | `IRI(str)` |
-| | `uri(iri)` | `<iri>` |
-| **Blank Nodes** | `bnode()` | `BNODE()` |
-| | `bnode(id)` | `_:id` |
-| **Special** | `undef()` | `?UNDEF` |
-| **Aggregates** | `count()` | `COUNT(*)` |
-| | `count(x)` | `COUNT(x)` |
-| | `countDistinct(x)` | `COUNT(DISTINCT x)` |
-| | `sum(x)` | `SUM(x)` |
-| | `avg(x)` | `AVG(x)` |
-| | `min(x)` | `MIN(x)` |
-| | `max(x)` | `MAX(x)` |
-| | `sample(x)` | `SAMPLE(x)` |
-| | `groupConcat(x, sep)` | `GROUP_CONCAT(x; separator=sep)` |
+| Category          | Library Function            | SPARQL                           |
+| ----------------- | --------------------------- | -------------------------------- |
+| **Comparison**    | `eq(a, b)`                  | `a = b`                          |
+|                   | `neq(a, b)`                 | `a != b`                         |
+|                   | `lt(a, b)`                  | `a < b`                          |
+|                   | `lte(a, b)`                 | `a <= b`                         |
+|                   | `gt(a, b)`                  | `a > b`                          |
+|                   | `gte(a, b)`                 | `a >= b`                         |
+| **Arithmetic**    | `add(a, b)`                 | `a + b`                          |
+|                   | `sub(a, b)`                 | `a - b`                          |
+|                   | `mul(a, b)`                 | `a * b`                          |
+|                   | `div(a, b)`                 | `a / b`                          |
+|                   | `mod(a, b)`                 | `(a % b)`                        |
+| **Math**          | `abs(x)`                    | `ABS(x)`                         |
+|                   | `round(x)`                  | `ROUND(x)`                       |
+|                   | `ceil(x)`                   | `CEIL(x)`                        |
+|                   | `floor(x)`                  | `FLOOR(x)`                       |
+| **String**        | `concat(...args)`           | `CONCAT(...)`                    |
+|                   | `str(x)`                    | `STR(x)`                         |
+|                   | `strlen(x)`                 | `STRLEN(x)`                      |
+|                   | `ucase(x)`                  | `UCASE(x)`                       |
+|                   | `lcase(x)`                  | `LCASE(x)`                       |
+|                   | `substr(s, start, len?)`    | `SUBSTR(s, start, len)`          |
+|                   | `startsWith(s, prefix)`     | `STRSTARTS(s, prefix)`           |
+|                   | `endsWith(s, suffix)`       | `STRENDS(s, suffix)`             |
+|                   | `contains(s, substr)`       | `CONTAINS(s, substr)`            |
+|                   | `regex(s, pattern, flags?)` | `REGEX(s, pattern, flags)`       |
+|                   | `replaceStr(s, old, new)`   | `REPLACE(s, old, new)`           |
+|                   | `encodeForUri(s)`           | `ENCODE_FOR_URI(s)`              |
+| **Hash**          | `md5(x)`                    | `MD5(x)`                         |
+|                   | `sha1(x)`                   | `SHA1(x)`                        |
+|                   | `sha256(x)`                 | `SHA256(x)`                      |
+|                   | `sha384(x)`                 | `SHA384(x)`                      |
+|                   | `sha512(x)`                 | `SHA512(x)`                      |
+| **Random/Unique** | `now()`                     | `NOW()`                          |
+|                   | `uuid()`                    | `UUID()`                         |
+|                   | `struuid()`                 | `STRUUID()`                      |
+|                   | `rand()`                    | `RAND()`                         |
+| **Type Check**    | `isIri(x)`                  | `isIRI(x)`                       |
+|                   | `isBlank(x)`                | `isBlank(x)`                     |
+|                   | `isLiteral(x)`              | `isLiteral(x)`                   |
+|                   | `bound(x)`                  | `BOUND(x)`                       |
+|                   | `isNull(x)`                 | `!BOUND(x)`                      |
+|                   | `isNotNull(x)`              | `BOUND(x)`                       |
+|                   | `getlang(x)`                | `LANG(x)`                        |
+|                   | `datatype(x)`               | `DATATYPE(x)`                    |
+|                   | `langMatches(lang, range)`  | `langMatches(lang, range)`       |
+| **Logical**       | `and(...conds)`             | `cond1 && cond2 && ...`          |
+|                   | `or(...conds)`              | `cond1 \|\| cond2 \|\| ...`      |
+|                   | `not(cond)`                 | `!(cond)`                        |
+|                   | `exists(pattern)`           | `EXISTS { pattern }`             |
+|                   | `notExists(pattern)`        | `NOT EXISTS { pattern }`         |
+| **Conditional**   | `ifElse(cond, then, else)`  | `IF(cond, then, else)`           |
+|                   | `coalesce(...vals)`         | `COALESCE(...)`                  |
+| **IRI**           | `iri(str)`                  | `IRI(str)`                       |
+|                   | `uri(iri)`                  | `<iri>`                          |
+| **Blank Nodes**   | `bnode()`                   | `BNODE()`                        |
+|                   | `bnode(id)`                 | `_:id`                           |
+| **Special**       | `undef()`                   | `?UNDEF`                         |
+| **Aggregates**    | `count()`                   | `COUNT(*)`                       |
+|                   | `count(x)`                  | `COUNT(x)`                       |
+|                   | `countDistinct(x)`          | `COUNT(DISTINCT x)`              |
+|                   | `sum(x)`                    | `SUM(x)`                         |
+|                   | `avg(x)`                    | `AVG(x)`                         |
+|                   | `min(x)`                    | `MIN(x)`                         |
+|                   | `max(x)`                    | `MAX(x)`                         |
+|                   | `sample(x)`                 | `SAMPLE(x)`                      |
+|                   | `groupConcat(x, sep)`       | `GROUP_CONCAT(x; separator=sep)` |
 
 ---
 
@@ -757,34 +758,39 @@ WHERE {
 ### 1. Fluent Chaining
 
 **Raw SPARQL:**
+
 ```sparql
 FILTER(?age >= 18 && ?age < 65 && ?status = "active")
 ```
 
 **Library (functional style):**
+
 ```typescript
 filter(and(
   gte(v('age'), 18),
   lt(v('age'), 65),
-  eq(v('status'), 'active')
+  eq(v('status'), 'active'),
 ))
 ```
 
 **Library (fluent style - DX enhancement):**
+
 ```typescript
 filter(
-  v('age').gte(18).and(v('age').lt(65)).and(v('status').eq('active'))
+  v('age').gte(18).and(v('age').lt(65)).and(v('status').eq('active')),
 )
 ```
 
 ### 2. Chainable Arithmetic
 
 **Raw SPARQL:**
+
 ```sparql
 BIND(((?price * 1.2) + 5) AS ?total)
 ```
 
 **Library (fluent - reads left to right):**
+
 ```typescript
 bind(v('price').mul(1.2).add(5), 'total')
 ```
@@ -792,6 +798,7 @@ bind(v('price').mul(1.2).add(5), 'total')
 ### 3. Pattern Composition
 
 **Raw SPARQL (repetitive):**
+
 ```sparql
 ?product a schema:Product .
 ?product schema:name ?title .
@@ -804,21 +811,23 @@ bind(v('price').mul(1.2).add(5), 'total')
 ```
 
 **Library (DRY nested structure):**
+
 ```typescript
 node('product', 'schema:Product', {
   'schema:name': v('title'),
   'schema:publisher': node('publisher', 'schema:Organization', {
     'schema:name': v('pubName'),
     'schema:location': node('location', 'schema:Place', {
-      'schema:city': v('city')
-    })
-  })
+      'schema:city': v('city'),
+    }),
+  }),
 })
 ```
 
 ### 4. Multiple Pattern Styles
 
 **SPARQL (one way):**
+
 ```sparql
 ?product a schema:Product .
 ?product schema:name ?title .
@@ -826,6 +835,7 @@ node('product', 'schema:Product', {
 ```
 
 **Library (pick your style):**
+
 ```typescript
 // Traditional triples
 triple('?product', 'rdf:type', 'schema:Product')
@@ -836,20 +846,20 @@ triple('?product', 'schema:publisher', '?publisher')
 triples('?product', [
   ['rdf:type', 'schema:Product'],
   ['schema:name', v('title')],
-  ['schema:publisher', v('publisher')]
+  ['schema:publisher', v('publisher')],
 ])
 
 // Object syntax
 triples('?product', {
   'rdf:type': 'schema:Product',
   'schema:name': v('title'),
-  'schema:publisher': v('publisher')
+  'schema:publisher': v('publisher'),
 })
 
 // Nested nodes
 node('product', 'schema:Product', {
   'schema:name': v('title'),
-  'schema:publisher': v('publisher')
+  'schema:publisher': v('publisher'),
 })
 
 // ASCII art (Cypher-inspired)
@@ -859,37 +869,43 @@ cypher`${product}-[schema:publisher]->${publisher}`
 ### 5. Type Safety
 
 **SPARQL (no type checking):**
+
 ```sparql
 FILTER(?age >= "eighteen")  -- Runtime error!
 ```
 
 **Library (caught at compile time):**
+
 ```typescript
-v('age').gte('eighteen')  // TypeScript error: Type 'string' is not assignable
-v('age').gte(18)          // ✓ Correct
+v('age').gte('eighteen') // TypeScript error: Type 'string' is not assignable
+v('age').gte(18) // ✓ Correct
 ```
 
 ### 6. Automatic Escaping
 
 **Raw SPARQL (manual escaping):**
+
 ```sparql
 FILTER(?name = "O'Brien")  -- Breaks!
 FILTER(?name = "O\\'Brien")  -- Must escape manually
 ```
 
 **Library (automatic):**
+
 ```typescript
-filter(v('name').eq("O'Brien"))  // Escapes automatically
+filter(v('name').eq("O'Brien")) // Escapes automatically
 ```
 
 ### 7. Query Composition
 
 **SPARQL (copy-paste to reuse):**
+
 ```sparql
 -- Can't easily compose queries
 ```
 
 **Library (composable builders):**
+
 ```typescript
 // Define base query
 const baseQuery = select(['?name', '?age'])
@@ -905,6 +921,7 @@ const seniors = baseQuery.filter(v('age').gte(65))
 ### 8. Fluent Aggregations
 
 **SPARQL:**
+
 ```sparql
 SELECT ?city (COUNT(*) AS ?total) (AVG(?age) AS ?avgAge)
 WHERE { ... }
@@ -913,6 +930,7 @@ HAVING(COUNT(*) >= 10)
 ```
 
 **Library:**
+
 ```typescript
 select([
   v('city'),
@@ -927,16 +945,18 @@ select([
 ### 9. Reusable Patterns
 
 **SPARQL (copy-paste):**
+
 ```sparql
 -- Person pattern used in multiple places - must copy
 ```
 
 **Library (DRY):**
+
 ```typescript
 // Define once
 const personWithEmail = node('person', 'foaf:Person', {
   'foaf:name': v('name'),
-  'foaf:mbox': v('email')
+  'foaf:mbox': v('email'),
 })
 
 // Reuse everywhere
@@ -948,6 +968,7 @@ query3.where(personWithEmail)
 ### 10. Intuitive Variable Handling
 
 **SPARQL (must remember ? prefix):**
+
 ```sparql
 SELECT ?name ?age WHERE {
   ?person foaf:name ?name .
@@ -957,10 +978,11 @@ SELECT ?name ?age WHERE {
 ```
 
 **Library (handles it):**
+
 ```typescript
-select(['?name', '?age'])  // Accept with or without ?
+select(['?name', '?age']) // Accept with or without ?
   .where(triple('?person', 'foaf:name', '?name'))
-  .filter(v('age').gte(18))  // v() function normalizes
+  .filter(v('age').gte(18)) // v() function normalizes
 ```
 
 ---
@@ -1005,15 +1027,15 @@ const query = select(['?product', '?finalPrice'])
     node('product', 'schema:Product', {
       'schema:name': v('name'),
       'schema:price': v('basePrice'),
-      'schema:inStock': v('inStock')
-    })
+      'schema:inStock': v('inStock'),
+    }),
   )
   .bind(
     ifElse(
       v('inStock').eq(true),
       v('basePrice').mul(0.9),
-      v('basePrice').add(10)
-    ).as('finalPrice')
+      v('basePrice').add(10),
+    ).as('finalPrice'),
   )
   .filter(v('finalPrice').gte(10))
 
@@ -1039,12 +1061,14 @@ WHERE {
 ## Summary
 
 ### Complete Coverage
+
 - ✅ **100%** of SPARQL 1.1 query language features
 - ✅ **100%** of SPARQL 1.1 update operations
 - ✅ **85+** built-in functions (all from spec)
 - ✅ **RDF-star** (quoted triples) support
 
 ### DX Enhancements
+
 1. **Fluent chaining** - Methods return chainable values
 2. **Multiple pattern styles** - Triples, nested, ASCII art
 3. **Type safety** - TypeScript catches errors at compile time

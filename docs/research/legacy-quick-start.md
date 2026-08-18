@@ -3,14 +3,20 @@
 ## Namespace Constants
 
 **Import what you need:**
+
 ```ts
-import { RDF, RDFS, FOAF, SCHEMA, XSD, OWL } from '@okikio/sparql'
+import { FOAF, OWL, RDF, RDFS, SCHEMA, XSD } from '@okikio/sparql'
 ```
 
 **Use in queries:**
+
 ```ts
 // Instead of full IRIs:
-triple('?person', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', '<http://xmlns.com/foaf/0.1/Person>')
+triple(
+  '?person',
+  'http://www.w3.org/1999/02/22-rdf-syntax-ns#type',
+  '<http://xmlns.com/foaf/0.1/Person>',
+)
 
 // Use constants:
 triple('?person', RDF.type, uri(FOAF.Person))
@@ -19,6 +25,7 @@ triple('?person', SCHEMA.email, '?email')
 ```
 
 **Available namespaces:**
+
 - **XSD** - Datatypes (string, integer, decimal, boolean, date, dateTime, etc.)
 - **RDF** - Core (type, Property, Statement, first, rest, nil)
 - **RDFS** - Schema (label, comment, Class, subClassOf, domain, range)
@@ -31,6 +38,7 @@ triple('?person', SCHEMA.email, '?email')
 ## Prefix Declarations
 
 **Add prefixes to queries:**
+
 ```ts
 const query = select(['?name', '?email'])
   .prefix('foaf', 'http://xmlns.com/foaf/0.1/')
@@ -40,6 +48,7 @@ const query = select(['?name', '?email'])
 ```
 
 **Generated SPARQL:**
+
 ```sparql
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
 PREFIX schema: <https://schema.org/>
@@ -51,8 +60,9 @@ SELECT ?name ?email WHERE {
 ```
 
 **Combine with namespace constants:**
+
 ```ts
-import { FOAF, SCHEMA, getNamespaceIRI } from '@okikio/sparql'
+import { FOAF, getNamespaceIRI, SCHEMA } from '@okikio/sparql'
 
 select(['?name'])
   .prefix('foaf', getNamespaceIRI(FOAF))
@@ -67,6 +77,7 @@ select(['?name'])
 ### Type Coercion
 
 **Transform results with automatic type conversion:**
+
 ```ts
 import { transformResultsTyped } from '@okikio/sparql'
 
@@ -78,7 +89,7 @@ const result = await select(['?price', '?quantity', '?active'])
 
 if (result.success) {
   const rows = transformResultsTyped(result.data)
-  
+
   for (const row of rows) {
     // price and quantity are numbers, active is boolean
     const total = row.price * row.quantity
@@ -91,6 +102,7 @@ if (result.success) {
 ### Extract Specific Variable
 
 **Get array of values for one variable:**
+
 ```ts
 import { pluck } from '@okikio/sparql'
 
@@ -108,6 +120,7 @@ const averageAge = ages.reduce((a, b) => a + b, 0) / ages.length
 ### Get First Result
 
 **Perfect for lookups:**
+
 ```ts
 import { first } from '@okikio/sparql'
 
@@ -120,7 +133,7 @@ const result = await select(['?name', '?email'])
 
 if (result.success) {
   const person = first(result.data)
-  
+
   if (person) {
     console.log('Found:', person.name)
     console.log('Email:', person.email)
@@ -133,8 +146,9 @@ if (result.success) {
 ### ASK Query Results
 
 **Extract boolean from ASK queries:**
+
 ```ts
-import { askResult, ask } from '@okikio/sparql'
+import { ask, askResult } from '@okikio/sparql'
 
 const result = await ask()
   .where(triple('?person', 'foaf:name', 'Alice'))
@@ -150,12 +164,12 @@ if (result.success) {
 
 ```ts
 import {
-  parseBinding,        // Get type metadata
-  coerceValue,         // Convert single binding to JS type
+  askResult, // Get boolean from ASK query
+  coerceValue, // Convert single binding to JS type
+  first, // Get first result or undefined
+  parseBinding, // Get type metadata
+  pluck, // Extract one variable's values
   transformResultsTyped, // Transform all results with type coercion
-  pluck,               // Extract one variable's values
-  first,               // Get first result or undefined
-  askResult           // Get boolean from ASK query
 } from '@okikio/sparql'
 ```
 
@@ -166,13 +180,13 @@ import {
 ### Reusable Patterns
 
 ```ts
-import { RDF, FOAF, SCHEMA } from '@okikio/sparql'
+import { FOAF, RDF, SCHEMA } from '@okikio/sparql'
 
 // Define pattern once
 function personPattern(personVar = 'person') {
   return node(personVar, FOAF.Person, {
     [FOAF.name]: v('name'),
-    [FOAF.age]: v('age')
+    [FOAF.age]: v('age'),
   })
 }
 
@@ -217,19 +231,19 @@ interface SearchFilters {
 function searchPeople(filters: SearchFilters) {
   let query = select(['?name', '?age', '?city'])
     .where(personPattern())
-  
+
   if (filters.minAge !== undefined) {
     query = query.filter(v('age').gte(filters.minAge))
   }
-  
+
   if (filters.maxAge !== undefined) {
     query = query.filter(v('age').lte(filters.maxAge))
   }
-  
+
   if (filters.city) {
     query = query.filter(v('city').eq(filters.city))
   }
-  
+
   return query
 }
 
@@ -246,12 +260,18 @@ const londonResidents = searchPeople({ city: 'London' })
 
 ```ts
 import {
-  select, triple, node, v, uri,
-  RDF, FOAF, SCHEMA,
+  first,
+  FOAF,
   getNamespaceIRI,
-  transformResultsTyped,
+  node,
   pluck,
-  first
+  RDF,
+  SCHEMA,
+  select,
+  transformResultsTyped,
+  triple,
+  uri,
+  v,
 } from '@okikio/sparql'
 
 // Define reusable pattern
@@ -259,7 +279,7 @@ function personPattern(personVar = 'person') {
   return node(personVar, FOAF.Person, {
     [FOAF.name]: v('name'),
     [FOAF.age]: v('age'),
-    [SCHEMA.email]: v('email')
+    [SCHEMA.email]: v('email'),
   })
 }
 
@@ -275,24 +295,24 @@ const query = select(['?name', '?age', '?email'])
 
 // Execute and parse
 const result = await query.execute({
-  endpoint: 'http://localhost:3030/dataset/sparql'
+  endpoint: 'http://localhost:3030/dataset/sparql',
 })
 
 if (result.success) {
   // Get typed results
   const rows = transformResultsTyped(result.data)
   console.log('Total people:', rows.length)
-  
+
   // Extract specific data
   const ages = pluck<number>(result.data, 'age', true)
   console.log('Average age:', ages.reduce((a, b) => a + b) / ages.length)
-  
+
   // Get first person
   const oldest = first(result.data)
   if (oldest) {
     console.log('Oldest person:', oldest.name, oldest.age)
   }
-  
+
   // Process all rows
   for (const row of rows) {
     // age is a number, not a string
@@ -315,18 +335,18 @@ const query = select(['?name'])
   .where(triple(
     '?person',
     'http://www.w3.org/1999/02/22-rdf-syntax-ns#type',
-    '<http://xmlns.com/foaf/0.1/Person>'
+    '<http://xmlns.com/foaf/0.1/Person>',
   ))
   .where(triple(
     '?person',
     'http://xmlns.com/foaf/0.1/name',
-    '?name'
+    '?name',
   ))
 
 // String results
 const rows = transformResults(result.data)
 for (const row of rows) {
-  const age = parseInt(row.age, 10)  // Manual conversion
+  const age = parseInt(row.age, 10) // Manual conversion
 }
 ```
 
@@ -334,7 +354,7 @@ for (const row of rows) {
 
 ```ts
 // Import constants
-import { RDF, FOAF, getNamespaceIRI } from '@okikio/sparql'
+import { FOAF, getNamespaceIRI, RDF } from '@okikio/sparql'
 
 // Clean query with prefixes and constants
 const query = select(['?name'])
@@ -357,7 +377,7 @@ for (const row of rows) {
 
 1. **Add namespace constants to your imports:**
    ```ts
-   import { RDF, FOAF, SCHEMA } from '@okikio/sparql'
+   import { FOAF, RDF, SCHEMA } from '@okikio/sparql'
    ```
 
 2. **Use `.prefix()` in your queries:**
@@ -377,7 +397,7 @@ for (const row of rows) {
 4. **Extract reusable patterns:**
    ```ts
    function myPattern() { return node(...) }
-   
+
    select([...])
      .where(myPattern())
    ```

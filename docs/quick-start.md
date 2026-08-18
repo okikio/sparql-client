@@ -21,10 +21,12 @@ Use explicit parser subpaths:
 ```ts
 import * as turtle from '@okikio/rdf/turtle'
 
-for await (const quad of turtle.parse(`
+for await (
+  const quad of turtle.parse(`
   @prefix schema: <https://schema.org/> .
   <https://example.com/products/1> schema:name "Widget" .
-`)) {
+`)
+) {
   console.log(quad)
 }
 ```
@@ -46,9 +48,9 @@ const query = sparql.select(['?product', '?name'])
 ## SPARQL endpoint
 
 ```ts
-import { createClient } from '@okikio/sparql/http'
+import * as http from '@okikio/sparql/http'
 
-const client = createClient({ endpoint: 'https://example.com/sparql' })
+const client = http.create({ endpoint: 'https://example.com/sparql' })
 
 for await (const row of await client.queryBindings(query)) {
   console.log(row.get('name')?.value)
@@ -69,12 +71,7 @@ client.update(update)
 Generated vocabulary symbols are direct and tree-shakeable:
 
 ```ts
-import {
-  Product,
-  ProductSchema,
-  type ProductType,
-  name,
-} from '@okikio/vocab/schema'
+import { name, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 
 const product: ProductType = {
   '@type': 'Product',

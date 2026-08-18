@@ -4,19 +4,19 @@ Version 0.1 reorganizes the repository around RDF, SPARQL, vocabulary generation
 
 ## Package changes
 
-| 0.0.2 concept | 0.1 target |
-| --- | --- |
+| 0.0.2 concept                                   | 0.1 target                                                |
+| ----------------------------------------------- | --------------------------------------------------------- |
 | RDF namespace constants inside `@okikio/sparql` | generated terms in `@okikio/vocab/*` or `rdf.namespace()` |
-| `Executor` / `createExecutor()` | `@okikio/sparql/http.createClient()` or an engine adapter |
-| builder `.execute()` | build first, then call `client.query*()` |
-| `executeSparql()` | explicit HTTP client result-mode methods |
-| `transformResults()` / datatype coercion | binding values remain RDF terms |
-| `resolveLabels()` | application query recipe; no core replacement |
-| `fetchProperties()` | application query recipe; no core replacement |
-| `expand()` | application query recipe; no core replacement |
-| `scripts/ttl-to-ts.ts` | `@okikio/vocab` compiler + `.mise/tasks/vocab.ts` |
-| N3 dependency inside the generator | RDF parser chosen by the caller; compiler consumes quads |
-| old `quotedTriple()` / SPARQL-star wording | RDF/SPARQL 1.2 `tripleTerm()` |
+| `Executor` / `createExecutor()`                 | `@okikio/sparql/http.create()` or an engine adapter       |
+| builder `.execute()`                            | build first, then call `client.query*()`                  |
+| `executeSparql()`                               | explicit HTTP client result-mode methods                  |
+| `transformResults()` / datatype coercion        | binding values remain RDF terms                           |
+| `resolveLabels()`                               | application query recipe; no core replacement             |
+| `fetchProperties()`                             | application query recipe; no core replacement             |
+| `expand()`                                      | application query recipe; no core replacement             |
+| `scripts/ttl-to-ts.ts`                          | `@okikio/vocab` compiler + `.mise/tasks/vocab.ts`         |
+| N3 dependency inside the generator              | RDF parser chosen by the caller; compiler consumes quads  |
+| old `quotedTriple()` / SPARQL-star wording      | RDF/SPARQL 1.2 `tripleTerm()`                             |
 
 ## Query execution
 
@@ -32,12 +32,12 @@ After:
 
 ```ts
 import * as sparql from '@okikio/sparql'
-import { createClient } from '@okikio/sparql/http'
+import * as http from '@okikio/sparql/http'
 
 const query = sparql.select(['?name'])
   .where(sparql.triple('?person', 'foaf:name', '?name'))
 
-const client = createClient({ endpoint })
+const client = http.create({ endpoint })
 for await (const row of await client.queryBindings(query)) {
   console.log(row.get('name')?.value)
 }
@@ -74,7 +74,7 @@ const name = schema('name')
 For generated vocabularies, prefer direct imports:
 
 ```ts
-import { Product, ProductSchema, type ProductType, name } from '@okikio/vocab/schema'
+import { name, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 ```
 
 This keeps generated types and schemas tree-shakeable and avoids `lowercase.CamelCase` call sites.

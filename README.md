@@ -12,21 +12,31 @@ The packages are library-first. Importing a package describes or creates values.
     │       └── @okikio/comunica
     │
     ├── @okikio/vocab
-    └── @okikio/triplestore
+    ├── @okikio/triplestore
+    ├── @okikio/rdf/jsonld
+    ├── @okikio/rdf/canon
+    ├── @okikio/rdf/xml
+    ├── @okikio/rdf/rdfa
+    └── @okikio/rdf/microdata
 ```
 
-The repository targets current RDF 1.2 semantics while keeping draft-dependent behavior explicit. SPARQL and SHACL 1.2 features are versioned because those specifications are still evolving.
+The repository targets the RDF 1.2 syntax profiles listed in `support.json` while keeping draft-dependent behavior explicit. A profile is not a release claim until its pinned conformance suite passes without failures or skips. SPARQL and SHACL 1.2 features remain separately scoped because those specifications are still evolving.
 
 ## Packages
 
-| Package | Responsibility | Runtime dependency posture |
-| --- | --- | --- |
-| `@okikio/rdf` | RDF terms, datasets, parsers, ontology and shape models | root module imports no third-party processor; processor subpaths are isolated |
-| `@okikio/sparql` | SPARQL construction, lexical inspection, result contracts, HTTP protocol client | core depends only on `@okikio/rdf` |
-| `@okikio/vocab` | Ontology-to-TypeScript compiler and generated vocabulary runtime | depends on `@okikio/rdf` |
-| `@okikio/triplestore` | Crash-recoverable persistent RDF dataset | depends on `@okikio/rdf`; borrows a structural filesystem |
-| `@okikio/oxigraph` | Adapter from a caller-owned Oxigraph `Store` to the SPARQL query contract | Oxigraph remains caller-owned |
-| `@okikio/comunica` | Adapter from a caller-owned Comunica `QueryEngine` to the SPARQL query contract | Comunica remains caller-owned |
+| Package                 | Responsibility                                                                  | Runtime dependency posture                                     |
+| ----------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `@okikio/rdf`           | RDF terms, datasets, native parsers, ontology and shape models                  | no third-party runtime implementation                          |
+| `@okikio/sparql`        | SPARQL construction, lexical inspection, result contracts, HTTP protocol client | depends only on `@okikio/rdf`                                  |
+| `@okikio/vocab`         | Ontology-to-TypeScript compiler and generated vocabulary runtime                | depends only on `@okikio/rdf`                                  |
+| `@okikio/triplestore`   | Crash-recoverable persistent RDF dataset                                        | depends only on `@okikio/rdf`; borrows a structural filesystem |
+| `@okikio/rdf/jsonld`    | Native JSON-LD 1.1 processing                                                   | no third-party runtime implementation                          |
+| `@okikio/rdf/canon`     | Native RDFC-1.0 canonicalization                                                | no third-party runtime implementation                          |
+| `@okikio/rdf/xml`       | Native RDF/XML 1.1/1.2 parsing                                                  | no third-party runtime implementation                          |
+| `@okikio/rdf/rdfa`      | Native RDFa 1.1 extraction                                                      | no third-party runtime implementation                          |
+| `@okikio/rdf/microdata` | Native Microdata-to-RDF extraction                                              | no third-party runtime implementation                          |
+| `@okikio/oxigraph`      | Adapter from a caller-owned Oxigraph `Store` to the SPARQL query contract       | external engine is explicit and caller-owned                   |
+| `@okikio/comunica`      | Adapter from a caller-owned Comunica `QueryEngine` to the SPARQL query contract | external engine is explicit and caller-owned                   |
 
 ## RDF
 
@@ -47,30 +57,42 @@ for (const quad of data.match(product)) {
 }
 ```
 
-The root exports the semantic model only. Syntax-specific code is opt-in:
+The root exports the semantic model only. Project-owned syntax and semantic capabilities use explicit RDF subpaths:
 
 ```ts
 import * as nquads from '@okikio/rdf/nquads'
 import * as turtle from '@okikio/rdf/turtle'
-import * as jsonld from '@okikio/rdf/jsonld'
-import * as canon from '@okikio/rdf/canon'
+import * as ontology from '@okikio/rdf/ontology'
+import * as shape from '@okikio/rdf/shape'
 ```
 
-Implemented format and semantic subpaths currently include:
+Additional RDF standards are native `@okikio/rdf` subpaths. Competitor implementations are used only by conformance, differential tests, and benchmarks:
+
+```ts
+import * as jsonld from '@okikio/rdf/jsonld'
+import * as rdfc from '@okikio/rdf/canon'
+import * as rdfxml from '@okikio/rdf/xml'
+import * as rdfa from '@okikio/rdf/rdfa'
+import * as microdata from '@okikio/rdf/microdata'
+```
+
+Current format and semantic surfaces include:
 
 ```text
 @okikio/rdf/ntriples   N-Triples 1.2 parsing and serialization
 @okikio/rdf/nquads     N-Quads 1.2 parsing and serialization
 @okikio/rdf/turtle     Turtle 1.2 streaming parser and conservative serializer
 @okikio/rdf/trig       TriG 1.2 streaming parser and conservative serializer
-@okikio/rdf/jsonld     JSON-LD processor adapter with bounded document loading
-@okikio/rdf/xml        RDF/XML streaming adapter
-@okikio/rdf/rdfa       RDFa 1.1 streaming adapter
-@okikio/rdf/microdata  Microdata-to-RDF streaming adapter
-@okikio/rdf/canon      RDFC-1.0 canonicalization
 @okikio/rdf/ontology   RDFS/OWL ontology interpretation model
 @okikio/rdf/shape      loss-preserving SHACL shape model
+@okikio/rdf/jsonld         native JSON-LD 1.1 processor with bounded document loading
+@okikio/rdf/canon          native RDFC-1.0 canonicalization
+@okikio/rdf/xml            native RDF/XML parser
+@okikio/rdf/rdfa           native RDFa 1.1 extractor
+@okikio/rdf/microdata      native Microdata-to-RDF extractor
 ```
+
+The four core packages (`@okikio/rdf`, `@okikio/sparql`, `@okikio/vocab`, and `@okikio/triplestore`) cannot import third-party runtime implementations. External RDF/SPARQL implementations are allowed only in explicit interoperability packages such as `@okikio/oxigraph` and `@okikio/comunica`, or in tests, conformance suites, and benchmarks used as independent comparison oracles.
 
 `@okikio/rdf` uses `Iterable`, `AsyncIterable`, `ReadableStream`, `AbortSignal`, and explicit disposal where those shapes match the workload. RDF/JS is an interoperability target, not a required core dependency.
 
@@ -93,9 +115,9 @@ console.log(query.build().value)
 Execution is explicit:
 
 ```ts
-import { createClient } from '@okikio/sparql/http'
+import * as http from '@okikio/sparql/http'
 
-const client = createClient({ endpoint: 'https://example.com/sparql' })
+const client = http.create({ endpoint: 'https://example.com/sparql' })
 
 for await (const row of await client.queryBindings(query)) {
   console.log(row.get('name')?.value)
@@ -106,9 +128,9 @@ The result modes stay separate:
 
 ```ts
 client.queryBindings(query) // SELECT
-client.queryQuads(query)    // CONSTRUCT / DESCRIBE
-client.queryBoolean(query)  // ASK
-client.update(update)       // UPDATE
+client.queryQuads(query) // CONSTRUCT / DESCRIBE
+client.queryBoolean(query) // ASK
+client.update(update) // UPDATE
 ```
 
 This prevents graph results from being coerced into binding rows and keeps RDF values as RDF terms instead of silently converting datatypes to JavaScript primitives.
@@ -120,13 +142,7 @@ This prevents graph results from being coerced into binding rows and keeps RDF v
 Generated vocabulary data uses direct, tree-shakeable imports. Runtime values, schemas, and types use PascalCase when the vocabulary term is PascalCase.
 
 ```ts
-import {
-  Product,
-  ProductSchema,
-  type ProductType,
-  name,
-  offers,
-} from '@okikio/vocab/schema'
+import { name, offers, Product, ProductSchema, type ProductType } from '@okikio/vocab/schema'
 ```
 
 This avoids awkward APIs such as `schema.ProductSchema` while still allowing operation-oriented namespaces elsewhere.
@@ -171,18 +187,18 @@ The engine integration packages wrap resources that the caller creates and owns.
 
 ```ts
 import { Store } from 'oxigraph'
-import { createClient } from '@okikio/oxigraph'
+import * as oxigraph from '@okikio/oxigraph'
 
 const store = new Store()
-const client = createClient(store)
+const client = oxigraph.create(store)
 ```
 
 ```ts
 import { QueryEngine } from '@comunica/query-sparql'
-import { createClient } from '@okikio/comunica'
+import * as comunica from '@okikio/comunica'
 
 const engine = new QueryEngine()
-const client = createClient(engine, {
+const client = comunica.create(engine, {
   context: () => ({ sources: [/* caller-selected sources */] }),
 })
 ```
@@ -250,30 +266,19 @@ deno task vocab:schema
 
 ## Current implementation status
 
-Implemented and locally validated without optional upstream packages:
+The repository now contains the release evidence infrastructure, not merely a plan for it:
 
-- RDF 1.2-native core terms, triple terms, directional literals, Dataset indexes
-- streaming N-Triples/N-Quads
-- streaming Turtle/TriG semantic parser
-- RDF ontology and SHACL shape IRs
-- SPARQL builder migration and explicit result-mode contracts
-- SPARQL HTTP protocol client
-- source-ranged SPARQL syntax inspection
-- vocabulary compiler/runtime/bootstrap Schema.org surface
-- crash-recoverable triplestore
-- caller-owned Oxigraph and Comunica adapters
-- lifecycle adapters for JSON-LD, RDF/XML, RDFa, Microdata, and RDFC-1.0
+- pinned official RDF 1.2/1.1, JSON-LD 1.1, JSON-LD Framing, RDFC-1.0, RDFa 1.1, and Microdata-to-RDF runners;
+- fast-check properties for parser, Dataset, SPARQL, vocabulary, and persistent-store invariants;
+- real Oxigraph/Comunica engine integration plus Testcontainers protocol/fault tests;
+- SPARQL GET/form/direct POST modes, protocol dataset parameters, and a separate Graph Store API;
+- competitive Mitata parser, Dataset, and adapter baselines with semantic oracles and JSON evidence output;
+- clean package/consumer and browser-bundle isolation gates;
+- a machine-readable `support.json` that prevents interpretation-only or unsupported features from being advertised as conformance.
 
-Still requiring canonical upstream validation before release claims:
+The checked-in Schema.org module remains a bootstrap surface until `deno task vocab:schema` is run in the canonical release environment. A committed Deno lockfile is also required before publication. The current sandbox cannot resolve the registry graph, so the lockfile is not fabricated.
 
-- Deno formatting, linting, type checks, and package-local tests on a Deno/JSR-capable host
-- W3C RDF/Turtle/TriG/SPARQL/SHACL conformance corpora
-- real `jsonld`, `rdf-canonize`, RDF/XML, RDFa, and Microdata dependency integration
-- real Oxigraph Wasm and Comunica engine integration
-- complete generated Schema.org vocabulary
-- package builds and JSR/npm publication artifacts
-
-See [`docs/standard-schema.md`](./docs/standard-schema.md) for generated validation, [`docs/vocabulary-generation.md`](./docs/vocabulary-generation.md) for the `ttl-to-ts` replacement, [`docs/testing.md`](./docs/testing.md) for permanent test ownership, [`docs/migration.md`](./docs/migration.md) for intentional 0.0.2 API changes, [`docs/benchmarks.md`](./docs/benchmarks.md) for benchmark-derived decisions, and [`VALIDATION.md`](./VALIDATION.md) for the exact passed and blocked release gates.
+See [`docs/conformance.md`](./docs/conformance.md) for standards evidence, [`docs/standard-schema.md`](./docs/standard-schema.md) for generated validation, [`docs/vocabulary-generation.md`](./docs/vocabulary-generation.md) for vocabulary compilation, [`docs/testing.md`](./docs/testing.md) for test ownership, [`docs/migration.md`](./docs/migration.md) for intentional API changes, [`docs/benchmarks.md`](./docs/benchmarks.md) for benchmark design, and [`VALIDATION.md`](./VALIDATION.md) for executed versus pending release gates.
 
 ## License
 

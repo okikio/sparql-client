@@ -16,7 +16,7 @@ It should be read together with:
 
 ## Package model
 
-The repository has six independently usable packages:
+The repository has six independently publishable packages. `@okikio/rdf` also exposes focused native standards subpaths:
 
 ```text
 @okikio/rdf
@@ -25,17 +25,25 @@ The repository has six independently usable packages:
     |       +--> @okikio/comunica
     +--> @okikio/vocab
     +--> @okikio/triplestore
+    +--> @okikio/rdf/jsonld
+    +--> @okikio/rdf/canon
+    +--> @okikio/rdf/xml
+    +--> @okikio/rdf/rdfa
+    +--> @okikio/rdf/microdata
 ```
 
 This dependency direction is intentional:
 
-- RDF defines terms, datasets, parsers, ontology/shape models, and interoperability.
+- RDF defines terms, datasets, project-owned parsers, ontology/shape models, and interoperability.
+- JSON-LD, RDFC, RDF/XML, RDFa, and Microdata are native `@okikio/rdf` subpaths. External processors are used only as conformance, differential-test, or benchmark references.
 - SPARQL depends on RDF terms but not on a vocabulary generator or query engine.
 - Vocab compiles RDF ontology models into developer-facing code.
 - Engine packages adapt external engines to SPARQL's generic query/update contract.
 - Triplestore persists RDF datasets and depends only on RDF semantics plus the injected filesystem contract.
 
 Generated vocabulary constants are RDF `NamedNode` values. They therefore compose with SPARQL directly without adding a `@okikio/vocab` dependency to `@okikio/sparql`.
+
+The core production graph has a dependency firewall. `@okikio/rdf`, `@okikio/sparql`, `@okikio/vocab`, and `@okikio/triplestore` cannot import third-party runtime implementations. External competitors remain valid conformance and benchmark oracles, and explicit adapter packages may own the dependency they name.
 
 ## Standard Schema
 
@@ -54,8 +62,8 @@ Example generated surface:
 ```ts
 import {
   Product,
-  ProductSchema,
   type ProductPropertiesType,
+  ProductSchema,
   type ProductType,
 } from '@okikio/vocab/schema'
 ```
@@ -89,7 +97,7 @@ RDF serialization / Dataset / store
    @okikio/rdf/ontology
               |
               v
-     @okikio/vocab.read
+     @okikio/vocab.inspect
               |
               v
  deterministic name planning
@@ -236,7 +244,7 @@ New or materially expanded permanent coverage includes:
 - ontology and SHACL loss preservation
 - SPARQL grammar roles, query builders, update builders, Cypher/object helpers, results, HTTP, and package composition
 - Standard Schema and Standard JSON Schema
-- vocabulary compile/read/name/runtime behavior
+- vocabulary compile/inspect/name/runtime behavior
 - triplestore format/recovery contracts
 - engine adapter query/update and ownership behavior
 
@@ -340,187 +348,8 @@ Still required on an appropriate host:
 
 SPARQL 1.2 and SHACL 1.2 are draft families as of this implementation date, so their supported feature profiles must remain versioned and testable rather than being baked into an unversioned claim of final conformance.
 
-## Changed-file appendix
+## Historical pass record
 
-The appendix is generated from the final Git diff so review can distinguish the tracked `.agents/` deletion from functional/package/documentation changes.
+The previous changed-file appendix described an earlier implementation pass. It became stale after the dependency, package, naming, and documentation corrections in the current source. It is intentionally removed from this living implementation guide.
 
-<!-- CHANGED_FILES_START -->
-
-### Deleted (61)
-
-- `.agents/benchmark.ts`
-- `.agents/canon.test.ts`
-- `.agents/compact.test.ts`
-- `.agents/deno.d.ts`
-- `.agents/engines.test.ts`
-- `.agents/generate-bootstrap-schema.ts`
-- `.agents/generate-real-vocab.ts`
-- `.agents/generated-narrative.ts`
-- `.agents/generated-tsconfig.json`
-- `.agents/html-semantic.test.ts`
-- `.agents/jsonld.test.ts`
-- `.agents/jsonld.ts`
-- `.agents/memory-fs.ts`
-- `.agents/microdata-rdf-streaming-parser.ts`
-- `.agents/mitata.ts`
-- `.agents/node-test.ts`
-- `.agents/ontology.test.ts`
-- `.agents/packs/comunica.json`
-- `.agents/packs/oxigraph.json`
-- `.agents/packs/rdf.json`
-- `.agents/packs/sparql.json`
-- `.agents/packs/triplestore.json`
-- `.agents/packs/vocab.json`
-- `.agents/public.test.ts`
-- `.agents/rdf-canonize.ts`
-- `.agents/rdf.test.ts`
-- `.agents/rdfa-streaming-parser.ts`
-- `.agents/rdfxml-streaming-parser.ts`
-- `.agents/recovery-profile.ts`
-- `.agents/results/benchmark.json`
-- `.agents/results/benchmark.stdout.json`
-- `.agents/results/final-benchmark.json`
-- `.agents/results/final-benchmark.stdout.json`
-- `.agents/results/final-check.txt`
-- `.agents/results/final-generate-real.txt`
-- `.agents/results/final-generated-check.txt`
-- `.agents/results/final-host-tests.tap`
-- `.agents/results/final-pack.json`
-- `.agents/results/final-package-tests.tap`
-- `.agents/results/package-tests.tap`
-- `.agents/results/release-check-after-ledger.txt`
-- `.agents/results/release-check.txt`
-- `.agents/results/release-generate-real.txt`
-- `.agents/results/release-generated-check.txt`
-- `.agents/results/release-host-tests.tap`
-- `.agents/results/release-pack.json`
-- `.agents/results/release-package-tests.tap`
-- `.agents/results/release-stale-api.txt`
-- `.agents/results/types-after.stdout.json`
-- `.agents/results/types-before-schema-composition.json`
-- `.agents/results/types.json`
-- `.agents/results/types.stdout.json`
-- `.agents/shape.test.ts`
-- `.agents/sparql.test.ts`
-- `.agents/std-expect.ts`
-- `.agents/triplestore.test.ts`
-- `.agents/tsconfig.json`
-- `.agents/type-benchmark.ts`
-- `.agents/vocab-real.test.ts`
-- `.agents/vocab.test.ts`
-- `.agents/xml.test.ts`
-
-### Modified (74)
-
-- `.gitignore`
-- `.mise/tasks/schema.ts`
-- `.mise/tasks/vocab.ts`
-- `AGENTS.md`
-- `README.md`
-- `VALIDATION.md`
-- `deno.json`
-- `docs/architecture.md`
-- `docs/benchmarks.md`
-- `docs/implementation.md`
-- `docs/quick-start.md`
-- `docs/sparql-mapping.md`
-- `package.json`
-- `packages/comunica/README.md`
-- `packages/comunica/mod.ts`
-- `packages/comunica/mod_test.ts`
-- `packages/oxigraph/README.md`
-- `packages/oxigraph/mod.ts`
-- `packages/oxigraph/mod_test.ts`
-- `packages/rdf/README.md`
-- `packages/rdf/canon/mod.ts`
-- `packages/rdf/compact.ts`
-- `packages/rdf/dataset.ts`
-- `packages/rdf/dataset_test.ts`
-- `packages/rdf/factory.ts`
-- `packages/rdf/jsonld/loader.ts`
-- `packages/rdf/jsonld/mod.ts`
-- `packages/rdf/line.ts`
-- `packages/rdf/microdata/mod.ts`
-- `packages/rdf/microdata/mod_test.ts`
-- `packages/rdf/ontology/index.ts`
-- `packages/rdf/ontology/read.ts`
-- `packages/rdf/rdfa/mod.ts`
-- `packages/rdf/rdfa/mod_test.ts`
-- `packages/rdf/shape/index.ts`
-- `packages/rdf/shape/list.ts`
-- `packages/rdf/shape/path.ts`
-- `packages/rdf/shape/read.ts`
-- `packages/rdf/term.ts`
-- `packages/rdf/text.ts`
-- `packages/rdf/transform.ts`
-- `packages/rdf/write.ts`
-- `packages/rdf/xml/mod.ts`
-- `packages/rdf/xml/mod_test.ts`
-- `packages/sparql/README.md`
-- `packages/sparql/builder.ts`
-- `packages/sparql/client.ts`
-- `packages/sparql/http/error.ts`
-- `packages/sparql/http/mod.ts`
-- `packages/sparql/http/mod_test.ts`
-- `packages/sparql/mod.ts`
-- `packages/sparql/patterns/cypher.ts`
-- `packages/sparql/patterns/objects.ts`
-- `packages/sparql/patterns/triples.ts`
-- `packages/sparql/result/json.ts`
-- `packages/sparql/sparql.ts`
-- `packages/sparql/syntax/scan.ts`
-- `packages/sparql/syntax/scanner.ts`
-- `packages/sparql/syntax/source.ts`
-- `packages/sparql/update.ts`
-- `packages/sparql/utils.ts`
-- `packages/triplestore/README.md`
-- `packages/triplestore/format.ts`
-- `packages/triplestore/store.ts`
-- `packages/triplestore/store_test.ts`
-- `packages/vocab/README.md`
-- `packages/vocab/deno.json`
-- `packages/vocab/emit.ts`
-- `packages/vocab/mod.ts`
-- `packages/vocab/name.ts`
-- `packages/vocab/package.json`
-- `packages/vocab/read.ts`
-- `packages/vocab/runtime.ts`
-- `packages/vocab/schema/mod.ts`
-
-### Added (untracked in baseline) (33)
-
-- `.mise/tasks/bench.ts`
-- `docs/research/architecture-design-20260814.md`
-- `docs/standard-schema.md`
-- `docs/testing.md`
-- `docs/vocabulary-generation.md`
-- `packages/rdf/namespace_test.ts`
-- `packages/rdf/source_test.ts`
-- `packages/rdf/term_test.ts`
-- `packages/rdf/text_test.ts`
-- `packages/rdf/write_test.ts`
-- `packages/sparql/builder_bench.ts`
-- `packages/sparql/builder_test.ts`
-- `packages/sparql/client_test.ts`
-- `packages/sparql/composition_test.ts`
-- `packages/sparql/http/error_test.ts`
-- `packages/sparql/patterns/cypher_test.ts`
-- `packages/sparql/patterns/objects_test.ts`
-- `packages/sparql/patterns/triples_test.ts`
-- `packages/sparql/result/binding_test.ts`
-- `packages/sparql/result/json_test.ts`
-- `packages/sparql/sparql_test.ts`
-- `packages/sparql/update_test.ts`
-- `packages/sparql/utils_test.ts`
-- `packages/triplestore/format_test.ts`
-- `packages/vocab/compile.ts`
-- `packages/vocab/compile_bench.ts`
-- `packages/vocab/compile_test.ts`
-- `packages/vocab/name_test.ts`
-- `packages/vocab/read_test.ts`
-- `packages/vocab/runtime_bench.ts`
-- `packages/vocab/runtime_test.ts`
-- `packages/vocab/standard.ts`
-- `packages/vocab/standard_test.ts`
-
-<!-- CHANGED_FILES_END -->
+Use the repository source, the current package manifests, and artifact validation output for the current file inventory. A release or handoff must derive its changed-file list from the exact delivered tree instead of copying an older snapshot.
