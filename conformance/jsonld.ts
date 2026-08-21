@@ -137,8 +137,10 @@ async function apply(
     const quads = await quadsFrom(file(test.input!))
     return await jsonld.fromRdf(quads, options)
   }
-  const remoteManifest = inputUrl.includes('/remote-doc/')
-  const input = remoteManifest ? inputUrl : await json<unknown>(file(test.input!))
+  // The JSON-LD API accepts an input IRI and is responsible for loading it.
+  // Passing every suite document through that public path preserves document
+  // URLs, HTML media handling, redirects, Link contexts, and loader limits.
+  const input = inputUrl
   if (operation === 'expand') return await jsonld.expand(input, options)
   if (operation === 'toRdf') return await jsonld.toRdf(input, options)
   if (operation === 'compact') {
@@ -156,7 +158,7 @@ function optionsFor(
 ): jsonld.OptionsType {
   const value = option ?? {}
   return {
-    base: typeof value.base === 'string' ? value.base : base,
+    ...(typeof value.base === 'string' ? { base: value.base } : {}),
     remote: true,
     fetch: suiteFetch(test, base),
     maxDocuments: 256,
@@ -169,7 +171,9 @@ function optionsFor(
     ...(typeof value.compactToRelative === 'boolean'
       ? { compactToRelative: value.compactToRelative }
       : {}),
-    ...(value.expandContext === undefined ? {} : { expandContext: asJsonLd(value.expandContext) }),
+    ...(value.expandContext === undefined
+      ? {}
+      : { expandContext: expandContext(value.expandContext, base) }),
     ...(typeof value.extractAllScripts === 'boolean'
       ? { extractAllScripts: value.extractAllScripts }
       : {}),
@@ -183,6 +187,12 @@ function optionsFor(
     ...(typeof value.useNativeTypes === 'boolean' ? { useNativeTypes: value.useNativeTypes } : {}),
     ...(typeof value.useRdfType === 'boolean' ? { useRdfType: value.useRdfType } : {}),
   }
+}
+
+/** Resolves a relative suite expand-context URL against the manifest base IRI. */
+function expandContext(value: unknown, base: string): jsonld.JsonLdValueType {
+  if (typeof value === 'string') return new URL(value, base).href
+  return asJsonLd(value)
 }
 
 /** Converts manifest JSON into the recursive JSON-LD value contract used by the native processor. */
@@ -229,7 +239,7 @@ function suiteFetch(test: TestType, base: string): typeof fetch {
     const links = option.httpLink
     if (typeof links === 'string') headers.set('link', links)
     else if (Array.isArray(links)) headers.set('link', links.join(', '))
-    return new Response(bytes, { status: 200, headers })
+    return new Response(new Uint8Array(bytes).buffer, { status: 200, headers })
   }
 }
 

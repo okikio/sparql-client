@@ -27,6 +27,16 @@ describe('@okikio/rdf terms and factories', () => {
     expect(equals(left, right)).toBe(true)
   })
 
+  it('scopes generated blank-node labels beyond a restart-local counter', () => {
+    const first = blankNode()
+    const second = blankNode()
+
+    expect(first.value).toMatch(/^b_[0-9a-f]{32}_1$/)
+    expect(second.value).toMatch(/^b_[0-9a-f]{32}_2$/)
+    expect(first.value).not.toBe(second.value)
+    expect(blankNode('stable').value).toBe('stable')
+  })
+
   it('creates RDF 1.2 directional language strings', () => {
     const value = literal('مرحبا', { language: 'AR', direction: 'rtl' })
     expect(value.language).toBe('ar')

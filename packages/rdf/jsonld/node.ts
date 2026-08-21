@@ -2,13 +2,17 @@
 import { compare, object } from './context.ts'
 import { array, listObject, valueObject } from './expand.ts'
 import type { JsonLdValueType } from './types.ts'
-/** Expanded node object stored in a graph map. */ export type NodeType = Record<
+/** Expanded node object stored in a graph map. */
+export type NodeType = Record<
   string,
   JsonLdValueType
 >
-/** Graph keyed by expanded node identifier. */ export type GraphType = Map<string, NodeType>
-/** Node map keyed by graph identifier. */ export type NodeMapType = Map<string, GraphType>
-/** Deterministic blank-node issuer. */ export class Issuer {
+/** Graph keyed by expanded node identifier. */
+export type GraphType = Map<string, NodeType>
+/** Node map keyed by graph identifier. */
+export type NodeMapType = Map<string, GraphType>
+/** Deterministic blank-node issuer. */
+export class Issuer {
   /** Blank-node identifier map owned by this issuer. */
   readonly ids = new Map<string, string>()
   /** Next numeric suffix allocated by this issuer. */
@@ -23,7 +27,8 @@ import type { JsonLdValueType } from './types.ts'
     return value
   }
 }
-/** Creates a complete node map from expanded JSON-LD. */ export function create(
+/** Creates a complete node map from expanded JSON-LD. */
+export function create(
   expanded: JsonLdValueType,
   issuer = new Issuer(),
 ): NodeMapType {
@@ -31,7 +36,8 @@ import type { JsonLdValueType } from './types.ts'
   visit(expanded, maps, '@default', undefined, undefined, issuer)
   return maps
 }
-/** Flattens expanded JSON-LD into a deterministic top-level node list. */ export function flatten(
+/** Flattens expanded JSON-LD into a deterministic top-level node list. */
+export function flatten(
   expanded: JsonLdValueType,
 ): JsonLdValueType[] {
   const maps = create(expanded), defaultGraph = maps.get('@default')!

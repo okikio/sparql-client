@@ -14,10 +14,25 @@ import {
   type TermDefinitionType,
 } from './context.ts'
 import type { JsonLdValueType } from './types.ts'
-/** Options affecting recursive expansion. */ export interface ExpandOptionsType {
+
+/** Default maximum number of nested `@nest` levels processed from untrusted input. */
+const MAX_NEST_DEPTH = 128
+
+/** Queued `@nest` value together with the depth at which its entries are interpreted. */
+interface NestType {
+  /** Actual nested JSON-LD value. Storing the value avoids looking it up on an unrelated outer object. */
+  readonly value: JsonLdValueType
+  /** One-based nesting depth used to enforce the configured work limit. */
+  readonly depth: number
+}
+
+/** Options affecting recursive expansion. */
+export interface ExpandOptionsType {
   /** Whether expansion retains framing-only forms that normal expansion removes. */
   readonly frame?: boolean
   /** Deterministic code-point key order. */ readonly ordered?: boolean
+  /** Maximum accepted `@nest` depth before expansion stops. Defaults to 128. */
+  readonly maxNestDepth?: number
 }
 /** Expands one JSON-LD value under an active context. */
 export async function expandValue(
@@ -91,17 +106,29 @@ export async function expandValue(
       }
     }
   }
-  const result: Record<string, JsonLdValueType> = {}, nests: string[] = []
-  await entries(element, context, result, nests, activeProperty, baseUrl, state, options)
+  const result = Object.create(null) as Record<string, JsonLdValueType>, nests: NestType[] = []
+  await entries(element, context, result, nests, activeProperty, baseUrl, state, options, 0)
+  const maxNestDepth = options.maxNestDepth ?? MAX_NEST_DEPTH
   for (let i = 0; i < nests.length; i++) {
-    const key = nests[i]!
-    for (const nested of array(element[key]!)) {
+    const nest = nests[i]!
+    if (nest.depth > maxNestDepth) {
+      throw new RangeError(`JSON-LD @nest depth exceeds the configured limit of ${maxNestDepth}.`)
+    }
+    for (const nested of array(nest.value)) {
       if (!object(nested)) {
         fail('invalid @nest value', '@nest value must contain node-object entries.')
       }
-      const more: string[] = []
-      await entries(nested, context, result, more, activeProperty, baseUrl, state, options)
-      nests.push(...more)
+      await entries(
+        nested,
+        context,
+        result,
+        nests,
+        activeProperty,
+        baseUrl,
+        state,
+        options,
+        nest.depth,
+      )
     }
   }
   return validate(result, activeProperty, options.frame ?? false)
@@ -110,11 +137,12 @@ export async function expandValue(
   element: Readonly<Record<string, JsonLdValueType>>,
   active: ActiveContextType,
   result: Record<string, JsonLdValueType>,
-  nests: string[],
+  nests: NestType[],
   activeProperty: string | null,
   baseUrl: string | undefined,
   state: ContextStateType,
   options: ExpandOptionsType,
+  nestDepth: number,
 ) {
   let values = Object.entries(element)
   if (options.ordered) values = values.sort(([a], [b]) => compare(a, b))
@@ -128,7 +156,6 @@ export async function expandValue(
     ) continue
     if (KEYWORDS.has(property) || (options.frame && FRAME_KEYWORDS.has(property))) {
       await keyword(
-        key,
         property,
         value,
         active,
@@ -138,6 +165,7 @@ export async function expandValue(
         baseUrl,
         state,
         options,
+        nestDepth,
       )
       continue
     }
@@ -156,10 +184,11 @@ export async function expandValue(
       expanded = { '@list': array(expanded) }
     }
     if (term?.reverse) {
-      const reverse = (object(result['@reverse']) ? result['@reverse'] : {}) as Record<
-        string,
-        JsonLdValueType
-      >
+      const reverse =
+        (object(result['@reverse']) ? result['@reverse'] : Object.create(null)) as Record<
+          string,
+          JsonLdValueType
+        >
       result['@reverse'] = reverse
       for (const item of array(expanded)) {
         if (valueObject(item) || listObject(item)) {
@@ -174,16 +203,16 @@ export async function expandValue(
   }
 }
 /** Expands one JSON-LD keyword/alias. */ async function keyword(
-  sourceKey: string,
   expanded: string,
   value: JsonLdValueType,
   active: ActiveContextType,
   result: Record<string, JsonLdValueType>,
-  nests: string[],
+  nests: NestType[],
   activeProperty: string | null,
   baseUrl: string | undefined,
   state: ContextStateType,
   options: ExpandOptionsType,
+  nestDepth: number,
 ) {
   if (Object.hasOwn(result, expanded) && expanded !== '@type' && expanded !== '@included') {
     fail('colliding keywords', `Multiple aliases for ${expanded}.`)
@@ -250,10 +279,11 @@ export async function expandValue(
       if (!object(value)) fail('invalid @reverse value', '@reverse must be object.')
       const converted = await expandValue(active, '@reverse', value, baseUrl, state, options)
       if (!object(converted)) return
-      const reverse = (object(result['@reverse']) ? result['@reverse'] : {}) as Record<
-        string,
-        JsonLdValueType
-      >
+      const reverse =
+        (object(result['@reverse']) ? result['@reverse'] : Object.create(null)) as Record<
+          string,
+          JsonLdValueType
+        >
       for (const [property, items] of Object.entries(converted)) {
         if (property === '@reverse') {
           if (object(items)) {
@@ -272,7 +302,7 @@ export async function expandValue(
       return
     }
     case '@nest':
-      nests.push(sourceKey)
+      nests.push({ value, depth: nestDepth + 1 })
       return
     default:
       if (options.frame && FRAME_KEYWORDS.has(expanded)) result[expanded] = value
@@ -348,7 +378,8 @@ export async function expandValue(
   }
   return output
 }
-/** Expands one scalar according to the active property definition. */ export function valueExpansion(
+/** Expands one scalar according to the active property definition. */
+export function valueExpansion(
   active: ActiveContextType,
   property: string,
   value: JsonLdValueType,
@@ -398,7 +429,8 @@ export async function expandValue(
   }
   return result
 }
-/** Adds one expanded value preserving array form. */ export function add(
+/** Adds one expanded value preserving array form. */
+export function add(
   target: Record<string, JsonLdValueType>,
   property: string,
   value: JsonLdValueType,
@@ -408,18 +440,22 @@ export async function expandValue(
   else if (Array.isArray(current)) current.push(value)
   else target[property] = [current, value]
 }
-/** Returns one value as array. */ export function array(
+/** Returns one value as array. */
+export function array(
   value: JsonLdValueType,
 ): JsonLdValueType[] {
   return Array.isArray(value) ? value : [value]
 }
-/** Tests value object. */ export function valueObject(value: JsonLdValueType) {
+/** Tests value object. */
+export function valueObject(value: JsonLdValueType) {
   return object(value) && Object.hasOwn(value, '@value')
 }
-/** Tests list object. */ export function listObject(value: JsonLdValueType) {
+/** Tests list object. */
+export function listObject(value: JsonLdValueType) {
   return object(value) && Object.hasOwn(value, '@list')
 }
-/** Tests node object. */ export function nodeObject(value: JsonLdValueType) {
+/** Tests node object. */
+export function nodeObject(value: JsonLdValueType) {
   return object(value) && !valueObject(value) && !listObject(value)
 }
 /** Appends expanded output flattening arrays/null. */ function append(

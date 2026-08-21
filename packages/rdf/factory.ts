@@ -24,20 +24,35 @@ import {
 
 /** Default graph used when the caller does not provide an override. */
 const DEFAULT_GRAPH = new DefaultGraphValue()
-/** Monotonic process-local suffix used only when the caller requests an anonymous blank-node identifier. */
+/** Monotonic suffix used only when the caller requests an anonymous blank-node identifier. */
 let blankNodeSequence = 0
+/** Random process scope allocated lazily so anonymous labels do not collide after a process restart. */
+let blankNodeScope: string | undefined
 
 /** Creates an RDF named node. */
 export function namedNode(value: string): NamedNode {
   return new NamedNodeValue(value)
 }
 
-/** Creates an RDF blank node, allocating a process-local identifier when omitted. */
+/**
+ * Creates an RDF blank node.
+ *
+ * An omitted label receives a process-scoped random prefix plus a monotonic
+ * suffix. Persisting an anonymous label and then restarting the process can
+ * therefore not make the next anonymous blank node reuse `b1` and silently
+ * merge two unrelated RDF resources. A caller-supplied label is preserved.
+ */
 export function blankNode(value?: string): ReturnType<typeof createBlankNode> {
-  return createBlankNode(value ?? `b${++blankNodeSequence}`)
+  return createBlankNode(value ?? anonymousBlankNode())
 }
 
-/** Create blank node without acquiring unrelated global resources. */
+/** Allocates one serialization-safe anonymous blank-node label lazily. */
+function anonymousBlankNode(): string {
+  blankNodeScope ??= crypto.randomUUID().replaceAll('-', '')
+  return `b_${blankNodeScope}_${++blankNodeSequence}`
+}
+
+/** Creates one blank-node value without applying anonymous-label policy. */
 function createBlankNode(value: string): BlankNodeValue {
   return new BlankNodeValue(value)
 }

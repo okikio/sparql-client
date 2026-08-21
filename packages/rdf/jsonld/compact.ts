@@ -8,13 +8,15 @@ import {
   process,
 } from './context.ts'
 import type { JsonLdValueType } from './types.ts'
-/** Options applied during compaction. */ export interface CompactOptionsType {
+/** Options applied during compaction. */
+export interface CompactOptionsType {
   /** Whether compaction can replace single-value arrays with their sole value. */
   readonly compactArrays?: boolean
   /** Compact absolute identifiers relative to base. */ readonly compactToRelative?: boolean
   /** Deterministic key order. */ readonly ordered?: boolean
 }
-/** Compacts one expanded JSON-LD value using an active context. */ export async function compactValue(
+/** Compacts one expanded JSON-LD value using an active context. */
+export async function compactValue(
   active: ActiveContextType,
   activeProperty: string | null,
   element: JsonLdValueType,
@@ -49,7 +51,7 @@ import type { JsonLdValueType } from './types.ts'
       context = await process(context, def.context, state, def.base ?? context.base, false)
     }
   }
-  const result: Record<string, JsonLdValueType> = {}
+  const result = Object.create(null) as Record<string, JsonLdValueType>
   let entries = Object.entries(node)
   if (options.ordered) entries = entries.sort(([a], [b]) => compare(a, b))
   for (const [property, raw] of entries) {
@@ -140,7 +142,8 @@ import type { JsonLdValueType } from './types.ts'
   }
   return result
 }
-/** Compacts one expanded IRI/keyword to the best active term or compact IRI. */ export function compactIri(
+/** Compacts one expanded IRI/keyword to the best active term or compact IRI. */
+export function compactIri(
   active: ActiveContextType,
   value: string,
   item: JsonLdValueType | undefined,
@@ -285,7 +288,7 @@ import type { JsonLdValueType } from './types.ts'
 ) {
   const current = result[property]
   if (object(current)) return current
-  const map: Record<string, JsonLdValueType> = {}
+  const map = Object.create(null) as Record<string, JsonLdValueType>
   result[property] = map
   return map
 }

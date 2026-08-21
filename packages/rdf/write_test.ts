@@ -9,6 +9,11 @@ describe('@okikio/rdf line serializer primitives', () => {
     expect(writeTerm(namedNode('urn:a b'))).toBe('<urn:a\\u0020b>')
   })
 
+  it('escapes only the control characters required by canonical line syntax', () => {
+    expect(writeTerm(literal('\b\f\u0000\u007f'))).toBe('"\\b\\f\\u0000\\u007F"')
+    expect(writeTerm(literal('\u0080\u009f'))).toBe('"\u0080\u009f"')
+  })
+
   it('serializes directional literals and RDF 1.2 triple terms', () => {
     expect(writeTerm(literal('bonjour', { language: 'fr', direction: 'ltr' }))).toBe(
       '"bonjour"@fr--ltr',

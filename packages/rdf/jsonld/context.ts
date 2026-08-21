@@ -1,6 +1,7 @@
 /** JSON-LD 1.1 active-context processing and IRI expansion. @module */
 import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './types.ts'
-/** JSON-LD 1.1 keywords. */ export const KEYWORDS = new Set([
+/** JSON-LD 1.1 keywords. */
+export const KEYWORDS = new Set([
   '@base',
   '@container',
   '@context',
@@ -25,14 +26,16 @@ import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './
   '@version',
   '@vocab',
 ])
-/** Framing-only keywords. */ export const FRAME_KEYWORDS = new Set([
+/** Framing-only keywords. */
+export const FRAME_KEYWORDS = new Set([
   '@default',
   '@embed',
   '@explicit',
   '@omitDefault',
   '@requireAll',
 ])
-/** One processed term definition. */ export interface TermDefinitionType {
+/** One processed term definition. */
+export interface TermDefinitionType {
   /** Expanded IRI or keyword assigned to the term; null disables the term mapping. */
   readonly id: string | null
   /** Can prefix compact IRIs. */ readonly prefix: boolean
@@ -47,7 +50,8 @@ import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './
   /** Custom @index key. */ readonly index?: string
   /** Compaction nest key. */ readonly nest?: string
 }
-/** Active JSON-LD context. */ export interface ActiveContextType {
+/** Active JSON-LD context. */
+export interface ActiveContextType {
   /** Processed JSON-LD term definitions indexed by active term name. */
   readonly terms: ReadonlyMap<string, TermDefinitionType>
   /** Current base. */ readonly base?: string
@@ -58,7 +62,8 @@ import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './
   /** Processing mode. */ readonly mode: ProcessingModeType
   /** Previous context for non-propagation. */ readonly previous?: ActiveContextType
 }
-/** Shared recursive context-processing state. */ export interface ContextStateType {
+/** Shared recursive context-processing state. */
+export interface ContextStateType {
   /** Bounded document loader used for remote JSON-LD contexts and documents. */
   readonly load: DocumentLoaderType
   /** Active remote context recursion stack. */ readonly remote: Set<string>
@@ -70,7 +75,8 @@ import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './
   }>
   /** Caller cancellation. */ readonly signal?: AbortSignal
 }
-/** JSON-LD conformance error carrying the specification code. */ export class JsonLdError
+/** JSON-LD conformance error carrying the specification code. */
+export class JsonLdError
   extends Error {
   /** Stable JSON-LD specification error code exposed to callers. */
   readonly code: string
@@ -89,7 +95,17 @@ import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './
     this.details = { code }
   }
 }
-/** Creates an empty active context. */ export function initial(
+/** Loads one remote context and converts loader failures to the context-processing error. */
+async function loadContext(state: ContextStateType, url: string) {
+  try {
+    return await state.load(url)
+  } catch (error) {
+    fail('loading remote context failed', `Remote context '${url}' could not be loaded.`, error)
+  }
+}
+
+/** Creates an empty active context. */
+export function initial(
   base: string | undefined,
   mode: ProcessingModeType = 'json-ld-1.1',
 ): ActiveContextType {
@@ -106,7 +122,7 @@ export async function process(
 ): Promise<ActiveContextType> {
   abort(state.signal)
   let result = clone(active)
-  for (let context of (Array.isArray(local) ? local : [local])) {
+  for (const context of (Array.isArray(local) ? local : [local])) {
     abort(state.signal)
     if (context === null) {
       if ([...result.terms.values()].some((v) => v.protected)) {
@@ -131,7 +147,7 @@ export async function process(
       }
       state.remote.add(url)
       try {
-        const doc = await state.load(url)
+        const doc = await loadContext(state, url)
         if (!object(doc.document) || !Object.hasOwn(doc.document, '@context')) {
           fail('invalid remote context', `Remote context '${url}' has no @context.`)
         }
@@ -163,7 +179,7 @@ export async function process(
       if (!url) {
         fail('loading remote context failed', `Imported context '${raw}' cannot be resolved.`)
       }
-      const doc = await state.load(url)
+      const doc = await loadContext(state, url)
       if (!object(doc.document) || !object(doc.document['@context'])) {
         fail('invalid remote context', 'Imported context must contain an object @context.')
       }
@@ -366,7 +382,8 @@ export async function process(
   }
   return active.vocab ? `${active.vocab}${value}` : value
 }
-/** Expands an IRI/term under an active context. */ export function expandIri(
+/** Expands an IRI/term under an active context. */
+export function expandIri(
   active: ActiveContextType,
   value: string,
   options: {
@@ -393,41 +410,48 @@ export async function process(
   if (options.documentRelative && active.base) return resolve(value, active.base) ?? value
   return value
 }
-/** Returns aliases for one keyword. */ export function aliases(
+/** Returns aliases for one keyword. */
+export function aliases(
   active: ActiveContextType,
   keyword: string,
 ) {
   return [...active.terms].filter(([, v]) => v.id === keyword).map(([k]) => k).sort(compare)
 }
-/** Gets a definition for one active property. */ export function definition(
+/** Gets a definition for one active property. */
+export function definition(
   active: ActiveContextType,
   property: string | null,
 ) {
   return property === null ? undefined : active.terms.get(property)
 }
-/** Tests for non-array JSON object. */ export function object(
+/** Tests for non-array JSON object. */
+export function object(
   value: unknown,
 ): value is Record<string, JsonLdValueType> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
-/** Throws a stable JSON-LD error. */ export function fail(
+/** Throws a stable JSON-LD error. */
+export function fail(
   code: string,
   message: string,
   cause?: unknown,
 ): never {
   throw new JsonLdError(code, message, cause)
 }
-/** Throws caller cancellation. */ export function abort(signal?: AbortSignal) {
+/** Throws caller cancellation. */
+export function abort(signal?: AbortSignal) {
   if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
 }
-/** Resolves one IRI reference. */ export function resolve(value: string, base?: string) {
+/** Resolves one IRI reference. */
+export function resolve(value: string, base?: string) {
   try {
     return base ? new URL(value, base).href : new URL(value).href
   } catch {
     return undefined
   }
 }
-/** Tests absolute URL-like IRI. */ export function absolute(value: string) {
+/** Tests absolute URL-like IRI. */
+export function absolute(value: string) {
   try {
     new URL(value)
     return true
@@ -435,7 +459,8 @@ export async function process(
     return false
   }
 }
-/** Unicode code-point comparator. */ export function compare(left: string, right: string) {
+/** Unicode code-point comparator. */
+export function compare(left: string, right: string) {
   if (left === right) return 0
   const a = [...left], b = [...right]
   for (let i = 0; i < Math.min(a.length, b.length); i++) {

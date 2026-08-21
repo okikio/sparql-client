@@ -1,13 +1,15 @@
 /** Shared streaming scanner for RDF 1.2 N-Triples and N-Quads. @module */
 
 import { blankNode, defaultGraph, literal, namedNode, quad } from './factory.ts'
-import type {
-  GraphTermType,
-  ObjectTermType,
-  PredicateTermType,
-  Quad,
-  SubjectTermType,
+import {
+  type GraphTermType,
+  type ObjectTermType,
+  type PredicateTermType,
+  type Quad,
+  RDF,
+  type SubjectTermType,
 } from './term.ts'
+import * as language from './language.ts'
 import { chunks, type TextSourceType, throwIfAborted } from './text.ts'
 
 export type { TextSourceType } from './text.ts'
@@ -78,6 +80,43 @@ export type ParseEventType =
 const DEFAULT_MAX_LINE_LENGTH = 8 * 1024 * 1024
 /** Default max triple depth used when the caller does not provide an override. */
 const DEFAULT_MAX_TRIPLE_DEPTH = 64
+
+/** Returns whether a code point matches RDF's `PN_CHARS_BASE` production. */
+function pnBase(point: number): boolean {
+  return (
+    (point >= 0x41 && point <= 0x5a) ||
+    (point >= 0x61 && point <= 0x7a) ||
+    (point >= 0xc0 && point <= 0xd6) ||
+    (point >= 0xd8 && point <= 0xf6) ||
+    (point >= 0xf8 && point <= 0x2ff) ||
+    (point >= 0x370 && point <= 0x37d) ||
+    (point >= 0x37f && point <= 0x1fff) ||
+    (point >= 0x200c && point <= 0x200d) ||
+    (point >= 0x2070 && point <= 0x218f) ||
+    (point >= 0x2c00 && point <= 0x2fef) ||
+    (point >= 0x3001 && point <= 0xd7ff) ||
+    (point >= 0xf900 && point <= 0xfdcf) ||
+    (point >= 0xfdf0 && point <= 0xfffd) ||
+    (point >= 0x10000 && point <= 0xeffff)
+  )
+}
+
+/** Returns whether a code point matches RDF's `PN_CHARS_U` production. */
+function pnU(point: number): boolean {
+  return point === 0x5f || pnBase(point)
+}
+
+/** Returns whether a code point matches RDF's `PN_CHARS` production. */
+function pn(point: number): boolean {
+  return (
+    pnU(point) ||
+    point === 0x2d ||
+    (point >= 0x30 && point <= 0x39) ||
+    point === 0xb7 ||
+    (point >= 0x300 && point <= 0x36f) ||
+    (point >= 0x203f && point <= 0x2040)
+  )
+}
 
 /** Internal line record retaining absolute source offsets. */
 interface LineRecordType {
@@ -164,8 +203,11 @@ export function parseLine(
   if (cursor.done || cursor.peek() === '#') return undefined
 
   const rangeStart = cursor.absolute
-  if (cursor.word('VERSION')) {
-    cursor.requiredSpace('Expected whitespace after VERSION.')
+  if (cursor.take('VERSION')) {
+    // RDF 1.2 line syntax allows horizontal whitespace outside terminals, but
+    // does not require it. `VERSION"1.2"` is therefore as legal as the
+    // more readable `VERSION "1.2"` form.
+    cursor.space()
     const value = cursor.string()
     cursor.space()
     cursor.commentOrEnd()
@@ -180,9 +222,13 @@ export function parseLine(
   }
 
   const subject = cursor.subject()
-  cursor.requiredSpace('Expected whitespace after RDF subject.')
+  // Whitespace may surround grammar terms, but the RDF 1.2 N-Triples and
+  // N-Quads productions do not require it between subject, predicate, object,
+  // graph label, or the terminating period. Each term parser consumes its own
+  // terminal completely, so optional whitespace is sufficient here.
+  cursor.space()
   const predicate = cursor.iri() as PredicateTermType
-  cursor.requiredSpace('Expected whitespace after RDF predicate.')
+  cursor.space()
   const object = cursor.object(0)
   cursor.space()
 
@@ -300,31 +346,12 @@ class Cursor {
     return this.#index + value.length <= this.to && this.source.startsWith(value, this.#index)
   }
 
-  /** Consumes a directive word only when followed by line whitespace or end-of-line, rewinding otherwise. */
-  word(value: string): boolean {
-    const start = this.#index
-    if (!this.take(value)) return false
-    const next = this.peek()
-    if (next !== undefined && !/[ \t]/.test(next)) {
-      this.#index = start
-      return false
-    }
-    return true
-  }
-
   /** Consumes N-Triples/N-Quads horizontal whitespace. */
   space(): void {
     while (this.peek() === ' ' || this.peek() === '\t') this.#index++
   }
 
-  /** Requires at least one horizontal whitespace character between grammar terms. */
-  requiredSpace(message: string): void {
-    const start = this.#index
-    this.space()
-    if (this.#index === start) throw this.error('rdf-whitespace', message)
-  }
-
-  /** Reads a legal line-format RDF subject: IRI, blank node, or RDF 1.2 triple term where permitted. */
+  /** Reads a legal line-format RDF subject: an IRI or blank node. */
   subject(): SubjectTermType {
     if (this.peek() === '<') return this.iri()
     if (this.starts('_:')) return this.blank()
@@ -365,6 +392,9 @@ class Cursor {
       const char = this.peek()!
       if (char === '>') {
         this.#index++
+        if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) {
+          throw this.errorAt('rdf-iri-absolute', `IRI '${value}' is not absolute.`, start)
+        }
         return namedNode(value)
       }
       if (char === '\\') {
@@ -384,22 +414,29 @@ class Cursor {
     throw this.errorAt('rdf-iri-end', 'Unterminated IRI.', start)
   }
 
-  /** Reads one blank-node label while keeping a trailing statement period outside the label. */
+  /** Reads one blank-node label using the complete RDF 1.2 `BLANK_NODE_LABEL` character ranges. */
   blank(): ReturnType<typeof blankNode> {
     const start = this.#index
     this.#index += 2
-    const first = this.peek()
-    if (!first || !/[A-Za-z0-9_\u00C0-\uFFFF]/u.test(first)) {
+    const first = this.source.codePointAt(this.#index)
+    if (first === undefined || (!pnU(first) && !(first >= 0x30 && first <= 0x39))) {
       throw this.errorAt('rdf-blank', 'Invalid blank-node label.', start)
     }
+
     let value = ''
     while (!this.done) {
-      const char = this.peek()!
-      if (!/[A-Za-z0-9_.-\u00B7-\uFFFF]/u.test(char)) break
+      const point = this.source.codePointAt(this.#index)
+      if (point === undefined) break
+      if (point !== 0x2e && !pn(point)) break
+      const char = String.fromCodePoint(point)
       value += char
-      this.#index++
+      this.#index += char.length
     }
-    if (value.endsWith('.')) {
+
+    // Periods are legal inside a label but not at its end. Rewind every
+    // trailing period so the outer grammar can consume exactly one statement
+    // terminator and reject any extra punctuation as trailing content.
+    while (value.endsWith('.')) {
       this.#index--
       value = value.slice(0, -1)
     }
@@ -409,22 +446,36 @@ class Cursor {
   /** Reads a lexical string plus datatype, language, and optional RDF 1.2 direction into one literal. */
   literal(): ReturnType<typeof literal> {
     const value = this.string()
-    if (this.take('^^')) return literal(value, this.iri())
+    if (this.take('^^')) {
+      const datatype = this.iri()
+      if (datatype.value === RDF.langString || datatype.value === RDF.dirLangString) {
+        throw this.error(
+          'rdf-language-datatype',
+          `${datatype.value} requires a language tag in RDF line syntax.`,
+        )
+      }
+      return literal(value, datatype)
+    }
     if (this.take('@')) {
       const languageStart = this.#index
       while (/[A-Za-z0-9-]/.test(this.peek() ?? '')) this.#index++
       const raw = this.source.slice(languageStart, this.#index)
       if (!raw) throw this.error('rdf-language', 'Expected language tag after @.')
+
       const marker = raw.lastIndexOf('--')
+      const tag = marker > 0 ? raw.slice(0, marker) : raw
+      if (!language.valid(tag)) {
+        throw this.error('rdf-language', `Invalid BCP 47 language tag '${tag}'.`)
+      }
+
       if (marker > 0) {
-        const language = raw.slice(0, marker)
         const direction = raw.slice(marker + 2)
         if (direction !== 'ltr' && direction !== 'rtl') {
           throw this.error('rdf-direction', `Unsupported base direction '${direction}'.`)
         }
-        return literal(value, { language, direction })
+        return literal(value, { language: tag, direction })
       }
-      return literal(value, raw)
+      return literal(value, tag)
     }
     return literal(value)
   }
@@ -472,9 +523,12 @@ class Cursor {
     this.#index += 3
     this.space()
     const subject = this.subject()
-    this.requiredSpace('Expected whitespace in triple term after subject.')
+    // `tripleTerm` has the same optional-whitespace rule as an outer RDF
+    // statement. This is important for the W3C no-whitespace forms such as
+    // `<<(<s><p><o>)>>` and for nested triple terms.
+    this.space()
     const predicate = this.iri() as PredicateTermType
-    this.requiredSpace('Expected whitespace in triple term after predicate.')
+    this.space()
     const object = this.object(depth)
     this.space()
     if (!this.take(')>>')) {

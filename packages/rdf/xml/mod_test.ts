@@ -64,4 +64,114 @@ describe('@okikio/rdf/xml', () => {
     const annotation = values.find((value) => value.predicate.value === RDF.reifies)
     expect(annotation?.object.termType).toBe('Quad')
   })
+
+  it('accepts Unicode XML NCNames for rdf:ID and rdf:nodeID', async () => {
+    const values = await all(
+      `${head}<rdf:Description rdf:ID="Dürst"><ex:p rdf:nodeID="nœud"/></rdf:Description></rdf:RDF>`,
+    )
+    expect(values.some((value) => value.subject.value === 'http://example.test/#D%C3%BCrst')).toBe(
+      true,
+    )
+    expect(
+      values.some((value) =>
+        value.object.termType === 'BlankNode' && value.object.value === 'nœud'
+      ),
+    ).toBe(true)
+  })
+
+  it('rejects reserved RDF names in node, property, and property-attribute positions', async () => {
+    await expect(all(`${head}<rdf:li rdf:about="s"/></rdf:RDF>`)).rejects.toThrow(
+      'node element cannot use reserved name',
+    )
+    await expect(
+      all(
+        `${head}<rdf:Description rdf:about="s"><rdf:Description>bad</rdf:Description></rdf:Description></rdf:RDF>`,
+      ),
+    ).rejects.toThrow('property element cannot use reserved name')
+    await expect(
+      all(`${head}<rdf:Description rdf:about="s" rdf:li="bad"/></rdf:RDF>`),
+    ).rejects.toThrow('property attribute cannot use reserved name')
+    await expect(all(`${head}<rdf:aboutEach rdf:about="s"/></rdf:RDF>`)).rejects.toThrow(
+      'node element cannot use reserved name',
+    )
+  })
+
+  it('treats rdf:type property attributes as IRIs', async () => {
+    const values = await all(
+      `${head}<rdf:Description rdf:about="s" rdf:type="kind"><ex:p rdf:resource="o" rdf:type="other" ex:name="Object"/></rdf:Description></rdf:RDF>`,
+    )
+    const nodeType = values.find((value) =>
+      value.subject.value === 'http://example.test/s' && value.predicate.value === RDF.type
+    )
+    expect(nodeType?.object.value).toBe('http://example.test/kind')
+    const objectType = values.find((value) =>
+      value.subject.value === 'http://example.test/o' && value.predicate.value === RDF.type
+    )
+    expect(objectType?.object.value).toBe('http://example.test/other')
+    expect(
+      values.some((value) =>
+        value.subject.value === 'http://example.test/o' &&
+        value.predicate.value === 'http://example.org/name' && value.object.value === 'Object'
+      ),
+    ).toBe(true)
+  })
+
+  it('uses one blank node for all property attributes on an empty property element', async () => {
+    const values = await all(
+      `${head}<rdf:Description rdf:about="s"><ex:p ex:a="one" ex:b="two"/></rdf:Description></rdf:RDF>`,
+    )
+    const statement = values.find((value) => value.predicate.value === 'http://example.org/p')
+    expect(statement?.object.termType).toBe('BlankNode')
+    const id = statement?.object.value
+    expect(
+      values.some((value) =>
+        value.subject.value === id && value.predicate.value === 'http://example.org/a'
+      ),
+    ).toBe(true)
+    expect(
+      values.some((value) =>
+        value.subject.value === id && value.predicate.value === 'http://example.org/b'
+      ),
+    ).toBe(true)
+  })
+
+  it('rejects property attribute/content combinations that match no RDF/XML production', async () => {
+    await expect(
+      all(
+        `${head}<rdf:Description rdf:about="s"><ex:p rdf:parseType="Resource" rdf:resource="o"/></rdf:Description></rdf:RDF>`,
+      ),
+    ).rejects.toThrow('rdf:parseType property cannot combine')
+    await expect(
+      all(
+        `${head}<rdf:Description rdf:about="s"><ex:p rdf:resource="o"><rdf:Description rdf:about="x"/></ex:p></rdf:Description></rdf:RDF>`,
+      ),
+    ).rejects.toThrow('resource property with a child node cannot combine')
+    await expect(
+      all(
+        `${head}<rdf:Description rdf:about="s"><ex:p ex:name="bad">text</ex:p></rdf:Description></rdf:RDF>`,
+      ),
+    ).rejects.toThrow('literal property cannot combine text')
+  })
+
+  it('treats unknown rdf:parseType values as XML literals', async () => {
+    const values = await all(
+      `${head}<rdf:Description rdf:about="s"><ex:p rdf:parseType="Vendor"><ex:inner>text</ex:inner></ex:p></rdf:Description></rdf:RDF>`,
+    )
+    expect(values).toHaveLength(1)
+    expect(values[0]?.object.termType).toBe('Literal')
+    if (values[0]?.object.termType === 'Literal') {
+      expect(values[0].object.datatype.value).toBe(
+        'http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral',
+      )
+    }
+  })
+
+  it('rejects invalid XML NCNames used by rdf:ID and rdf:nodeID', async () => {
+    await expect(all(`${head}<rdf:Description rdf:ID="9bad"/></rdf:RDF>`)).rejects.toThrow(
+      "Invalid rdf:ID '9bad'",
+    )
+    await expect(
+      all(`${head}<rdf:Description rdf:nodeID="bad:name"/></rdf:RDF>`),
+    ).rejects.toThrow("Invalid rdf:nodeID 'bad:name'")
+  })
 })

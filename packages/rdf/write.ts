@@ -45,20 +45,46 @@ function writeLiteral(literal: Literal): string {
   return `${lexical}^^${writeTerm(literal.datatype)}`
 }
 
-/** Escapes the control characters required by N-Triples/N-Quads string literal syntax. */
+/**
+ * Escapes RDF line-syntax string literals in canonical-safe form.
+ *
+ * Canonical N-Triples/N-Quads uses the short `ECHAR` forms for backspace,
+ * tab, newline, form feed, carriage return, quote, and backslash. Other C0
+ * controls and U+007F use uppercase `\uXXXX`. U+0080 through U+009F stay
+ * as native Unicode because the canonical grammar does not require escaping
+ * them.
+ */
 function escapeString(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\t/g, '\\t').replace(
-    /\n/g,
-    '\\n',
-  ).replace(/\r/g, '\\r')
+  let output = ''
+  for (const char of value) {
+    const point = char.codePointAt(0)!
+    switch (char) {
+      case '\\': output += '\\\\'; break
+      case '"': output += '\"'; break
+      case '\b': output += '\\b'; break
+      case '\t': output += '\\t'; break
+      case '\n': output += '\\n'; break
+      case '\f': output += '\\f'; break
+      case '\r': output += '\\r'; break
+      default:
+        output += point <= 0x1f || point === 0x7f
+          ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
+          : char
+    }
+  }
+  return output
 }
 
 /** Escapes characters forbidden directly inside N-Triples/N-Quads IRI references. */
 function escapeIri(value: string): string {
-  return value.replace(/[<>"{}|^`\\\u0000-\u0020]/g, (char) => {
+  let output = ''
+  for (const char of value) {
     const point = char.codePointAt(0)!
-    return point <= 0xffff
-      ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
-      : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`
-  })
+    if (point <= 0x20 || '<>\"{}|^`\\'.includes(char)) {
+      output += point <= 0xffff
+        ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
+        : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`
+    } else output += char
+  }
+  return output
 }

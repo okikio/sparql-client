@@ -129,17 +129,27 @@ export class JsonLdLoadError extends Error {
     | 'document-size'
     | 'redirect-limit'
     | 'http'
+    | 'media'
     | 'json'
     | 'timeout'
     | 'abort'
+  /** JSON-LD specification error code corresponding to this load failure. */
+  readonly code: string
   /** Remote document URL associated with this JSON-LD load failure. */
   readonly url: string
 
   /** Creates a stable JSON-LD loading failure with the requested URL and underlying cause. */
-  constructor(kind: JsonLdLoadError['kind'], message: string, url: string, cause?: unknown) {
+  constructor(
+    kind: JsonLdLoadError['kind'],
+    message: string,
+    url: string,
+    cause?: unknown,
+    code = 'loading document failed',
+  ) {
     super(message, cause === undefined ? undefined : { cause })
     this.name = 'JsonLdLoadError'
     this.kind = kind
+    this.code = code
     this.url = url
   }
 }
@@ -217,7 +227,7 @@ async function fetchDocument(
           current.href,
         )
       }
-      current = toHttpUrl(new URL(location, current).href)
+      current = redirectUrl(location, current)
       continue
     }
     if (!response.ok) {
@@ -245,13 +255,34 @@ async function fetchDocument(
       )
     }
 
-    const contentType = response.headers.get('content-type')?.toLowerCase() ?? ''
+    const contentType = mediaType(response.headers.get('content-type'))
+    const link = response.headers.get('link')
+    if (!jsonMedia(contentType)) {
+      const alternate = alternateLink(link, current)
+      if (alternate) {
+        if (redirects >= options.maxRedirects) {
+          throw new JsonLdLoadError(
+            'redirect-limit',
+            `JSON-LD redirects and alternate documents exceed maxRedirects (${options.maxRedirects}).`,
+            current.href,
+          )
+        }
+        current = toHttpUrl(alternate)
+        continue
+      }
+    }
+    if (!jsonMedia(contentType) && !htmlMedia(contentType)) {
+      throw new JsonLdLoadError(
+        'media',
+        `JSON-LD remote document has unsupported Content-Type '${contentType || '(missing)'}'.`,
+        current.href,
+      )
+    }
+
     let document: JsonLdValueType
     try {
       const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-      document = contentType.includes('text/html') || contentType.includes('application/xhtml+xml')
-        ? text
-        : JSON.parse(text) as JsonLdValueType
+      document = htmlMedia(contentType) ? text : JSON.parse(text) as JsonLdValueType
     } catch (error) {
       throw new JsonLdLoadError(
         'json',
@@ -262,20 +293,88 @@ async function fetchDocument(
     }
 
     return {
-      contextUrl: contextLink(
-        response.headers.get('link'),
-        response.headers.get('content-type'),
-        current,
-      ),
-      documentUrl: response.url || current.href,
+      contextUrl: jsonMedia(contentType) && contentType !== 'application/ld+json'
+        ? contextLink(link, current)
+        : null,
+      documentUrl: responseDocumentUrl(response.url, current),
       document,
     }
   }
 }
 
-/** Extracts the JSON-LD context Link relation used for non-JSON-LD response types. */
-function contextLink(header: string | null, contentType: string | null, base: URL): string | null {
-  if (!header || contentType?.toLowerCase().includes('application/ld+json')) return null
+/**
+ * Resolves one redirect target while preserving an inherited URI fragment.
+ *
+ * RFC 9110 requires a 3xx `Location` value without a fragment component to
+ * inherit the fragment from the reference that produced the current request.
+ * An explicit `#` in `Location` suppresses that inheritance, including an
+ * explicitly empty fragment.
+ */
+function redirectUrl(location: string, current: URL): URL {
+  const next = toHttpUrl(new URL(location, current).href)
+  if (!location.includes('#') && current.hash) next.hash = current.hash
+  return next
+}
+
+/**
+ * Keeps the request fragment on the final document URL when Fetch omits it.
+ *
+ * HTTP does not send URI fragments to the server, so native Fetch response
+ * URLs normally omit them. JSON-LD's HTML algorithm still needs the original
+ * fragment to select one `application/ld+json` script by `id`. Redirect logic
+ * updates `current` first, so this copies only the fragment that belongs to the
+ * final request URL.
+ */
+function responseDocumentUrl(responseUrl: string, current: URL): string {
+  if (!responseUrl) return current.href
+  const url = new URL(responseUrl)
+  if (!url.hash && current.hash) url.hash = current.hash
+  return url.href
+}
+
+/** Returns a normalized HTTP Content-Type without parameters. */
+function mediaType(value: string | null): string {
+  return (value ?? '').split(';', 1)[0]!.trim().toLowerCase()
+}
+
+/** Returns whether a media type is JSON or uses the registered `+json` suffix. */
+function jsonMedia(value: string): boolean {
+  return value === 'application/json' || value.endsWith('+json')
+}
+
+/** Returns whether a media type uses the optional JSON-LD HTML extraction path. */
+function htmlMedia(value: string): boolean {
+  return value === 'text/html' || value === 'application/xhtml+xml'
+}
+
+/** Resolves the JSON-LD alternate document advertised by one HTTP Link field. */
+function alternateLink(header: string | null, base: URL): string | null {
+  if (!header) return null
+  let alternate: string | null = null
+  for (const value of splitLinks(header)) {
+    const match = /^\s*<([^>]+)>\s*(.*)$/u.exec(value)
+    if (!match) continue
+    const parameters = match[2] ?? ''
+    const rel = /(?:^|;)\s*rel\s*=\s*(?:"([^"]*)"|([^;\s]+))/iu.exec(parameters)
+    const relations = (rel?.[1] ?? rel?.[2] ?? '').split(/\s+/u)
+    const type = /(?:^|;)\s*type\s*=\s*(?:"([^"]*)"|([^;\s]+))/iu.exec(parameters)
+    const media = (type?.[1] ?? type?.[2] ?? '').toLowerCase()
+    if (!relations.includes('alternate') || media !== 'application/ld+json') continue
+    if (alternate !== null) {
+      throw new JsonLdLoadError(
+        'http',
+        'Remote document contains more than one JSON-LD alternate Link relation.',
+        base.href,
+      )
+    }
+    alternate = new URL(match[1]!, base).href
+  }
+  return alternate
+}
+
+/** Extracts the JSON-LD context Link relation used for ordinary JSON response types. */
+function contextLink(header: string | null, base: URL): string | null {
+  if (!header) return null
   let context: string | null = null
   for (const value of splitLinks(header)) {
     const match = /^\s*<([^>]+)>\s*(.*)$/u.exec(value)
@@ -289,6 +388,8 @@ function contextLink(header: string | null, contentType: string | null, base: UR
         'http',
         'Remote document contains more than one JSON-LD context Link relation.',
         base.href,
+        undefined,
+        'multiple context link headers',
       )
     }
     context = new URL(match[1]!, base).href

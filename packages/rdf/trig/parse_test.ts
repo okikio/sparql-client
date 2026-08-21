@@ -27,4 +27,18 @@ describe('@okikio/rdf/trig', () => {
     expect(graph).toHaveLength(1)
     expect(graph[0]?.graph.termType).toBe('BlankNode')
   })
+
+  it('shares RDF 1.2 language-tag and direction validation with Turtle', async () => {
+    const valid = await collect(parse([
+      '@prefix : <https://example/> .',
+      ':g { :s :private "value"@x-private . }',
+      ':g { :s :legacy "value"@i-klingon . }',
+      ':g { :s :directed "value"@en-US--rtl . }',
+    ].join('\n')))
+    expect(valid).toHaveLength(3)
+
+    await expect(
+      collect(parse('@prefix : <https://example/> . :g { :s :p "value"@en--LTR . }')),
+    ).rejects.toThrow()
+  })
 })

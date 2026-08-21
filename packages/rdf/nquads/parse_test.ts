@@ -56,4 +56,13 @@ describe('@okikio/rdf/nquads', () => {
     for await (const _quad of parse(stream)) break
     expect(cancelled).toBe(true)
   })
+
+  it('accepts RDF 1.2 quad terms without separating whitespace', async () => {
+    const source =
+      '<http://example/s><http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies><<(<http://example/s2><http://example/p2><http://example/o2>)>><http://example/g>.\n'
+    const quads: Quad[] = []
+    for await (const value of parse(source)) quads.push(value)
+    expect(quads).toHaveLength(1)
+    expect(quads[0]?.graph.value).toBe('http://example/g')
+  })
 })

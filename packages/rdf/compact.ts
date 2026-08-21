@@ -1,6 +1,7 @@
 /** Shared streaming RDF 1.2 Turtle/TriG scanner and semantic parser. @module */
 
 import { blankNode, defaultGraph, literal, namedNode, quad, triple } from './factory.ts'
+import * as language from './language.ts'
 import { chunks, type TextSourceType, throwIfAborted } from './text.ts'
 import {
   type GraphTermType,
@@ -1318,22 +1319,32 @@ class Parser {
       const raw = this.scanner.value
       await this.#advance()
       const marker = raw.lastIndexOf('--')
+      const tag = marker > 0 ? raw.slice(0, marker) : raw
+      if (!language.valid(tag)) {
+        throw this.scanner.error('turtle-language', `Invalid BCP 47 language tag '${tag}'.`)
+      }
       if (marker > 0) {
-        const language = raw.slice(0, marker)
-        const direction = raw.slice(marker + 2).toLowerCase()
+        const direction = raw.slice(marker + 2)
         if (direction !== 'ltr' && direction !== 'rtl') {
           throw this.scanner.error(
             'turtle-direction',
             `Initial text direction must be ltr or rtl, got '${direction}'.`,
           )
         }
-        return literal(value, { language, direction })
+        return literal(value, { language: tag, direction })
       }
-      return literal(value, raw)
+      return literal(value, tag)
     }
     if (this.#kind() === KindType.HatHat) {
       await this.#advance()
-      return literal(value, await this.#iri())
+      const datatype = await this.#iri()
+      if (datatype.value === RDF.langString || datatype.value === RDF.dirLangString) {
+        throw this.scanner.error(
+          'turtle-language-datatype',
+          `${datatype.value} requires a language tag in Turtle.`,
+        )
+      }
+      return literal(value, datatype)
     }
     return literal(value)
   }

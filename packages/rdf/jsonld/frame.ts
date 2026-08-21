@@ -3,7 +3,8 @@ import { compare, object } from './context.ts'
 import { array } from './expand.ts'
 import { flatten } from './node.ts'
 import type { EmbedType, JsonLdValueType } from './types.ts'
-/** Options controlling native framing. */ export interface FrameOptionsType {
+/** Options controlling native framing. */
+export interface FrameOptionsType {
   /** Initial JSON-LD framing policy for embedding referenced nodes. */
   readonly embed?: EmbedType
   /** Include only explicitly framed properties. */ readonly explicit?: boolean
@@ -11,7 +12,8 @@ import type { EmbedType, JsonLdValueType } from './types.ts'
   /** Require all declared frame properties. */ readonly requireAll?: boolean
   /** Deterministic key ordering. */ readonly ordered?: boolean
 }
-/** Frames an expanded document against an expanded frame. */ export function frame(
+/** Frames an expanded document against an expanded frame. */
+export function frame(
   document: JsonLdValueType,
   frameValue: JsonLdValueType,
   options: FrameOptionsType = {},

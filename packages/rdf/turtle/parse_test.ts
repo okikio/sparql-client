@@ -33,4 +33,27 @@ describe('@okikio/rdf/turtle', () => {
     expect(values.filter((value) => value.kind === 'quad')).toHaveLength(1)
     expect(values.filter((value) => value.kind === 'diagnostic')).toHaveLength(1)
   })
+
+  it('validates RDF 1.2 language tags, directions, and language datatypes', async () => {
+    const valid = await collect(parse([
+      '@prefix : <https://example/> .',
+      ':s :private "value"@x-private .',
+      ':s :legacy "value"@i-klingon .',
+      ':s :directed "value"@en-US--rtl .',
+    ].join('\n')))
+    expect(valid).toHaveLength(3)
+
+    const invalid = [
+      '"value"@en--unk',
+      '"value"@en--LTR',
+      '"value"@cantbethislong',
+      '"value"^^<http://www.w3.org/1999/02/22-rdf-syntax-ns#langString>',
+      '"value"^^<http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString>',
+    ]
+    for (const object of invalid) {
+      await expect(
+        collect(parse(`@prefix : <https://example/> . :s :p ${object} .`)),
+      ).rejects.toThrow()
+    }
+  })
 })
