@@ -3,13 +3,13 @@
     "./packages/*"
   ],
   "tasks": {
-    "fmt": "deno fmt packages conformance integration bench examples .mise/tasks docs README.md VALIDATION.md",
+    "fmt": "deno fmt packages conformance integration bench examples .mise/tasks docs README.md VALIDATION.md deno.json support.json",
     "lint": "deno lint packages conformance integration bench examples .mise/tasks",
     "check": "deno check packages/*/mod.ts packages/**/*.ts conformance/**/*.ts integration/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts",
     "test": "deno test packages conformance --allow-read --allow-write",
     "integration": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/integration.ts",
     "conformance:sync": "deno run --allow-read --allow-write --allow-net --allow-run .mise/tasks/conformance-sync.ts",
-    "conformance": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/conformance.ts",
+    "conformance": "deno task conformance:sync && deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/conformance.ts",
     "bench": "deno run --allow-read=packages,bench --allow-run .mise/tasks/bench.ts",
     "bench:report": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/bench-report.ts",
     "package": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/package.ts",
@@ -60,7 +60,7 @@
     "testcontainers": "npm:testcontainers@12.0.4",
     "oxigraph": "npm:oxigraph@0.5.9",
     "@comunica/query-sparql-rdfjs": "npm:@comunica/query-sparql-rdfjs@5.3.0",
-    "sparqljs": "npm:sparqljs@3.7.4",
+    "@traqula/parser-sparql-1-2": "npm:@traqula/parser-sparql-1-2@1.2.0",
     "@testcontainers/toxiproxy": "npm:@testcontainers/toxiproxy@12.0.4",
     "@std/path": "jsr:@std/path@1.1.2",
     "jsonld": "npm:jsonld@9.0.0",
@@ -71,6 +71,17 @@
   },
   "allowScripts": {
     "allow": [],
-    "deny": ["npm:cpu-features@0.0.10", "npm:fsevents@2.3.3", "npm:protobufjs@7.6.5", "npm:ssh2@1.17.0"]
+    "deny": [
+      "npm:cpu-features@0.0.10",
+      "npm:fsevents@2.3.3",
+      "npm:protobufjs@7.6.5",
+      "npm:ssh2@1.17.0"
+    ]
+  },
+  "test": {
+    "include": [
+      "packages",
+      "conformance"
+    ]
   }
 }

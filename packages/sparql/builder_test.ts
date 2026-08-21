@@ -74,6 +74,11 @@ describe('@okikio/sparql query builder', () => {
     expect(pattern[SPARQL_PATTERN_BRAND]).toBe(true)
   })
 
+  it('rejects duplicate SELECT result variables before serialization', () => {
+    expect(() => select(['name', '?name']).build()).toThrow('duplicate result variable')
+    expect(() => select(['?1value', '$1value']).build()).toThrow('duplicate result variable')
+  })
+
   it('keeps FILTER expressions separate from graph patterns', () => {
     const query = select(['name'])
       .where(triple('?product', 'schema:name', '?name'))

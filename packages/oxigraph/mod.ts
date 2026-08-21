@@ -46,36 +46,36 @@ export function create(store: Store, options: OxigraphOptionsType = {}): Client 
   return {
     store,
     /** Query bindings through the wrapped engine without transferring engine ownership. */
-    async queryBindings(query, queryOptions = {}) {
+    queryBindings(query, queryOptions = {}) {
       prepare(queryOptions)
       const result = store.query(getQueryText(query), options.query)
       if (!isIterable(result)) {
         throw new TypeError('Oxigraph SELECT query did not return an iterable of bindings.')
       }
-      return bindings(result)
+      return Promise.resolve(bindings(result))
     },
     /** Query quads through the wrapped engine without transferring engine ownership. */
-    async queryQuads(query, queryOptions = {}) {
+    queryQuads(query, queryOptions = {}) {
       prepare(queryOptions)
       const result = store.query(getQueryText(query), options.query)
       if (!isIterable(result)) {
         throw new TypeError('Oxigraph graph query did not return an iterable of quads.')
       }
-      return quads(result)
+      return Promise.resolve(quads(result))
     },
     /** Query boolean through the wrapped engine without transferring engine ownership. */
-    async queryBoolean(query, queryOptions = {}) {
+    queryBoolean(query, queryOptions = {}) {
       prepare(queryOptions)
       const result = store.query(getQueryText(query), options.query)
       if (typeof result !== 'boolean') {
         throw new TypeError('Oxigraph ASK query did not return a boolean.')
       }
-      return result
+      return Promise.resolve(result)
     },
     /** Submits one complete SPARQL Update document through the wrapped engine. */
-    async update(update, queryOptions = {}) {
+    update(update, queryOptions = {}) {
       prepare(queryOptions)
-      store.update(getUpdateText(update), options.update)
+      return Promise.resolve().then(() => store.update(getUpdateText(update), options.update))
     },
   }
 }

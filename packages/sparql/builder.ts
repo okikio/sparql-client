@@ -11,6 +11,7 @@
 import { isTerm as isRdfTerm, type NamedNode as RdfNamedNode, type Namespace } from '@okikio/rdf'
 import {
   type IriInputType,
+  isVariableToken,
   type PatternValueType,
   queryDocument,
   rawPattern,
@@ -121,6 +122,36 @@ const initialState: QueryStateType = {
 function projectionText(item: ProjectionItemType): string {
   if (typeof item !== 'string') return item.value
   return toVarToken(item)
+}
+
+/**
+ * Returns the output variable produced by one SELECT projection item.
+ *
+ * SPARQL forbids two projection entries that produce the same result-column
+ * variable. Plain strings are variable names by API contract. Expression
+ * projections can expose a result variable only through `(Expression AS ?v)`.
+ * Keeping this check here lets `build()` reject invalid queries before a remote
+ * endpoint or independent parser has to diagnose them.
+ */
+function projectionVariable(item: ProjectionItemType): string | undefined {
+  const token = projectionText(item).trim()
+  if (isVariableToken(token)) return `?${token.slice(1)}`
+  const alias = /\bAS\s+([^\s)]+)\s*\)$/iu.exec(token)?.[1]
+  return alias && isVariableToken(alias) ? `?${alias.slice(1)}` : undefined
+}
+
+/** Rejects duplicate SELECT result-column variables after normalization. */
+function validateProjection(projection: ProjectionType): void {
+  if (projection === '*') return
+  const seen = new Set<string>()
+  for (const item of projection) {
+    const variable = projectionVariable(item)
+    if (variable === undefined) continue
+    if (seen.has(variable)) {
+      throw new TypeError(`SELECT projection contains duplicate result variable '${variable}'.`)
+    }
+    seen.add(variable)
+  }
 }
 
 /** Serializes one DESCRIBE target according to `VarOrIriRef`. */
@@ -339,6 +370,7 @@ export class QueryBuilder {
     if (this.#state.prefixes.size > 0) parts.push('')
 
     if (this.#state.type === 'SELECT') {
+      validateProjection(this.#state.projection)
       const modifier = this.#state.modifier === 'none'
         ? ''
         : `${this.#state.modifier.toUpperCase()} `

@@ -14,6 +14,7 @@
 import { isTerm as isRdfTerm, type Term as RdfTerm } from '@okikio/rdf'
 import type { PatternValueType, PredicateInputType, SparqlTermType } from '../sparql.ts'
 import {
+  isVariableToken,
   rawPattern,
   rawTerm,
   rdfTerm,
@@ -58,27 +59,38 @@ export type TripleObjectType =
   | ExpressionPrimitiveType
 
 /**
- * Convert subject to string form.
+ * Serializes one triple subject without position-dependent variable coercion.
  *
- * Handles both raw strings and SparqlValueType objects.
+ * A variable must be explicit as `?name`, `$name`, or an RDF/SPARQL variable
+ * value. Plain strings are graph terms. A bare local string therefore uses the
+ * project's existing default-prefix shorthand (`item` -> `:item`) instead of
+ * silently becoming `?item`. This keeps the same string from changing meaning
+ * only because it moved between subject and object position.
  */
 export function tripleSubjectString(subject: TripleSubjectType): string {
   if (typeof subject === 'string') {
     const value = subject.trim()
-    if (/^[?$]/.test(value) || !value.includes(':')) return toVarToken(value)
-    return toPredicateName(value)
+    return /^[?$]/.test(value) ? toVarToken(value) : toPredicateName(value)
   }
   if (isRdfTerm(subject)) return rdfTerm(subject)
   return subject.value
 }
 
 /**
- * Convert predicate to string form.
+ * Serializes one triple object.
+ *
+ * Plain strings remain escaped string literals. Only `?name` and `$name`
+ * strings are treated as variables. RDF/SPARQL term values keep their explicit
+ * semantics.
  */
 export function tripleObjectString(object: TripleObjectType): string {
   if (isRdfTerm(object)) return rdfTerm(object)
-  if (typeof object === 'string' && /^[?$][A-Za-z_][A-Za-z0-9_]*$/.test(object.trim())) {
-    return toVarToken(object)
+  if (typeof object === 'string') {
+    const value = object.trim()
+    if (isVariableToken(value)) return toVarToken(value)
+    // A leading variable sigil is an explicit syntax choice. Reject malformed
+    // variables instead of silently changing their meaning to a string literal.
+    if (/^[?$]/.test(value)) return toVarToken(value)
   }
   return termString(object as SparqlTermType | ExpressionPrimitiveType, 'object')
 }

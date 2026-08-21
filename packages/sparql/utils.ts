@@ -30,6 +30,7 @@ import {
   type IriInputType,
   isIRIRefToken,
   isSparqlValue,
+  isVariableToken,
   normalizeVariableName,
   type PatternValueType,
   type PredicateInputType,
@@ -284,7 +285,7 @@ export function isGraphNodeLexical(lex: string): boolean {
   // ---------------------------------------------------------------------------
   // Variables: ?x or $x (VAR1 / VAR2)
   // ---------------------------------------------------------------------------
-  if (/^[?$][A-Za-z_][\w-]*$/.test(t)) return true
+  if (isVariableToken(t)) return true
 
   // ---------------------------------------------------------------------------
   // IRI reference: <http://example.org/...>

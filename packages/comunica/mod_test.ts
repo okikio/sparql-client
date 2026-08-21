@@ -10,16 +10,17 @@ describe('@okikio/comunica', () => {
     let queryText = ''
     let updateText = ''
     const client = create({
-      queryBoolean: async (query: string, context?: unknown) => {
+      queryBoolean: (query: string, context?: unknown) => {
         queryText = query
         seen = context
-        return true
+        return Promise.resolve(true)
       },
-      queryVoid: async (query: string) => {
+      queryVoid: (query: string) => {
         updateText = query
+        return Promise.resolve()
       },
-      queryBindings: async () => ({ [Symbol.asyncIterator]: async function* () {} }),
-      queryQuads: async () => ({ [Symbol.asyncIterator]: async function* () {} }),
+      queryBindings: () => Promise.resolve({ [Symbol.asyncIterator]: async function* () {} }),
+      queryQuads: () => Promise.resolve({ [Symbol.asyncIterator]: async function* () {} }),
     }, { context: () => ({ source: 'memory' }) })
 
     const query = select('*').where(triple('?s', '?p', '?o'))
@@ -34,18 +35,18 @@ describe('@okikio/comunica', () => {
     let destroyed = false
     const stream: ResultStream<Map<string, ReturnType<typeof literal>>> = {
       async *[Symbol.asyncIterator]() {
-        yield new Map([['name', literal('Alice')]])
-        yield new Map([['name', literal('Bob')]])
+        yield { *[Symbol.iterator]() { yield ['name', literal('Alice')] as const } }
+        yield { *[Symbol.iterator]() { yield ['name', literal('Bob')] as const } }
       },
       destroy() {
         destroyed = true
       },
     }
     const client = create({
-      queryBindings: async () => stream,
-      queryQuads: async () => ({ [Symbol.asyncIterator]: async function* () {} }),
-      queryBoolean: async () => true,
-      queryVoid: async () => undefined,
+      queryBindings: () => Promise.resolve(stream),
+      queryQuads: () => Promise.resolve({ [Symbol.asyncIterator]: async function* () {} }),
+      queryBoolean: () => Promise.resolve(true),
+      queryVoid: () => Promise.resolve(),
     })
 
     for await (const row of await client.queryBindings('SELECT ?name WHERE {}')) {

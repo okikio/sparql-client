@@ -2,6 +2,7 @@
 
 import { parse as parseNQuads } from '@okikio/rdf/nquads'
 import { parse as parseNTriples } from '@okikio/rdf/ntriples'
+import { parse as parseTurtle } from '@okikio/rdf/turtle'
 import type { Quad } from '@okikio/rdf'
 import { getQueryText, getUpdateText, type Queryable, type QueryOptionsType } from '../client.ts'
 import { decodeBindings, decodeBoolean } from '../result/json.ts'
@@ -135,9 +136,7 @@ export function create(options: HttpOptionsType): Client {
         queryOptions,
         'application/sparql-results+json; version=1.2, application/sparql-results+json',
       )
-      const bindings = decodeBindings(
-        await readJson(response, maxResponseBytes, queryOptions.signal, text),
-      )
+      const bindings = decodeBindings(await readJson(response, maxResponseBytes))
       return array(bindings)
     },
     /** Executes a SPARQL ASK query and decodes the boolean result. */
@@ -152,7 +151,7 @@ export function create(options: HttpOptionsType): Client {
         queryOptions,
         'application/sparql-results+json; version=1.2, application/sparql-results+json',
       )
-      return decodeBoolean(await readJson(response, maxResponseBytes, queryOptions.signal, text))
+      return decodeBoolean(await readJson(response, maxResponseBytes))
     },
     /** Executes a graph-producing SPARQL query and returns its RDF quad stream. */
     async queryQuads(query, queryOptions = {}) {
@@ -164,31 +163,29 @@ export function create(options: HttpOptionsType): Client {
         'query',
         options,
         queryOptions,
-        'application/n-quads; version=1.2, application/n-triples; version=1.2, application/n-quads, application/n-triples',
+        'application/n-quads; version=1.2, application/n-triples; version=1.2, application/n-quads, application/n-triples, text/turtle',
       )
-      const mediaType = getMediaType(response.headers.get('content-type'))
-      if (!response.body) return array<Quad>([])
+      const mediaType = getMediaType(response.response.headers.get('content-type'))
+      if (!response.response.body) return array<Quad>([])
+      if (
+        mediaType !== 'application/n-quads' && mediaType !== 'application/n-triples' &&
+        mediaType !== 'text/plain' && mediaType !== 'text/turtle'
+      ) {
+        await response.response.body.cancel().catch(() => undefined)
+        throw new QueryError(
+          'media',
+          `Unsupported RDF graph result media type '${mediaType || 'unknown'}'.`,
+          { mediaType, query: preview(text) },
+        )
+      }
+      const body = limitBody(response.response.body, maxResponseBytes, response)
       if (mediaType === 'application/n-quads') {
-        return parseNQuads(
-          response.body,
-          queryOptions.signal ? { signal: queryOptions.signal } : {},
-        )
+        return graph(parseNQuads(body, signalOptions(response.signal)), response)
       }
-      if (mediaType === 'application/n-triples' || mediaType === 'text/plain') {
-        return parseNTriples(
-          response.body,
-          queryOptions.signal ? { signal: queryOptions.signal } : {},
-        )
+      if (mediaType === 'text/turtle') {
+        return graph(parseTurtle(body, signalOptions(response.signal)), response)
       }
-      await response.body.cancel().catch(() => undefined)
-      throw new QueryError(
-        'media',
-        `Unsupported RDF graph result media type '${mediaType || 'unknown'}'.`,
-        {
-          mediaType,
-          query: preview(text),
-        },
-      )
+      return graph(parseNTriples(body, signalOptions(response.signal)), response)
     },
     /** Sends one SPARQL Update request using the configured protocol mode. */
     async update(update, queryOptions = {}) {
@@ -202,7 +199,7 @@ export function create(options: HttpOptionsType): Client {
         queryOptions,
         '*/*',
       )
-      if (response.body) await response.body.cancel().catch(() => undefined)
+      if (response.response.body) await response.response.body.cancel().catch(() => undefined)
     },
   }
 }
@@ -216,9 +213,15 @@ async function request(
   client: HttpOptionsType,
   options: HttpRequestOptionsType,
   accept: string,
-): Promise<Response> {
+): Promise<ResponseType> {
   const timeout = options.timeoutMs === null ? 0 : options.timeoutMs ?? client.timeoutMs ?? 0
   const signal = getSignal(options.signal, timeout)
+  const context: RequestType = {
+    query: text,
+    timeoutMs: timeout,
+    ...(signal ? { signal } : {}),
+    ...(options.signal ? { callerSignal: options.signal } : {}),
+  }
   const headers = new Headers(client.headers)
   for (const [key, value] of new Headers(options.headers)) headers.set(key, value)
   headers.set('accept', accept)
@@ -243,24 +246,11 @@ async function request(
   try {
     response = await fetchImpl(target, { ...init, ...(signal ? { signal } : {}) })
   } catch (error) {
-    if (signal?.aborted) {
-      const timedOut = timeout > 0 && !options.signal?.aborted
-      throw new QueryError(
-        timedOut ? 'timeout' : 'abort',
-        timedOut ? `SPARQL request timed out after ${timeout}ms.` : 'SPARQL request was aborted.',
-        {
-          query: preview(text),
-          cause: error,
-        },
-      )
-    }
+    if (signal?.aborted) throw abortError(context, error)
     throw new QueryError(
       'network',
       'SPARQL endpoint request failed before a response was received.',
-      {
-        query: preview(text),
-        cause: error,
-      },
+      { query: preview(text), cause: error },
     )
   }
 
@@ -268,7 +258,7 @@ async function request(
     const responseText = await readText(
       response,
       Math.min(client.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES, 16 * 1024),
-      signal,
+      context,
     )
     throw new QueryError(
       'http',
@@ -280,7 +270,25 @@ async function request(
       },
     )
   }
-  return response
+  return { response, ...context }
+}
+
+/** Request-scoped signal and timeout metadata retained through response-body consumption. */
+interface RequestType {
+  /** Original query/update text used only for bounded diagnostics. */
+  readonly query: string
+  /** Effective caller/timeout signal used for fetch and body reads. */
+  readonly signal?: AbortSignal
+  /** Caller-owned signal, used to distinguish an explicit abort from the internal timeout. */
+  readonly callerSignal?: AbortSignal
+  /** Effective timeout in milliseconds, or zero when disabled. */
+  readonly timeoutMs: number
+}
+
+/** Successful HTTP response plus the request lifetime that remains authoritative while its body is read. */
+interface ResponseType extends RequestType {
+  /** Fetch response whose body is still governed by the combined request signal. */
+  readonly response: Response
 }
 
 /** Builds one SPARQL Query request using a standards-defined transfer mode. */
@@ -346,29 +354,24 @@ function append(url: URL, params: URLSearchParams): void {
 }
 
 /** Reads a bounded HTTP response body and decodes it as JSON. */
-async function readJson(
-  response: Response,
-  limit: number,
-  signal: AbortSignal | undefined,
-  query: string,
-): Promise<unknown> {
-  const mediaType = getMediaType(response.headers.get('content-type'))
+async function readJson(response: ResponseType, limit: number): Promise<unknown> {
+  const mediaType = getMediaType(response.response.headers.get('content-type'))
   if (
     mediaType !== 'application/sparql-results+json' && mediaType !== 'application/json' &&
     mediaType !== ''
   ) {
-    if (response.body) await response.body.cancel().catch(() => undefined)
+    if (response.response.body) await response.response.body.cancel().catch(() => undefined)
     throw new QueryError('media', `Expected SPARQL JSON results but received '${mediaType}'.`, {
       mediaType,
-      query: preview(query),
+      query: preview(response.query),
     })
   }
-  const text = await readText(response, limit, signal)
+  const text = await readText(response.response, limit, response)
   try {
     return JSON.parse(text)
   } catch (error) {
     throw new QueryError('protocol', 'SPARQL endpoint returned malformed JSON results.', {
-      query: preview(query),
+      query: preview(response.query),
       response: text.slice(0, 1024),
       cause: error,
     })
@@ -376,7 +379,11 @@ async function readJson(
 }
 
 /** Reads a bounded HTTP response body as UTF-8 text. */
-async function readText(response: Response, limit: number, signal?: AbortSignal): Promise<string> {
+async function readText(
+  response: Response,
+  limit: number,
+  request?: RequestType,
+): Promise<string> {
   if (!response.body) return ''
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -385,7 +392,7 @@ async function readText(response: Response, limit: number, signal?: AbortSignal)
   let complete = false
   try {
     while (true) {
-      const item = await readBody(reader, signal)
+      const item = await readBody(reader, request?.signal)
       if (item.done) {
         complete = true
         break
@@ -398,6 +405,9 @@ async function readText(response: Response, limit: number, signal?: AbortSignal)
       text += decoder.decode(item.value, { stream: true })
     }
     return text + decoder.decode()
+  } catch (error) {
+    if (request?.signal?.aborted) throw abortError(request, error)
+    throw error
   } finally {
     if (!complete) {
       await reader.cancel('SPARQL response consumption stopped before completion').catch(() =>
@@ -406,6 +416,85 @@ async function readText(response: Response, limit: number, signal?: AbortSignal)
     }
     reader.releaseLock()
   }
+}
+
+/** Wraps a graph body with byte accounting while preserving consumer backpressure and cancellation. */
+function limitBody(
+  body: ReadableStream<Uint8Array>,
+  limit: number,
+  request: RequestType,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader()
+  let bytes = 0
+  let released = false
+  const release = (): void => {
+    if (released) return
+    released = true
+    reader.releaseLock()
+  }
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const item = await readBody(reader, request.signal)
+        if (item.done) {
+          release()
+          controller.close()
+          return
+        }
+        bytes += item.value.byteLength
+        if (bytes > limit) {
+          await reader.cancel('SPARQL response size limit exceeded').catch(() => undefined)
+          release()
+          controller.error(
+            new QueryError('limit', `SPARQL response exceeded ${limit} bytes.`, {
+              query: preview(request.query),
+            }),
+          )
+          return
+        }
+        controller.enqueue(item.value)
+      } catch (error) {
+        await reader.cancel(error).catch(() => undefined)
+        release()
+        controller.error(request.signal?.aborted ? abortError(request, error) : error)
+      }
+    },
+    async cancel(reason) {
+      await reader.cancel(reason).catch(() => undefined)
+      release()
+    },
+  })
+}
+
+/** Normalizes graph-parser failures that occur after fetch while the response body is still active. */
+async function* graph(
+  source: AsyncIterable<Quad>,
+  request: RequestType,
+): AsyncGenerator<Quad> {
+  try {
+    yield* source
+  } catch (error) {
+    if (request.signal?.aborted) throw abortError(request, error)
+    throw error
+  }
+}
+
+/** Creates a stable timeout/abort failure from the combined request signal. */
+function abortError(request: RequestType, cause: unknown): QueryError {
+  const reason = request.signal?.reason
+  const timedOut = reason instanceof DOMException && reason.name === 'TimeoutError'
+  return new QueryError(
+    timedOut ? 'timeout' : 'abort',
+    timedOut
+      ? `SPARQL request timed out after ${request.timeoutMs}ms.`
+      : 'SPARQL request was aborted.',
+    { query: preview(request.query), cause },
+  )
+}
+
+/** Builds parser options without materializing an explicit undefined signal. */
+function signalOptions(signal?: AbortSignal): { readonly signal?: AbortSignal } {
+  return signal ? { signal } : {}
 }
 
 /** Reads one chunk from the response stream while preserving cancellation. */

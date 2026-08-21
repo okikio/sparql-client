@@ -1,0 +1,47 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  packages/comunica:
+    dependencies:
+      '@okikio/rdf':
+        specifier: workspace:*
+        version: link:../rdf
+      '@okikio/sparql':
+        specifier: workspace:*
+        version: link:../sparql
+
+  packages/oxigraph:
+    dependencies:
+      '@okikio/rdf':
+        specifier: workspace:*
+        version: link:../rdf
+      '@okikio/sparql':
+        specifier: workspace:*
+        version: link:../sparql
+
+  packages/rdf: {}
+
+  packages/sparql:
+    dependencies:
+      '@okikio/rdf':
+        specifier: workspace:*
+        version: link:../rdf
+
+  packages/triplestore:
+    dependencies:
+      '@okikio/rdf':
+        specifier: workspace:*
+        version: link:../rdf
+
+  packages/vocab:
+    dependencies:
+      '@okikio/rdf':
+        specifier: workspace:*
+        version: link:../rdf

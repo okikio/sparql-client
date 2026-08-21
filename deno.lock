@@ -11,6 +11,7 @@
     "jsr:@std/path@^1.1.6": "1.1.6",
     "npm:@comunica/query-sparql-rdfjs@5.3.0": "5.3.0",
     "npm:@testcontainers/toxiproxy@12.0.4": "12.0.4",
+    "npm:@traqula/parser-sparql-1-2@1.2.0": "1.2.0",
     "npm:fast-check@4.9.0": "4.9.0",
     "npm:jsonld@9.0.0": "9.0.0",
     "npm:microdata-rdf-streaming-parser@3": "3.0.0",
@@ -20,7 +21,6 @@
     "npm:rdf-canonize@5": "5.0.0",
     "npm:rdfa-streaming-parser@3": "3.0.2",
     "npm:rdfxml-streaming-parser@3": "3.3.0",
-    "npm:sparqljs@3.7.4": "3.7.4",
     "npm:testcontainers@12.0.4": "12.0.4"
   },
   "jsr": {
@@ -3387,8 +3387,8 @@
     "bare-events@2.9.1": {
       "integrity": "sha512-Z0oHEHAFDZkffN8Qc39zNZjQlMDkPJRyyyZieU1VH7u8c5S+qHZ2S8ixdKIAxEjfHO7FJxXmJWgteOghVanIsg=="
     },
-    "bare-fs@4.7.4": {
-      "integrity": "sha512-y1kC+ffIx/tPLdTE693uNjHfzTfr+ravR5tvWlMXe25nELbkqV400S71qHDwbkAQ1FVEZobB1NFRzFbCCcyBCQ==",
+    "bare-fs@4.8.0": {
+      "integrity": "sha512-fM+MhCvdQhZ7NV6S95a07gPSqjIYKn6mFaXfx266wN3ajZGl/+1AzH+ubkXQ0fFZvOe2nk9VHkzdYkQE5zMV3Q==",
       "dependencies": [
         "bare-events",
         "bare-path",
@@ -3412,8 +3412,8 @@
         "bare-events"
       ]
     },
-    "bare-url@2.4.6": {
-      "integrity": "sha512-iQxPClE07hETVpbRoX7JXX3v/ZQViCxe/SYCxylRLzdEx1xJAufPptfiOqR8tqiCtmbtMDANKWszzjLu1PMAZQ==",
+    "bare-url@2.5.2": {
+      "integrity": "sha512-L13PCJzKG8RGvx8V1/DdMi12ERhC3tprr7/8a94BxpmnRsFqxh5XZNdhtMxu5HPkRshYOOWRGY8lDP7ZhpG9Cg==",
       "dependencies": [
         "bare-path"
       ]
@@ -4716,6 +4716,7 @@
       "jsr:@std/path@1.1.2",
       "npm:@comunica/query-sparql-rdfjs@5.3.0",
       "npm:@testcontainers/toxiproxy@12.0.4",
+      "npm:@traqula/parser-sparql-1-2@1.2.0",
       "npm:fast-check@4.9.0",
       "npm:jsonld@9.0.0",
       "npm:microdata-rdf-streaming-parser@3",
@@ -4725,47 +4726,7 @@
       "npm:rdf-canonize@5",
       "npm:rdfa-streaming-parser@3",
       "npm:rdfxml-streaming-parser@3",
-      "npm:sparqljs@3.7.4",
       "npm:testcontainers@12.0.4"
-    ],
-    "members": {
-      "packages/comunica": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@okikio/rdf@0.1.0",
-            "npm:@okikio/sparql@0.1.0"
-          ]
-        }
-      },
-      "packages/oxigraph": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@okikio/rdf@0.1.0",
-            "npm:@okikio/sparql@0.1.0"
-          ]
-        }
-      },
-      "packages/sparql": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@okikio/rdf@0.1.0"
-          ]
-        }
-      },
-      "packages/triplestore": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@okikio/rdf@0.1.0"
-          ]
-        }
-      },
-      "packages/vocab": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@okikio/rdf@0.1.0"
-          ]
-        }
-      }
-    }
+    ]
   }
 }

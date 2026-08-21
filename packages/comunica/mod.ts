@@ -108,14 +108,11 @@ async function* mapStream<Input, Output>(
 
 /** Converts one engine-specific binding row into the engine-neutral RDF binding map. */
 function decodeBinding(value: unknown): BindingType {
-  if (
-    typeof value !== 'object' || value === null || !('entries' in value) ||
-    typeof value.entries !== 'function'
-  ) {
-    throw new TypeError('Comunica binding row does not expose entries().')
+  if (!isIterable(value)) {
+    throw new TypeError('Comunica binding row is not RDF/JS iterable bindings.')
   }
   const result = new Map<string, ReturnType<typeof fromTerm>>()
-  for (const entry of value.entries() as Iterable<readonly [unknown, unknown]>) {
+  for (const entry of value as Iterable<readonly [unknown, unknown]>) {
     const [variable, term] = entry
     const name = variableName(variable)
     if (!isTerm(term)) throw new TypeError(`Comunica binding '${name}' is not an RDF term.`)
@@ -133,6 +130,11 @@ function decodeQuad(value: unknown): Quad {
     throw new TypeError('Comunica graph result contains a non-quad value.')
   }
   return fromQuad(value as Quad)
+}
+
+/** Returns whether a value implements the iterable contract used by RDF/JS Bindings. */
+function isIterable(value: unknown): value is Iterable<unknown> {
+  return typeof value === 'object' && value !== null && Symbol.iterator in value
 }
 
 /** Normalizes an engine binding key to the SPARQL variable name without its sigil. */

@@ -7,6 +7,7 @@ describe('@okikio/sparql/http', () => {
   it('keeps SELECT bindings as RDF terms', async () => {
     const client = create({
       endpoint: 'https://example.com/sparql',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async () =>
         new Response(
           JSON.stringify({
@@ -26,6 +27,7 @@ describe('@okikio/sparql/http', () => {
   it('parses graph result media types without converting RDF terms to bindings', async () => {
     const client = create({
       endpoint: 'https://example.com/sparql',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async () =>
         new Response('<urn:s> <urn:p> "o" <urn:g> .\n', {
           headers: { 'content-type': 'application/n-quads; version=1.2' },
@@ -39,28 +41,78 @@ describe('@okikio/sparql/http', () => {
     expect(values[0]?.graph.value).toBe('urn:g')
   })
 
+  it('accepts Turtle graph results through the native RDF parser', async () => {
+    const client = create({
+      endpoint: 'https://example.com/sparql',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
+      fetch: async () =>
+        new Response('<urn:s> <urn:p> "o" .\n', {
+          headers: { 'content-type': 'text/turtle' },
+        }),
+    })
+    const values = []
+    for await (const value of await client.queryQuads('CONSTRUCT WHERE { ?s ?p ?o }')) {
+      values.push(value)
+    }
+    expect(values).toHaveLength(1)
+    expect(values[0]?.subject.value).toBe('urn:s')
+  })
+
+  it('enforces response byte limits while graph results stream', async () => {
+    const client = create({
+      endpoint: 'https://example.com/sparql',
+      maxResponseBytes: 8,
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
+      fetch: async () =>
+        new Response('<urn:s> <urn:p> "object" .\n', {
+          headers: { 'content-type': 'application/n-triples' },
+        }),
+    })
+
+    try {
+      for await (const _ of await client.queryQuads('CONSTRUCT WHERE { ?s ?p ?o }')) {
+        // Consumption is the point where the streaming byte limit becomes observable.
+      }
+      throw new Error('Expected graph response limit failure.')
+    } catch (error) {
+      expect(error instanceof QueryError).toBe(true)
+      if (error instanceof QueryError) expect(error.kind).toBe('limit')
+    }
+  })
+
   it('rejects graph and binding media types that do not match the requested result mode', async () => {
     const bindingClient = create({
       endpoint: 'https://example.com/sparql',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async () => new Response('plain', { headers: { 'content-type': 'text/plain' } }),
     })
     await expect(bindingClient.queryBindings('SELECT * WHERE {}')).rejects.toThrow(
       'Expected SPARQL JSON',
     )
 
+    let graphCancelled = false
+    const graphBody = new ReadableStream<Uint8Array>({
+      cancel() {
+        graphCancelled = true
+      },
+    })
     const graphClient = create({
       endpoint: 'https://example.com/sparql',
-      fetch: async () => new Response('{}', { headers: { 'content-type': 'application/json' } }),
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
+      fetch: async () =>
+        new Response(graphBody, { headers: { 'content-type': 'application/json' } }),
     })
     await expect(graphClient.queryQuads('CONSTRUCT WHERE { ?s ?p ?o }')).rejects.toThrow(
       'Unsupported RDF graph',
     )
+    expect(graphCancelled).toBe(true)
   })
 
   it('enforces response byte limits before JSON decoding', async () => {
     const client = create({
       endpoint: 'https://example.com/sparql',
       maxResponseBytes: 8,
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async () =>
         new Response('{"boolean":true}', {
           headers: { 'content-type': 'application/sparql-results+json' },
@@ -84,6 +136,7 @@ describe('@okikio/sparql/http', () => {
     })
     const client = create({
       endpoint: 'https://example.com/sparql',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async () =>
         new Response(body, { headers: { 'content-type': 'application/sparql-results+json' } }),
     })
@@ -91,8 +144,44 @@ describe('@okikio/sparql/http', () => {
     const pending = client.queryBoolean('ASK {}', { signal: controller.signal })
     await Promise.resolve()
     controller.abort(new Error('stop-http'))
-    await expect(pending).rejects.toThrow('stop-http')
+    try {
+      await pending
+      throw new Error('Expected request abort.')
+    } catch (error) {
+      expect(error instanceof QueryError).toBe(true)
+      if (error instanceof QueryError) expect(error.kind).toBe('abort')
+    }
     expect(cancelled).toBe(true)
+  })
+
+  it('normalizes a timeout that fires while the response body is pending', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+    const client = create({
+      endpoint: 'https://example.com/sparql',
+      timeoutMs: 5,
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
+      fetch: async () =>
+        new Response(body, { headers: { 'content-type': 'application/sparql-results+json' } }),
+    })
+
+    const keepAlive = setTimeout(() => undefined, 50)
+    try {
+      try {
+        await client.queryBoolean('ASK {}')
+        throw new Error('Expected response-body timeout.')
+      } catch (error) {
+        expect(error instanceof QueryError).toBe(true)
+        if (error instanceof QueryError) expect(error.kind).toBe('timeout')
+      }
+      expect(cancelled).toBe(true)
+    } finally {
+      clearTimeout(keepAlive)
+    }
   })
 
   it('uses the configured update endpoint and SPARQL Update media type', async () => {
@@ -102,6 +191,7 @@ describe('@okikio/sparql/http', () => {
     const client = create({
       endpoint: 'https://example.com/query',
       updateEndpoint: 'https://example.com/update',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async (input, init) => {
         requestUrl = String(input)
         const headers = new Headers(init?.headers)
@@ -120,6 +210,7 @@ describe('@okikio/sparql/http', () => {
   it('normalizes non-success responses into bounded HTTP errors', async () => {
     const client = create({
       endpoint: 'https://example.com/sparql',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async () =>
         new Response('temporarily unavailable', { status: 503, statusText: 'Unavailable' }),
     })
@@ -142,6 +233,7 @@ it('supports SPARQL Protocol GET query dataset parameters without moving them in
   let body: BodyInit | null | undefined
   const client = create({
     endpoint: 'https://example.com/sparql?existing=1',
+    // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
     fetch: async (input, init) => {
       method = init?.method ?? ''
       url = String(input)
@@ -175,6 +267,7 @@ it('supports form-encoded SPARQL query and update protocol requests', async () =
   const requests: Array<{ url: string; contentType: string; body: string }> = []
   const client = create({
     endpoint: 'https://example.com/sparql',
+    // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
     fetch: async (input, init) => {
       requests.push({
         url: String(input),
@@ -215,6 +308,7 @@ it('keeps direct POST dataset parameters in the request URL', async () => {
   let body = ''
   const client = create({
     endpoint: 'https://example.com/sparql',
+    // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
     fetch: async (input, init) => {
       url = String(input)
       body = String(init?.body ?? '')

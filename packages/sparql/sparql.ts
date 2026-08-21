@@ -210,6 +210,10 @@ export function toRawString(value: string | SparqlValueType): string {
 // Grammar helpers (Var / IRI / VarOrIriRef / GraphRef / GraphRefAll)
 // ============================================================================
 
+/** SPARQL 1.2 `VARNAME` production, including digit-leading and Unicode variable names. */
+const VARNAME =
+  /^(?:[A-Z_a-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}])(?:[A-Z_a-z0-9\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0300-\u036F\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}])*$/u
+
 /**
  * Check if a string is already a SPARQL variable token (`?name` or `$name`).
  *
@@ -217,9 +221,7 @@ export function toRawString(value: string | SparqlValueType): string {
  */
 export function isVariableToken(value: string): boolean {
   const trimmed = value.trim()
-  // ASCII-friendly subset of VARNAME; you already restrict variable names
-  // via validateVariableName, so this just checks the leading sigil.
-  return /^[?$][A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)
+  return (trimmed.startsWith('?') || trimmed.startsWith('$')) && VARNAME.test(trimmed.slice(1))
 }
 
 /**
@@ -681,37 +683,21 @@ export function escapeString(
   str: string,
   quote: '"' | "'" = '"',
 ): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: <explanation>
-  return str.replace(/[\u0000-\u001F\\'"]/g, function (ch: string): string {
-    // Always escape backslash
-    if (ch === '\\') return '\\\\'
-
-    // Escape whichever quote you are actually using as the delimiter
-    if (ch === quote) return '\\' + ch
-
-    // The non-delimiting quote does not *need* escaping for SPARQL's grammar.
-    if (ch === '"' || ch === "'") return ch
-
-    // Control characters with explicit SPARQL-style escapes
-    switch (ch) {
-      case '\n':
-        return '\\n'
-      case '\r':
-        return '\\r'
-      case '\t':
-        return '\\t'
-      case '\b':
-        return '\\b'
-      case '\f':
-        return '\\f'
-      default: {
-        // Any remaining control char U+0000–U+001F gets a \u00XX escape
-        const code = ch.charCodeAt(0)
-        const hex = code.toString(16).toUpperCase().padStart(4, '0')
-        return '\\u' + hex
-      }
-    }
-  })
+  let output = ''
+  for (const ch of str) {
+    const point = ch.codePointAt(0)!
+    if (ch === '\\') output += '\\\\'
+    else if (ch === quote) output += `\\${ch}`
+    else if (ch === '"' || ch === "'") output += ch
+    else if (ch === '\n') output += '\\n'
+    else if (ch === '\r') output += '\\r'
+    else if (ch === '\t') output += '\\t'
+    else if (ch === '\b') output += '\\b'
+    else if (ch === '\f') output += '\\f'
+    else if (point <= 0x1f) output += `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
+    else output += ch
+  }
+  return output
 }
 
 /**
@@ -771,9 +757,8 @@ export function validateVariableName(name: string): void {
     throw new Error(`Variable name contains forbidden characters: ${name}`)
   }
 
-  // Must start with letter or underscore (simplified check)
-  if (!/^[A-Za-z_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D]/.test(name)) {
-    throw new Error(`Variable name must start with a letter or underscore: ${name}`)
+  if (!VARNAME.test(name)) {
+    throw new Error(`Variable name does not match the SPARQL VARNAME grammar: ${name}`)
   }
 }
 
@@ -1670,12 +1655,16 @@ function normalizeTemplate(value: string): string {
 
 /** Escapes code points that cannot appear literally inside a SPARQL IRIREF. */
 function escapeIriForQuery(value: string): string {
-  return value.replace(/[<>"{}|^`\\\u0000-\u0020]/g, (char) => {
+  let output = ''
+  for (const char of value) {
     const point = char.codePointAt(0)!
-    return point <= 0xffff
-      ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
-      : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`
-  })
+    if (point <= 0x20 || '<>\"{}|^`\\'.includes(char)) {
+      output += point <= 0xffff
+        ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
+        : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`
+    } else output += char
+  }
+  return output
 }
 
 export default sparql

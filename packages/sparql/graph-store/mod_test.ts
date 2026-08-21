@@ -15,6 +15,7 @@ describe('@okikio/sparql/graph-store', () => {
     let url = ''
     const client = create({
       endpoint: 'https://example.com/data',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async (input) => {
         url = String(input)
         return new Response(null, { status: 204 })
@@ -28,6 +29,7 @@ describe('@okikio/sparql/graph-store', () => {
     let url = ''
     const client = create({
       endpoint: 'https://example.com/data?tenant=a',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async (input) => {
         url = String(input)
         return new Response(null, { status: 204 })
@@ -43,6 +45,7 @@ describe('@okikio/sparql/graph-store', () => {
     const bodies: string[] = []
     const client = create({
       endpoint: 'https://example.com/data',
+      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
       fetch: async (_input, init) => {
         if (init?.body) bodies.push(String(init.body))
         if (init?.method === 'GET') {
