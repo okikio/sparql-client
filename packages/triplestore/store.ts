@@ -329,10 +329,21 @@ export class Store implements AsyncDisposable {
     const segmentPath = join(this.#path, commit.segment)
     const commitPath = join(this.#path, `commits/${generationName(commit.generation)}.json`)
     if (await this.#fs.exists(commitPath, signalOptions(signal))) {
-      throw new StoreError(
-        'writer-conflict',
-        `Commit generation ${commit.generation} already exists.`,
-      )
+      const text = await this.#fs.readText(commitPath, signalOptions(signal))
+      let existing: CommitType | undefined
+      try {
+        existing = parseCommit(text)
+      } catch {
+        // An interrupted commit-file write can leave invalid JSON or an incomplete
+        // record at this exact generation. Recovery already classifies that file
+        // as unpublished, so a live handle may replace the same debris on retry.
+      }
+      if (existing !== undefined) {
+        throw new StoreError(
+          'writer-conflict',
+          `Commit generation ${commit.generation} already exists.`,
+        )
+      }
     }
 
     // Publication order is the durability invariant. A segment may be orphaned,

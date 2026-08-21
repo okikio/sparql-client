@@ -29,6 +29,39 @@ describe('@okikio/triplestore', () => {
     expect(reopened.recovery[0]?.kind).toBe('incomplete-commit')
   })
 
+  it('retries a torn commit publication on the same live handle', async () => {
+    const fs = new MemoryFileSystem()
+    const store = await open(fs, { path: '/db' })
+    let faulted = false
+
+    fs.writeFault = (path, text, target) => {
+      if (faulted || !path.endsWith('/commits/0000000000000001.json')) return
+      faulted = true
+      target.files.set(path, text.slice(0, Math.max(1, Math.floor(text.length / 2))))
+      throw new Error('simulated torn commit')
+    }
+
+    await expect(store.add(first)).rejects.toThrow('simulated torn commit')
+    fs.writeFault = undefined
+    await store.add(first)
+
+    expect(store.generation).toBe(1)
+    expect(store.has(first)).toBe(true)
+    const reopened = await open(fs, { path: '/db' })
+    expect(reopened.generation).toBe(1)
+    expect(reopened.has(first)).toBe(true)
+  })
+
+  it('keeps a valid same-generation commit as a competing-writer conflict', async () => {
+    const fs = new MemoryFileSystem()
+    const left = await open(fs, { path: '/db' })
+    const right = await open(fs, { path: '/db' })
+
+    await left.add(first)
+    await expect(right.add(second)).rejects.toMatchObject({ kind: 'writer-conflict' })
+    expect(right.generation).toBe(0)
+  })
+
   it('never converts a corrupt authoritative committed generation into an empty database', async () => {
     const fs = new MemoryFileSystem()
     const store = await open(fs, { path: '/db' })

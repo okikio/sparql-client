@@ -18,13 +18,13 @@ export class MemoryFileSystem implements FileSystemType {
   readonly directories = new Set<string>(['/'])
   writeFault: WriteFaultType | undefined
 
-  async exists(path: string, options: SignalOptionsType = {}): Promise<boolean> {
+  exists(path: string, options: SignalOptionsType = {}): Promise<boolean> {
     abort(options.signal)
     const normalized = normalize(path)
-    return this.files.has(normalized) || this.directories.has(normalized)
+    return Promise.resolve(this.files.has(normalized) || this.directories.has(normalized))
   }
 
-  async ensureDir(path: string, options: SignalOptionsType = {}): Promise<void> {
+  ensureDir(path: string, options: SignalOptionsType = {}): Promise<void> {
     abort(options.signal)
     const parts = normalize(path).split('/').filter(Boolean)
     let current = ''
@@ -32,6 +32,7 @@ export class MemoryFileSystem implements FileSystemType {
       current += `/${part}`
       this.directories.add(current)
     }
+    return Promise.resolve()
   }
 
   async *readDir(
@@ -60,22 +61,22 @@ export class MemoryFileSystem implements FileSystemType {
     }
   }
 
-  async readText(path: string, options: SignalOptionsType = {}): Promise<string> {
+  readText(path: string, options: SignalOptionsType = {}): Promise<string> {
     abort(options.signal)
     const value = this.files.get(normalize(path))
     if (value === undefined) throw new Error(`ENOENT ${path}`)
-    return value
+    return Promise.resolve(value)
   }
 
-  async stat(
+  stat(
     path: string,
     options: SignalOptionsType = {},
   ): Promise<FileStatType | { readonly kind: 'directory' }> {
     abort(options.signal)
     const normalized = normalize(path)
     const file = this.files.get(normalized)
-    if (file !== undefined) return { kind: 'file', size: new TextEncoder().encode(file).byteLength }
-    if (this.directories.has(normalized)) return { kind: 'directory' }
+    if (file !== undefined) return Promise.resolve({ kind: 'file', size: new TextEncoder().encode(file).byteLength })
+    if (this.directories.has(normalized)) return Promise.resolve({ kind: 'directory' })
     throw new Error(`ENOENT ${path}`)
   }
 
