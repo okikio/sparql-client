@@ -44,10 +44,10 @@ async function visit(path: string, seen: Set<string>, output: EntryType[]): Prom
   const manifests = subjects(quads, RDF_TYPE, `${MF}Manifest`)
   for (const manifest of manifests) {
     for (const include of values(quads, manifest, `${MF}include`)) {
-      for (const item of list(quads, include)) await visit(local(item.value), seen, output)
+      for (const item of items(quads, include)) await visit(local(item.value), seen, output)
     }
     for (const head of values(quads, manifest, `${MF}entries`)) {
-      for (const item of list(quads, head)) output.push(entry(quads, item.value, url))
+      for (const item of items(quads, head)) output.push(entry(quads, item.value, url))
     }
   }
 }
@@ -64,6 +64,20 @@ function entry(quads: readonly QuadType[], id: string, manifest: string): EntryT
     ...(result ? { result } : {}),
     manifest,
   }
+}
+
+/**
+ * Returns manifest references from either an RDF collection or a direct object.
+ *
+ * Most W3C manifests encode `mf:entries` and `mf:include` as RDF collections.
+ * The pinned Microdata-to-RDF suite instead repeats `mf:entries` with direct
+ * entry IRIs. Treating every object as a list head crashes before the first
+ * Microdata case runs, so the reader recognizes the actual graph shape first.
+ */
+function items(quads: readonly QuadType[], value: TermType): TermType[] {
+  return first(quads, value.value, RDF_FIRST) || first(quads, value.value, RDF_REST)
+    ? list(quads, value)
+    : [value]
 }
 
 function list(quads: readonly QuadType[], head: TermType): TermType[] {

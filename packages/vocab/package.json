@@ -21,6 +21,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@okikio/rdf": "0.1.0"
+    "@okikio/rdf": "workspace:*"
   }
 }

@@ -17,7 +17,8 @@ export interface OptionsType {
     Map<string, string>
   /** Caller-owned cancellation signal. */ readonly signal?: AbortSignal
 }
-/** Options for hashing the final canonical bytes. */ export interface HashOptionsType
+/** Options for hashing the final canonical bytes. */
+export interface HashOptionsType
   extends OptionsType {
   /** Web Crypto digest used to hash the final canonical N-Quads bytes. */
   readonly digest?: CryptoDigestType
@@ -127,7 +128,8 @@ export async function canonicalize(
   const lines = quads.map((v) => canonicalQuad(v, state.canonical)).sort(compare)
   return lines.length ? `${lines.join('\n')}\n` : ''
 }
-/** Parses canonical bytes back into native quads. */ export async function canonicalizeQuads(
+/** Parses canonical bytes back into native quads. */
+export async function canonicalizeQuads(
   source: Iterable<Quad> | AsyncIterable<Quad>,
   options: OptionsType = {},
 ): Promise<Quad[]> {
@@ -140,13 +142,15 @@ export async function canonicalize(
   ) values.push(value)
   return values
 }
-/** Hashes canonical N-Quads bytes. */ export async function hash(
+/** Hashes canonical N-Quads bytes. */
+export async function hash(
   source: Iterable<Quad> | AsyncIterable<Quad>,
   options: HashOptionsType = {},
 ): Promise<string> {
   return digest(await canonicalize(source, options), options.digest ?? 'SHA-256')
 }
-/** Tests dataset isomorphism through canonical equality. */ export async function isomorphic(
+/** Tests dataset isomorphism through canonical equality. */
+export async function isomorphic(
   left: Iterable<Quad> | AsyncIterable<Quad>,
   right: Iterable<Quad> | AsyncIterable<Quad>,
   options: OptionsType = {},

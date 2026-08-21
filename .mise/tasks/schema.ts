@@ -95,7 +95,7 @@ async function gitBlobSha(bytes: Uint8Array): Promise<string> {
 
 /** Computes one Web Crypto digest as lowercase hexadecimal text. */
 async function digest(algorithm: 'SHA-1' | 'SHA-256', bytes: Uint8Array): Promise<string> {
-  const value = new Uint8Array(await crypto.subtle.digest(algorithm, bytes))
+  const value = new Uint8Array(await crypto.subtle.digest(algorithm, new Uint8Array(bytes).buffer))
   return [...value].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 

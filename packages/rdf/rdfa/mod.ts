@@ -63,23 +63,27 @@ const TERMS = new Set([
   'top',
   'up',
 ])
-/** RDFa host-language profile. */ export type ProfileType =
+/** RDFa host-language profile. */
+export type ProfileType =
   | ''
   | 'core'
   | 'html'
   | 'xhtml'
   | 'svg'
   | 'xml'
-/** Known host-language media types. */ export type ContentTypeType =
+/** Known host-language media types. */
+export type ContentTypeType =
   | 'text/html'
   | 'application/xhtml+xml'
   | 'application/xml'
   | 'text/xml'
   | 'image/svg+xml'
-/** Optional host-language feature flags. */ export type FeatureType = Readonly<
+/** Optional host-language feature flags. */
+export type FeatureType = Readonly<
   Record<string, boolean>
 >
-/** Native RDFa parser options. */ export interface ParseOptionsType {
+/** Native RDFa parser options. */
+export interface ParseOptionsType {
   /** Effective base IRI used while resolving relative identifiers during RDFa parsing. */
   readonly base?: string
   /** Target graph. */ readonly graph?: GraphTermType

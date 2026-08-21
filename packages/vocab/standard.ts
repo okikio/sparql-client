@@ -110,7 +110,7 @@ export type JsonSchemaTarget =
   | 'draft-2020-12'
   | 'draft-07'
   | 'openapi-3.0'
-  | ({} & string)
+  | (string & { readonly __jsonSchemaTarget?: never })
 
 /** Options passed by a Standard JSON Schema consumer. */
 export interface JsonSchemaOptions {

@@ -11,11 +11,6 @@ packages/rdf/**/*_test.ts
 packages/sparql/**/*_test.ts
 packages/vocab/**/*_test.ts
 packages/triplestore/**/*_test.ts
-packages/jsonld-js/**/*_test.ts
-packages/rdf-canonize/**/*_test.ts
-packages/rdfxml-streaming-parser/**/*_test.ts
-packages/rdfa-streaming-parser/**/*_test.ts
-packages/microdata-rdf-streaming-parser/**/*_test.ts
 packages/oxigraph/**/*_test.ts
 packages/comunica/**/*_test.ts
 ```
@@ -27,7 +22,7 @@ A test belongs beside the capability it specifies. Do not create a permanent cen
 Examples of ownership:
 
 ```text
-RDF/XML cancellation        packages/rdfxml-streaming-parser/mod_test.ts
+RDF/XML grammar/cancellation packages/rdf/xml/mod_test.ts
 SPARQL Update grammar       packages/sparql/update_test.ts
 vocabulary compilation      packages/vocab/compile_test.ts
 store recovery              packages/triplestore/store_test.ts
@@ -93,7 +88,9 @@ bench/vocab/types.ts
 
 Every benchmark needs a correctness oracle outside the timed callback. Faster output is not accepted if it performs less work or changes semantics.
 
-See [`benchmarks.md`](./benchmarks.md) for performance decisions that changed the architecture.
+SPARQL builder property tests use `@traqula/parser-sparql-1-2` as the independent parser oracle. Traqula is an active SPARQL 1.2 parser and runs the W3C SPARQL parser suites in its own repository. The project does not treat Traqula as specification authority: official W3C tests remain the conformance source, and known upstream parser defects become differential fixtures rather than behavior to copy. Archived SPARQL.js is not a direct project oracle.
+
+See [`benchmarks.md`](./benchmarks.md) for performance decisions that changed the architecture. See [`research/dependencies.md`](./research/dependencies.md) for comparator roles and known-defect profiles.
 
 ## Required test categories
 

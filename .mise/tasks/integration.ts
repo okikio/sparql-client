@@ -8,6 +8,7 @@ const child = new Deno.Command(Deno.execPath(), {
     '--allow-env',
     '--allow-net',
     '--allow-run',
+    '--allow-sys=homedir,uid,gid,username',
   ],
   stdin: 'inherit',
   stdout: 'inherit',

@@ -55,10 +55,13 @@ export async function runRdfc(): Promise<CaseType[]> {
         const canonicalIdMap = new Map<string, string>()
         await canonicalize(quads, { canonicalIdMap, maxWorkFactor: Infinity })
         const actual = Object.fromEntries([...canonicalIdMap].sort(([a], [b]) => codepoint(a, b)))
-        const expected = JSON.parse(await Deno.readTextFile(localPath(entry.result))) as Record<
+        const expectedRaw = JSON.parse(await Deno.readTextFile(localPath(entry.result))) as Record<
           string,
           string
         >
+        const expected = Object.fromEntries(
+          Object.entries(expectedRaw).sort(([a], [b]) => codepoint(a, b)),
+        )
         output.push(
           JSON.stringify(actual) === JSON.stringify(expected)
             ? { ...common, status: 'pass', durationMs: performance.now() - started }

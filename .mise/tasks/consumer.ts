@@ -1,5 +1,7 @@
 /** Installs packed workspace artifacts into a clean project and imports every public entry point in Node, Deno, and Bun. @module */
 
+import * as workspace from './workspace.ts'
+
 const PACK = '.tmp/packages'
 const ROOT = '.tmp/consumer'
 if (!(await exists(PACK))) await run(Deno.execPath(), ['task', 'package'])
@@ -32,7 +34,7 @@ await run('bun', ['run', 'smoke.ts'], ROOT)
 console.log('Clean consumer imports passed in Node, Deno, and Bun.')
 
 async function smoke(): Promise<string> {
-  const members = (await workspace()).sort()
+  const members = (await workspace.get()).sort()
   const specs: string[] = []
   for (const member of members) {
     const npm = JSON.parse(await Deno.readTextFile(`${member}/package.json`)) as {
@@ -62,10 +64,6 @@ async function smoke(): Promise<string> {
   }\nfor (const spec of specs) {\n  const mod = await import(spec)\n  if (Object.keys(mod).length === 0) throw new Error(\`Public entry point exported nothing: \${spec}\`)\n}\nfor (const [spec, names] of Object.entries(required)) {\n  const mod = await import(spec)\n  for (const name of names) if (!(name in mod)) throw new Error(\`Missing \${spec} export: \${name}\`)\n}\nconsole.log(\`Imported \${specs.length} public entry points.\`)\n`
 }
 
-async function workspace(): Promise<string[]> {
-  const root = JSON.parse(await Deno.readTextFile('deno.json')) as { workspace: string[] }
-  return root.workspace.map((value) => value.replace(/^\.\//u, ''))
-}
 
 async function exists(path: string): Promise<boolean> {
   return await Deno.stat(path).then(() => true, () => false)

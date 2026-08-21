@@ -29,7 +29,8 @@ const DEFAULT_VOCABULARIES: VocabularyRegistryType = {
   'https://schema.org/': { properties: { additionalType: { subPropertyOf: RDF.type } } },
   'http://microformats.org/profile/hcard': {},
 }
-/** Metadata that expands one vocabulary property into extra predicates. */ export interface VocabularyPropertyType {
+/** Metadata that expands one vocabulary property into extra predicates. */
+export interface VocabularyPropertyType {
   /** Predicate or predicates emitted in addition to the Microdata property itself. */
   readonly subPropertyOf?: string | readonly string[]
   /** Equivalent predicates receiving the same value. */ readonly equivalentProperty?:
@@ -37,14 +38,17 @@ const DEFAULT_VOCABULARIES: VocabularyRegistryType = {
     | readonly string[]
   /** Extension metadata retained for custom registries. */ readonly [key: string]: unknown
 }
-/** One Microdata vocabulary registry entry. */ export interface VocabularyType {
+/** One Microdata vocabulary registry entry. */
+export interface VocabularyType {
   /** Vocabulary-specific Microdata property rules keyed by `itemprop` token. */
   readonly properties?: Readonly<Record<string, VocabularyPropertyType>>
   /** Extension metadata retained for custom registries. */ readonly [key: string]: unknown
 }
-/** Microdata vocabulary registry keyed by vocabulary IRI prefix. */ export type VocabularyRegistryType =
+/** Microdata vocabulary registry keyed by vocabulary IRI prefix. */
+export type VocabularyRegistryType =
   Readonly<Record<string, VocabularyType>>
-/** Options for native Microdata-to-RDF parsing. */ export interface ParseOptionsType {
+/** Options for native Microdata-to-RDF parsing. */
+export interface ParseOptionsType {
   /** Effective document base IRI used to resolve Microdata identifiers and URL values. */
   readonly base?: string
   /** Target RDF graph. */ readonly graph?: GraphTermType

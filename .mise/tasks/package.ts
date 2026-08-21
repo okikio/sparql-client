@@ -1,7 +1,9 @@
 /** Audits workspace package metadata and creates the exact npm tarballs used by consumer tests. @module */
 
+import * as workspace from './workspace.ts'
+
 const ROOT = '.tmp/packages'
-const packages = await workspace()
+const packages = await workspace.get()
 await Deno.remove(ROOT, { recursive: true }).catch(() => undefined)
 await Deno.mkdir(ROOT, { recursive: true })
 
@@ -18,17 +20,12 @@ for (const member of packages) {
   }
 
   const filename = `${String(npm.name).replace(/^@/u, '').replace('/', '-')}-${npm.version}.tgz`
-  await run(Deno.execPath(), ['pack', '--output', `../../${ROOT}/${filename}`], member)
+  await run(Deno.execPath(), ['pack', '--allow-dirty', '--output', `../../${ROOT}/${filename}`], member)
 }
 
 await run(Deno.execPath(), ['publish', '--dry-run', '--allow-dirty'])
 console.log(`Packed ${packages.length} workspace packages into ${ROOT}.`)
 
-async function workspace(): Promise<string[]> {
-  const root = await json('deno.json')
-  if (!Array.isArray(root.workspace)) throw new TypeError('deno.json workspace must be an array.')
-  return root.workspace.map((value: unknown) => String(value).replace(/^\.\//u, '')).sort()
-}
 
 function sameExports(member: string, left: unknown, right: unknown): void {
   if (JSON.stringify(asExports(left)) !== JSON.stringify(asExports(right))) {

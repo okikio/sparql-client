@@ -133,7 +133,7 @@ function suiteFetch(): typeof fetch {
       if (error instanceof Deno.errors.NotFound) return new Response('not found', { status: 404 })
       throw error
     }
-    return new Response(bytes, { status: 200, headers: { 'content-type': media(local) } })
+    return new Response(new Uint8Array(bytes).buffer, { status: 200, headers: { 'content-type': media(local) } })
   }
 }
 
