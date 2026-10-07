@@ -11,6 +11,11 @@ on:
         description: Exact published OPFS source commit to exercise the borrowed filesystem contract
         required: true
         type: string
+      opfs_archive_sha256:
+        description: Retained tested OPFS archive SHA-256 to reproduce before direct npm is available
+        required: false
+        type: string
+        default: ''
       target:
         description: Registry to publish; rerun failed jobs to retain the prepared archives
         required: true
@@ -42,7 +47,8 @@ jobs:
         env:
           REVISION: ${{ inputs.revision }}
           OPFS_REVISION: ${{ inputs.opfs_revision }}
-        run: '[[ "$REVISION" =~ ^[a-f0-9]{40}$ && "$OPFS_REVISION" =~ ^[a-f0-9]{40}$ ]]'
+          OPFS_ARCHIVE_SHA256: ${{ inputs.opfs_archive_sha256 }}
+        run: '[[ "$REVISION" =~ ^[a-f0-9]{40}$ && "$OPFS_REVISION" =~ ^[a-f0-9]{40}$ && ( -z "$OPFS_ARCHIVE_SHA256" || "$OPFS_ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ) ]]'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.revision }}
@@ -58,13 +64,28 @@ jobs:
           ref: ${{ inputs.opfs_revision }}
           path: .tmp/opfs-source
           persist-credentials: false
-      - name: Select the exact published OPFS archive
+      - name: Reproduce the reviewed OPFS archive
+        if: inputs.opfs_archive_sha256 != ''
+        working-directory: .tmp/opfs-source
+        run: |
+          deno ci
+          deno task pack:npm
+      - name: Select the exact OPFS archive for borrowed-filesystem checks
+        env:
+          OPFS_ARCHIVE_SHA256: ${{ inputs.opfs_archive_sha256 }}
         run: |
           version=$(node -p "JSON.parse(require('fs').readFileSync('.tmp/opfs-source/deno.json', 'utf8')).version")
           mkdir -p .tmp/opfs-package
-          npm pack "@okikio/opfs@$version" --ignore-scripts --pack-destination .tmp/opfs-package
+          archive=".tmp/opfs-package/okikio-opfs-$version.tgz"
+          if [[ -n "$OPFS_ARCHIVE_SHA256" ]]; then
+            cp ".tmp/opfs-source/.release/npm/okikio-opfs-$version.tgz" "$archive"
+            actual=$(sha256sum "$archive" | cut -d ' ' -f 1)
+            test "$actual" = "$OPFS_ARCHIVE_SHA256"
+          else
+            npm pack "@okikio/opfs@$version" --ignore-scripts --pack-destination .tmp/opfs-package
+          fi
           echo "OPFS_SOURCE=$PWD/.tmp/opfs-source" >> "$GITHUB_ENV"
-          echo "OPFS_TARBALL=$PWD/.tmp/opfs-package/okikio-opfs-$version.tgz" >> "$GITHUB_ENV"
+          echo "OPFS_TARBALL=$PWD/$archive" >> "$GITHUB_ENV"
       - name: Install browser engines
         run: deno task browser:install
       - name: Prepare the exact tested release
