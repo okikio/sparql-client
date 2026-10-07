@@ -13,6 +13,7 @@ import {
   serialize,
   toRdf,
 } from './mod.ts'
+import type { RemoteDocumentType } from './types.ts'
 
 /** Creates a caller-owned loader that returns one supplied HTML document. */
 function htmlLoad(source: string, documentUrl = 'https://example.test/page') {
@@ -316,24 +317,214 @@ describe('@okikio/rdf/jsonld', () => {
     ).rejects.toMatchObject({ code: 'conflicting indexes' })
   })
   it('keeps remote loading disabled unless the caller explicitly enables or supplies it', async () => {
-    await expect(createDocumentLoader()('https://example.test/context')).rejects.toThrow('disabled')
+    await expect(createDocumentLoader()('https://example.test/context')).rejects.toMatchObject({
+      kind: 'remote-disabled',
+      code: 'loading document failed',
+    })
+  })
+
+  it('applies the current byte policy to a shared cache without reloading or changing its contents', async () => {
+    const url = 'https://example.test/cached-context'
+    const document: RemoteDocumentType = {
+      contextUrl: null,
+      documentUrl: url,
+      document: { '@context': { label: 'urn:雪😀' } },
+    }
+    const bytes = new TextEncoder().encode(JSON.stringify(document.document)).byteLength
+    const values = new Map<string, RemoteDocumentType>()
+    let writes = 0, loads = 0, reloads = 0
+    const cache = {
+      get(key: string) {
+        return values.get(key)
+      },
+      set(key: string, value: RemoteDocumentType) {
+        writes++
+        values.set(key, value)
+      },
+    }
+    const warm = createDocumentLoader({
+      cache,
+      maxBytes: bytes + 1,
+      loadDocument(): Promise<RemoteDocumentType> {
+        loads++
+        return Promise.resolve(document)
+      },
+    })
+    expect(await warm(url)).toBe(document)
+    expect(loads).toBe(1)
+    expect(writes).toBe(1)
+    const reload = (): Promise<RemoteDocumentType> => {
+      reloads++
+      return Promise.reject(new Error('A cache hit must not reload its document.'))
+    }
+    const strict = createDocumentLoader({ cache, maxBytes: bytes - 1, loadDocument: reload })
+    await expect(strict(url)).rejects.toMatchObject({ kind: 'document-size', url })
+    const exact = createDocumentLoader({ cache, maxBytes: bytes, loadDocument: reload })
+    expect(await exact(url)).toBe(document)
+    expect(reloads).toBe(0)
+    expect(writes).toBe(1)
+    expect([...values]).toEqual([[url, document]])
+  })
+
+  it('rechecks local cached documents after their caller-owned data changes', async () => {
+    const url = 'https://example.test/mutable-context'
+    const value = { '@context': { label: 'urn:label' } }
+    const document: RemoteDocumentType = { contextUrl: null, documentUrl: url, document: value }
+    const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength
+    let loads = 0
+    const load = createDocumentLoader({
+      maxBytes: bytes,
+      loadDocument(): Promise<RemoteDocumentType> {
+        loads++
+        return Promise.resolve(document)
+      },
+    })
+    expect(await load(url)).toBe(document)
+    value['@context'].label += '雪'
+    await expect(load(url)).rejects.toMatchObject({ kind: 'document-size', url })
+    expect(loads).toBe(1)
+    expect(document.document).toBe(value)
+    expect(value['@context'].label).toBe('urn:label雪')
   })
 
   it('deduplicates concurrent caller-owned remote document loads', async () => {
     let loads = 0
+    const reading = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
     const load = createDocumentLoader({
       async loadDocument(url) {
         loads++
-        await Promise.resolve()
+        reading.resolve()
+        await release.promise
         return { contextUrl: null, documentUrl: url, document: { '@context': {} } }
       },
     })
-    const [left, right] = await Promise.all([
+    const pending = Promise.all([
       load('https://example.test/context'),
       load('https://example.test/context'),
     ])
+    await reading.promise
+    try {
+      expect(loads).toBe(1)
+    } finally {
+      release.resolve()
+    }
+    const [left, right] = await pending
     expect(loads).toBe(1)
     expect(left).toBe(right)
+  })
+
+  it('shares size rejection across concurrent loads and does not cache the rejected document', async () => {
+    const reading = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    let loads = 0
+    const load = createDocumentLoader({
+      maxBytes: 32,
+      async loadDocument(url) {
+        loads++
+        reading.resolve()
+        await release.promise
+        return { contextUrl: null, documentUrl: url, document: 'x'.repeat(33) }
+      },
+    })
+    const pending = Promise.allSettled([
+      load('https://example.test/context'),
+      load('https://example.test/context'),
+    ])
+    await reading.promise
+    release.resolve()
+    const results = await pending
+    expect(loads).toBe(1)
+    expect(results).toEqual([
+      { status: 'rejected', reason: expect.objectContaining({ kind: 'document-size' }) },
+      { status: 'rejected', reason: expect.objectContaining({ kind: 'document-size' }) },
+    ])
+    await expect(load('https://example.test/context')).rejects.toMatchObject({
+      kind: 'document-size',
+    })
+    expect(loads).toBe(2)
+  })
+
+  it(
+    'cancels a remote body after headers and releases its reader',
+    { timeout: 2_000 },
+    async () => {
+      const reading = Promise.withResolvers<void>()
+      let cancelled = 0
+      const body = new ReadableStream<Uint8Array>({
+        pull() {
+          reading.resolve()
+          return new Promise<void>(() => {})
+        },
+        cancel() {
+          cancelled++
+        },
+      }, { highWaterMark: 0 })
+      const controller = new AbortController()
+      const load = createDocumentLoader({
+        remote: true,
+        signal: controller.signal,
+        fetch: () => Promise.resolve(new Response(body)),
+      })
+      const pending = load('https://example.test/context')
+      await reading.promise
+      controller.abort(new Error('stop JSON-LD body'))
+      await expect(pending).rejects.toMatchObject({
+        kind: 'abort',
+        url: 'https://example.test/context',
+      })
+      expect(cancelled).toBe(1)
+      expect(body.locked).toBe(false)
+    },
+  )
+
+  it('retains a remote deadline until body consumption completes', { timeout: 2_000 }, async () => {
+    const reading = Promise.withResolvers<void>()
+    let cancelled = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        reading.resolve()
+        return new Promise<void>(() => {})
+      },
+      cancel() {
+        cancelled++
+      },
+    }, { highWaterMark: 0 })
+    const load = createDocumentLoader({
+      remote: true,
+      timeoutMs: 30,
+      fetch: () => Promise.resolve(new Response(body)),
+    })
+    const pending = load('https://example.test/context')
+    await reading.promise
+    await expect(pending).rejects.toMatchObject({ kind: 'timeout' })
+    expect(cancelled).toBe(1)
+    expect(body.locked).toBe(false)
+  })
+
+  it('rejects an oversized remote chunk before requesting another producer chunk', async () => {
+    let reads = 0, cancelled = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        reads++
+        if (reads > 1) throw new Error('Loader requested bytes after the oversized chunk.')
+        controller.enqueue(new Uint8Array(33))
+      },
+      cancel() {
+        cancelled++
+      },
+    }, { highWaterMark: 0 })
+    const load = createDocumentLoader({
+      remote: true,
+      maxBytes: 32,
+      fetch: () => Promise.resolve(new Response(body)),
+    })
+    await expect(load('https://example.test/context')).rejects.toMatchObject({
+      kind: 'document-size',
+    })
+    expect(reads).toBe(1)
+    expect(cancelled).toBe(1)
+    expect(body.locked).toBe(false)
   })
 
   it('matches the W3C basic expansion shape without an external processor', async () => {
@@ -399,7 +590,7 @@ describe('@okikio/rdf/jsonld', () => {
         },
         { maxNestDepth: 1 },
       ),
-    ).rejects.toThrow('configured limit of 1')
+    ).rejects.toBeInstanceOf(RangeError)
   })
 
   it('unwraps context documents and matches W3C compact test 0001', async () => {
@@ -680,7 +871,7 @@ describe('@okikio/rdf/jsonld', () => {
   it('uses JSON-LD HTML error codes for missing and invalid script content', async () => {
     await expect(
       expand('https://example.test/page', { loadDocument: htmlLoad('<html></html>') }),
-    ).rejects.toThrow('no application/ld+json script')
+    ).rejects.toMatchObject({ code: 'loading document failed' })
     expect(
       await expand('https://example.test/page', {
         extractAllScripts: true,

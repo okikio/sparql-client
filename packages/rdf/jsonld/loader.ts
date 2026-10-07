@@ -1,6 +1,7 @@
 /** Bounded JSON-LD remote document loading. @module */
 
 import type { DocumentLoaderType, JsonLdValueType, RemoteDocumentType } from './types.ts'
+import { chunks } from '../text.ts'
 
 /** Default max documents used when the caller does not provide an override. */
 const DEFAULT_MAX_DOCUMENTS = 32
@@ -31,7 +32,7 @@ export interface LoaderOptionsType {
   readonly remote?: boolean
   /** URL policy checked before every request and redirect. */
   readonly allowUrl?: (url: URL) => boolean | Promise<boolean>
-  /** Optional caller-owned cross-operation cache. */
+  /** Optional caller-owned cross-operation cache. Cached documents still obey this loader's byte limit. */
   readonly cache?: DocumentCacheType
   /** Maximum number of remote JSON-LD documents admitted by one loader instance. */
   readonly maxDocuments?: number
@@ -64,7 +65,7 @@ export function createDocumentLoader(options: LoaderOptionsType = {}): DocumentL
   return async (url) => {
     abort(options.signal)
     const cached = local.get(url) ?? options.cache?.get(url)
-    if (cached) return cached
+    if (cached) return admit(cached, url)
     const pending = inflight.get(url)
     if (pending) return await pending
     if (++documents > maxDocuments) {
@@ -75,26 +76,33 @@ export function createDocumentLoader(options: LoaderOptionsType = {}): DocumentL
       )
     }
 
-    const promise = load(url)
-    inflight.set(url, promise)
-    try {
-      const document = await promise
-      const bytes = measure(document.document)
-      if (bytes > maxBytes) {
-        throw new JsonLdLoadError(
-          'document-size',
-          `JSON-LD remote document exceeds maxBytes (${maxBytes}).`,
-          url,
-        )
-      }
+    // Share the validated result, so concurrent waiters cannot bypass size policy.
+    const promise = (async () => {
+      const document = admit(await load(url), url)
       local.set(url, document)
       local.set(document.documentUrl, document)
       options.cache?.set(url, document)
       if (document.documentUrl !== url) options.cache?.set(document.documentUrl, document)
       return document
+    })()
+    inflight.set(url, promise)
+    try {
+      return await promise
     } finally {
       inflight.delete(url)
     }
+  }
+
+  /** Rechecks every admitted document against this loader's policy, including mutable cached values. */
+  function admit(document: RemoteDocumentType, url: string): RemoteDocumentType {
+    if (measure(document.document) > maxBytes) {
+      throw new JsonLdLoadError(
+        'document-size',
+        `JSON-LD remote document exceeds maxBytes (${maxBytes}).`,
+        url,
+      )
+    }
+    return document
   }
 
   /** Resolves one remote JSON-LD document through the bounded cache/deduplication and redirect policy. */
@@ -187,13 +195,96 @@ async function fetchDocument(
     }
 
     const timed = timeout(options.signal, options.timeoutMs)
-    let response: Response
     try {
-      response = await options.fetch(current, {
+      const response = await options.fetch(current, {
         headers: { Accept: 'application/ld+json, application/json;q=0.9' },
         redirect: 'manual',
         signal: timed.signal,
       })
+      if (response.status >= 300 && response.status < 400) {
+        await response.body?.cancel()
+        if (redirects >= options.maxRedirects) {
+          throw new JsonLdLoadError(
+            'redirect-limit',
+            `JSON-LD redirects exceed maxRedirects (${options.maxRedirects}).`,
+            current.href,
+          )
+        }
+        const location = response.headers.get('location')
+        if (!location) {
+          throw new JsonLdLoadError(
+            'http',
+            `JSON-LD redirect ${response.status} has no Location header.`,
+            current.href,
+          )
+        }
+        current = redirectUrl(location, current)
+        continue
+      }
+      if (!response.ok) {
+        await response.body?.cancel()
+        throw new JsonLdLoadError(
+          'http',
+          `JSON-LD remote load returned HTTP ${response.status}.`,
+          current.href,
+        )
+      }
+
+      const contentLength = Number(response.headers.get('content-length'))
+      if (Number.isFinite(contentLength) && contentLength > options.maxBytes) {
+        await response.body?.cancel()
+        throw new JsonLdLoadError(
+          'document-size',
+          `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`,
+          current.href,
+        )
+      }
+      const bytes = await read(response, options.maxBytes, timed.signal, current.href)
+
+      const contentType = mediaType(response.headers.get('content-type'))
+      const link = response.headers.get('link')
+      if (!jsonMedia(contentType)) {
+        const alternate = alternateLink(link, current)
+        if (alternate) {
+          if (redirects >= options.maxRedirects) {
+            throw new JsonLdLoadError(
+              'redirect-limit',
+              `JSON-LD redirects and alternate documents exceed maxRedirects (${options.maxRedirects}).`,
+              current.href,
+            )
+          }
+          current = toHttpUrl(alternate)
+          continue
+        }
+      }
+      if (!jsonMedia(contentType) && !htmlMedia(contentType)) {
+        throw new JsonLdLoadError(
+          'media',
+          `JSON-LD remote document has unsupported Content-Type '${contentType || '(missing)'}'.`,
+          current.href,
+        )
+      }
+
+      let document: JsonLdValueType
+      try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+        document = htmlMedia(contentType) ? text : JSON.parse(text) as JsonLdValueType
+      } catch (error) {
+        throw new JsonLdLoadError(
+          'json',
+          'Remote JSON-LD document is not valid UTF-8 JSON or HTML text.',
+          current.href,
+          error,
+        )
+      }
+
+      return {
+        contextUrl: jsonMedia(contentType) && contentType !== 'application/ld+json'
+          ? contextLink(link, current)
+          : null,
+        documentUrl: responseDocumentUrl(response.url, current),
+        document,
+      }
     } catch (error) {
       if (options.signal?.aborted) {
         throw new JsonLdLoadError('abort', 'JSON-LD remote load was aborted.', current.href, error)
@@ -210,96 +301,41 @@ async function fetchDocument(
     } finally {
       timed.dispose()
     }
-
-    if (response.status >= 300 && response.status < 400) {
-      if (redirects >= options.maxRedirects) {
-        throw new JsonLdLoadError(
-          'redirect-limit',
-          `JSON-LD redirects exceed maxRedirects (${options.maxRedirects}).`,
-          current.href,
-        )
-      }
-      const location = response.headers.get('location')
-      if (!location) {
-        throw new JsonLdLoadError(
-          'http',
-          `JSON-LD redirect ${response.status} has no Location header.`,
-          current.href,
-        )
-      }
-      current = redirectUrl(location, current)
-      continue
-    }
-    if (!response.ok) {
-      throw new JsonLdLoadError(
-        'http',
-        `JSON-LD remote load returned HTTP ${response.status}.`,
-        current.href,
-      )
-    }
-
-    const contentLength = Number(response.headers.get('content-length'))
-    if (Number.isFinite(contentLength) && contentLength > options.maxBytes) {
-      throw new JsonLdLoadError(
-        'document-size',
-        `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`,
-        current.href,
-      )
-    }
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    if (bytes.byteLength > options.maxBytes) {
-      throw new JsonLdLoadError(
-        'document-size',
-        `JSON-LD remote document exceeds maxBytes (${options.maxBytes}).`,
-        current.href,
-      )
-    }
-
-    const contentType = mediaType(response.headers.get('content-type'))
-    const link = response.headers.get('link')
-    if (!jsonMedia(contentType)) {
-      const alternate = alternateLink(link, current)
-      if (alternate) {
-        if (redirects >= options.maxRedirects) {
-          throw new JsonLdLoadError(
-            'redirect-limit',
-            `JSON-LD redirects and alternate documents exceed maxRedirects (${options.maxRedirects}).`,
-            current.href,
-          )
-        }
-        current = toHttpUrl(alternate)
-        continue
-      }
-    }
-    if (!jsonMedia(contentType) && !htmlMedia(contentType)) {
-      throw new JsonLdLoadError(
-        'media',
-        `JSON-LD remote document has unsupported Content-Type '${contentType || '(missing)'}'.`,
-        current.href,
-      )
-    }
-
-    let document: JsonLdValueType
-    try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-      document = htmlMedia(contentType) ? text : JSON.parse(text) as JsonLdValueType
-    } catch (error) {
-      throw new JsonLdLoadError(
-        'json',
-        'Remote JSON-LD document is not valid UTF-8 JSON or HTML text.',
-        current.href,
-        error,
-      )
-    }
-
-    return {
-      contextUrl: jsonMedia(contentType) && contentType !== 'application/ld+json'
-        ? contextLink(link, current)
-        : null,
-      documentUrl: responseDocumentUrl(response.url, current),
-      document,
-    }
   }
+}
+
+/**
+ * Admits bounded response bytes and cancels the reader on limits, abort or timeout.
+ * The deadline remains owned by fetchDocument until this body read also settles.
+ */
+async function read(
+  response: Response,
+  maxBytes: number,
+  signal: AbortSignal,
+  url: string,
+): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array()
+  const parts: Uint8Array[] = []
+  let length = 0
+  for await (const part of chunks(response.body, signal)) {
+    const bytes = part as Uint8Array
+    length += bytes.byteLength
+    if (length > maxBytes) {
+      throw new JsonLdLoadError(
+        'document-size',
+        `JSON-LD remote document exceeds maxBytes (${maxBytes}).`,
+        url,
+      )
+    }
+    parts.push(bytes)
+  }
+  const value = new Uint8Array(length)
+  let offset = 0
+  for (const part of parts) {
+    value.set(part, offset)
+    offset += part.byteLength
+  }
+  return value
 }
 
 /**
