@@ -1,6 +1,6 @@
 # Test and benchmark review, 2026-10-07
 
-The review covers 75 permanent test and support files: 73 `*_test.ts` files, including release tests and the memory filesystem fixture, plus two Playwright specs. Fixtures and ownership were traced through source, package docs, test guide, CI/tasks and architecture. Retained status below describes design review, not a claim that all runtime environments passed.
+The review covers 78 permanent test files: 76 `*_test.ts` files, including release and tooling controls and the memory filesystem fixture, plus two Playwright specs. Fixtures and ownership were traced through source, package docs, test guide, CI/tasks and architecture. Retained status below describes design review, not a claim that all runtime environments passed.
 
 ## Group dispositions
 
@@ -122,7 +122,7 @@ controls; an uncooperative injected fetch or stream cancellation can still delay
 
 ## Validation ownership
 
-Runtime tests and benchmark preflights run without compiler work. Static checks, generated consumer declarations and compiler measurements run serially in a disposable Linux copy with a 2 GiB memory limit and read-only source mounts. Passing a runtime test alone does not establish a type contract. The executed full gates are recorded below separately from these design decisions.
+Runtime tests and benchmark preflights run without compiler work. Static checks, generated consumer declarations and compiler measurements run in isolated CI jobs. Compiler measurements run serially within their job. The earlier validation checkpoint used a disposable Linux copy with a two GiB memory limit; hosted CI does not establish that same memory bound. Passing a runtime test alone does not establish a type contract. The executed full gates are recorded below separately from these design decisions.
 
 ## API evidence and limits
 
@@ -158,16 +158,35 @@ Preflights establish the fixture's result before Mitata registration. They do no
 
 ## Repository organization
 
-Permanent fixtures, test oracles, Dockerfiles and the vocabulary bootstrap provenance remain visible source. Downloaded standards suites, generated packages, compiler fixtures, browser traces and report data belong under ignored `.tmp/`; assistant-local data belongs outside permanent source. The focused ignore file replaces unrelated web-framework templates and scopes root package/archive output so nested reproducible fixtures remain visible. Existing ignored evidence was preserved. No dependency upgrade, staging, commit, history rewrite or publication is part of this review.
+Permanent fixtures, test oracles, Dockerfiles and the vocabulary bootstrap provenance remain visible source. Downloaded standards suites, generated packages, compiler fixtures, browser traces and report data belong under ignored `.tmp/`; assistant-local data belongs outside permanent source. The focused ignore file replaces unrelated web-framework templates and scopes root package/archive output so nested reproducible fixtures remain visible. Existing ignored evidence was preserved. No dependency upgrade or publication is part of this review. Original staging and branch heads are preserved. Review commits are created in disposable checkouts and delivered through the existing draft pull requests.
 
 See [testing](testing.md) for runtime and static-validation ownership, and [benchmarks](benchmarks.md) for scenarios, input identities, units and reproduction. Exact new validation results are recorded separately from design dispositions; an accepted test or benchmark design does not mean that every runtime or workload has been exercised.
 
-## Executed validation
+## Prior validation checkpoint
 
-The final source passed `deno task test` and `deno task test --shuffle=20261007`: each ran 70 suites and 344 steps. The three-browser lane passed 38 cases with one named WebKit native-OPFS capability skip. `deno task conformance` passed all 3,373 selected official cases with zero failures or skips. `integration` passed eight suites and 33 steps against real pinned engines and services; `integration:storage` passed four suites and 28 steps.
+The following results belong to the earlier reviewed checkpoint. They do not establish proof for the later lifecycle, oracle, downloader, or artifact-receipt changes. That checkpoint passed `deno task test` and `deno task test --shuffle=20261007`: each ran 70 suites and 344 steps. The three-browser lane passed 38 cases with one named WebKit native-OPFS capability skip. `deno task conformance` passed all 3,373 selected official cases with zero failures or skips. `integration` passed eight suites and 33 steps against real pinned engines and services; `integration:storage` passed four suites and 28 steps.
 
 A disposable Linux copy with a 2 GiB memory limit passed `deno task verify`, `distribution`, `package` and `consumer` against actual frozen dependencies. This includes static checks, public entrypoints, documentation lint, six real archives and installed Deno/Node/Bun behavior and declarations. `consumer:linux` and `consumer:storage` then passed actual installed packages across host and Linux compatibility runtimes, using the independently packed current OPFS archive.
 
 `deno task bench:check` passed all 23 untimed preflight processes. The final serial `bench:report` passed all 23 programs and 175 Mitata cases, with all 120 input hashes unchanged. The isolated TypeScript 5.9.3 `bench:types` lane passed eleven compiler fixtures and stable input identities. `bench:storage` passed twelve fresh processes per runtime, 36 total, with unchanged package/archive inputs and persistent fixture. Native and N3 plain parser diagnostics passed complete RDF oracles and basename report paths. Optional CPU/heap profiling and million-quad cells were not run.
 
 Host evidence uses Deno 2.9.7, Node 26.10.0 and Bun 1.3.14. Linux installed consumers additionally used Node 22.18 and 24.21. Fresh processes do not prove cold OS caches; these synthetic fixtures do not define an application SLO. Original staged changes and ignored local evidence were preserved.
+
+## Current tooling controls and validation
+
+The private `artifacts.ts` helper binds six archives to current package/build input bytes and matching npm/JSR identities.
+Consumer tasks reject missing receipts, substituted archives and stale installed payloads before running behaviors.
+Installed payload comparison checks relative file paths and bytes, including missing or extra files; tar order and host
+metadata are incidental. LF checkout rules keep the same package input bytes on Windows. Receipt controls deliberately
+accept JSON key/row rearrangement and unrelated test/task edits, while rejecting changed build inputs and hidden runtime files.
+
+The benchmark child collector bounds each direct child with an operational twenty-minute watchdog and each output stream
+with a 32 MiB cap. It keeps exact stdout/stderr bytes, numeric exit codes, and separate startup/deadline errors.
+Real child controls cover normal exit, nonzero exit, missing executable, invalid UTF-8 diagnostics and a stalled child.
+These controls establish lifecycle and evidence fidelity; they do not assert measured throughput or latency.
+
+The current local `deno task test` passed 70 package/conformance suites with 345 steps, then two tooling suites with
+19 steps and one child suite. The final child suite passed five steps after raw-byte preservation was added. All local
+runtime commands used `--no-check`; formatting and lint passed. Full type, conformance, installed archive, browser,
+service and benchmark gates run on the exact reviewed source in CI. Their source commits and results belong to retained
+ignored reports, so editing this document does not manufacture evidence for an unexecuted gate.
