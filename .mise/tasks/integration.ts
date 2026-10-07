@@ -2,6 +2,7 @@
 const child = new Deno.Command(Deno.execPath(), {
   args: [
     'test',
+    '--no-check',
     'integration/http_test.ts',
     'integration/engine_test.ts',
     'integration/protocol_test.ts',

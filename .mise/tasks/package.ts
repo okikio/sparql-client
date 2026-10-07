@@ -3,9 +3,11 @@
 import { exportMap as asExports, sameExports } from '../../conformance/exports.ts'
 import { optional } from './files.ts'
 import * as workspace from './workspace.ts'
+import * as artifacts from './artifacts.ts'
 
 const ROOT = '.tmp/packages'
 const packages = await workspace.get()
+const inputs = await artifacts.identity()
 const versions = new Map<string, string>()
 for (const member of packages) {
   const metadata = await json(`${member}/package.json`)
@@ -62,6 +64,7 @@ for (const member of packages) {
 }
 
 await run(Deno.execPath(), ['publish', '--dry-run', '--allow-dirty'])
+await artifacts.save(inputs)
 console.log(`Packed ${packages.length} workspace packages into ${ROOT}.`)
 
 /** Resolves development workspace references to actual versions in npm archives. */

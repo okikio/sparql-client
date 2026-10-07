@@ -1,4 +1,5 @@
 /** Executes clean packed-package behavior with bounded, owned Linux container lifetimes. @module */
+import * as artifacts from './artifacts.ts'
 
 /** Captured command diagnostics remain available for unsuccessful exits and deadlines. */
 interface OutputType {
@@ -45,6 +46,16 @@ class InvocationError extends Error {
 }
 
 const directory = await Deno.realPath('.tmp/consumer')
+await artifacts.installed(directory)
+const current = await Deno.readFile('integration/consumer.ts')
+const installed = await Deno.readFile(`${directory}/behavior.ts`)
+if (
+  current.length !== installed.length || current.some((value, index) => value !== installed[index])
+) {
+  throw new Error(
+    'Installed consumer fixture is stale. Run deno task consumer before the Linux lane.',
+  )
+}
 await Deno.stat(`${directory}/behavior.ts`)
 /** One runtime failure must not hide the other independently executable consumer cases. */
 const failures: unknown[] = []

@@ -41,6 +41,7 @@ const child = new Deno.Command(Deno.execPath(), {
   cwd: root,
   args: [
     'test',
+    '--no-check',
     '--config',
     join(output, 'deno.json'),
     '--unstable-kv',

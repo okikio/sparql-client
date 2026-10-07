@@ -2,21 +2,14 @@
 
 import * as workspace from './workspace.ts'
 import { optional } from './files.ts'
+import * as artifacts from './artifacts.ts'
 
 const PACK = '.tmp/packages'
 const ROOT = '.tmp/consumer'
 if (!(await exists(PACK))) await run(Deno.execPath(), ['task', 'package'])
+const tarballs = (await artifacts.get()).map((path) => `../../${path}`)
 await optional(() => Deno.remove(ROOT, { recursive: true }))
 await Deno.mkdir(ROOT, { recursive: true })
-
-const tarballs: string[] = []
-for await (const entry of Deno.readDir(PACK)) {
-  if (entry.isFile && entry.name.endsWith('.tgz')) tarballs.push(`../packages/${entry.name}`)
-}
-tarballs.sort()
-if (tarballs.length === 0) {
-  throw new Error('No package tarballs found. Run deno task package first.')
-}
 
 await Deno.writeTextFile(`${ROOT}/package.json`, '{"private":true,"type":"module"}\n')
 await run('npm', [
@@ -28,6 +21,7 @@ await run('npm', [
   '@types/node@24.10.1',
   ...tarballs,
 ], ROOT)
+await artifacts.installed(ROOT)
 await Deno.writeTextFile(`${ROOT}/smoke.ts`, await smoke())
 await Deno.copyFile('integration/consumer.ts', `${ROOT}/behavior.ts`)
 await run(

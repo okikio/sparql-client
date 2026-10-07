@@ -1,6 +1,7 @@
 /** Installs both repositories' artifacts and tests storage composition in host and Linux runtimes. @module */
 import { resolve } from '@std/path'
 import { optional } from './files.ts'
+import * as artifacts from './artifacts.ts'
 
 /** Captured command diagnostics remain available for unsuccessful exits and deadlines. */
 interface OutputType {
@@ -51,12 +52,7 @@ const artifact = resolve(
   Deno.env.get('OPFS_TARBALL') ?? '../opfs/.release/npm/okikio-opfs-0.0.0-quality.tgz',
 )
 await Deno.stat(artifact)
-const packages: string[] = [artifact]
-for await (const entry of Deno.readDir('.tmp/packages')) {
-  if (entry.isFile && entry.name.endsWith('.tgz')) {
-    packages.push(resolve('.tmp/packages', entry.name))
-  }
-}
+const packages: string[] = [artifact, ...(await artifacts.get()).map((file) => resolve(file))]
 if (packages.length !== 7) {
   throw new Error('Build the six RDF/SPARQL packages before the storage consumer.')
 }
@@ -71,6 +67,7 @@ await run('npm', [
   '--no-package-lock',
   ...packages,
 ])
+await artifacts.installed(ROOT)
 await Deno.copyFile('integration/storage/consumer.ts', `${ROOT}/behavior.ts`)
 await run('node', ['behavior.ts'])
 await run(Deno.execPath(), [
