@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, devices } from '@playwright/test'
 
 /** Fixture origins are isolated from the OPFS browser owner's ports. */
@@ -10,7 +11,9 @@ export default defineConfig({
   forbidOnly: Boolean(Deno.env.get('CI')),
   retries: 0,
   workers: 3,
-  reporter: [['line'], ['json', { outputFile: '.tmp/reports/browser/results.json' }]],
+  reporter: [['line'], ['json', {
+    outputFile: fileURLToPath(new URL('../../.tmp/reports/browser/results.json', import.meta.url)),
+  }]],
   use: { baseURL: origin, trace: 'retain-on-failure' },
   webServer: {
     command:

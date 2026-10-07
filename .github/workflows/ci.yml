@@ -94,7 +94,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: okikio/opfs
-          ref: 696c48de9720fe3071476d124666d25a85599f29
+          ref: bf38254bec144c591850acda1274114bde7ac66c
           path: .tmp/opfs-source
           persist-credentials: false
       - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
@@ -109,6 +109,7 @@ jobs:
         if: always()
         with:
           name: browser-evidence
+          if-no-files-found: error
           path: .tmp/reports/browser
           include-hidden-files: true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -128,8 +129,10 @@ jobs:
       - run: deno task bench:report
       - run: deno task bench:types
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
         with:
           name: benchmark-evidence-${{ github.sha }}
+          if-no-files-found: error
           path: |
             .tmp/reports/bench
             .tmp/reports/types
@@ -147,7 +150,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: okikio/opfs
-          ref: 696c48de9720fe3071476d124666d25a85599f29
+          ref: bf38254bec144c591850acda1274114bde7ac66c
           path: .tmp/opfs-source
           persist-credentials: false
       - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
