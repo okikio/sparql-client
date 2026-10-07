@@ -30,7 +30,7 @@ async function watch<Value>(operation: Promise<Value>): Promise<Value> {
 
 describe('Schema.org task bounded source', () => {
   it('accepts exact-cap multichunk bytes with no length or an understated length', async () => {
-    for (const headers of [{}, { 'content-length': '1' }]) {
+    for (const headers of [new Headers(), new Headers({ 'content-length': '1' })]) {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new Uint8Array([0, 255]))
@@ -48,7 +48,7 @@ describe('Schema.org task bounded source', () => {
   })
 
   it('rejects an overflowing chunk before another pull and cancels the borrowed body', async () => {
-    for (const headers of [{}, { 'content-length': '1' }]) {
+    for (const headers of [new Headers(), new Headers({ 'content-length': '1' })]) {
       let pulls = 0
       let canceled = 0
       let reason: unknown
