@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { namedNode, RDF } from '../mod.ts'
+import { blankNode, namedNode, quad, RDF } from '../mod.ts'
 import type { TextSourceType } from '../text.ts'
 import { parse, type ParseOptionsType } from './mod.ts'
+import { isomorphic } from '../../../conformance/equal.ts'
 
 async function all(source: TextSourceType, options: ParseOptionsType = {}) {
   const values = []
@@ -53,8 +54,14 @@ describe('@okikio/rdf/rdfa', () => {
     const html =
       `<div vocab="https://schema.org/" about="https://example.test/a"><a rel="knows" inlist href="https://example.test/b"></a><a rel="knows" inlist href="https://example.test/c"></a></div>`
     const values = await all(html)
-    expect(values.some((value) => value.predicate.value === RDF.first)).toBe(true)
-    expect(values.some((value) => value.predicate.value === RDF.rest)).toBe(true)
+    const head = blankNode('head'), tail = blankNode('tail')
+    expect(isomorphic(values, [
+      quad(namedNode('https://example.test/a'), namedNode('https://schema.org/knows'), head),
+      quad(head, namedNode(RDF.first), namedNode('https://example.test/b')),
+      quad(head, namedNode(RDF.rest), tail),
+      quad(tail, namedNode(RDF.first), namedNode('https://example.test/c')),
+      quad(tail, namedNode(RDF.rest), namedNode(RDF.nil)),
+    ])).toBe(true)
   })
 
   it('keeps empty about distinct from absent about and preserves lexical IRIs', async () => {
@@ -258,7 +265,9 @@ describe('@okikio/rdf/rdfa', () => {
     expect(values[0]?.predicate.value).toBe('relative/name')
   })
 
-  it('rejects invalid limits and honors cancellation during stalled input and output', async () => {
+  it('rejects invalid limits and honors cancellation during stalled input and output', {
+    timeout: 5_000,
+  }, async () => {
     for (const maxQuads of [0, -1, NaN, Infinity, 1.5]) {
       await expect(all('<p/>', { maxQuads })).rejects.toThrow(RangeError)
     }
@@ -277,8 +286,9 @@ describe('@okikio/rdf/rdfa', () => {
     }, { highWaterMark: 0 })
     const waiting = all(stream, { signal: controller.signal })
     await reading
-    controller.abort(new Error('Caller canceled'))
-    await expect(waiting).rejects.toThrow('Caller canceled')
+    const reason = new Error('Caller canceled')
+    controller.abort(reason)
+    await expect(waiting).rejects.toBe(reason)
     expect(canceled).toBe(1)
     expect(stream.locked).toBe(false)
     const output = new AbortController(),
@@ -287,8 +297,9 @@ describe('@okikio/rdf/rdfa', () => {
         { signal: output.signal },
       )
     expect((await iterator.next()).done).toBe(false)
-    output.abort(new Error('Stop output'))
-    await expect(iterator.next()).rejects.toThrow('Stop output')
+    const outputReason = new Error('Stop output')
+    output.abort(outputReason)
+    await expect(iterator.next()).rejects.toBe(outputReason)
   })
 
   it('forwards a raised source byte cap to embedded SVG RDF/XML', async () => {

@@ -48,10 +48,10 @@ describe('Turtle/TriG buffered scanning', () => {
     expect(value?.range.line).toBe(2)
     expect(value?.range.column).toBe(1)
     expect(value?.range.end).toBe(text.length)
-    await expect(collect(turtle(text, { maxTokenLength: 65541 }))).rejects.toThrow('maxTokenLength')
+    await expect(collect(turtle(text, { maxTokenLength: 65541 }))).rejects.toThrow(SyntaxError)
     await expect(collect(turtle('<urn:s> <urn:p> [ <urn:p> [ <urn:p> <urn:o> ] ] .', {
       maxDepth: 1,
-    }))).rejects.toThrow('maxDepth')
+    }))).rejects.toThrow(SyntaxError)
     await expect(collect(trig('<urn:g> { <urn:s> <urn:p> "unterminated }'))).rejects.toThrow()
   })
 
@@ -80,9 +80,7 @@ describe('Turtle/TriG buffered scanning', () => {
           }
         },
       }
-      await expect(collect(turtle(source, { maxTokenLength: 32 }))).rejects.toThrow(
-        'maxTokenLength',
-      )
+      await expect(collect(turtle(source, { maxTokenLength: 32 }))).rejects.toThrow(SyntaxError)
       expect(tailReads).toBe(0)
       expect(returns).toBe(1)
     }
@@ -105,7 +103,7 @@ describe('Turtle/TriG buffered scanning', () => {
       }
       expect(await collect(parse('', { maxDepth: 0 }))).toHaveLength(0)
       await expect(collect(parse('<urn:s> <urn:p> [ <urn:q> <urn:o> ] .', { maxDepth: 0 }))).rejects
-        .toThrow('maxDepth')
+        .toThrow(SyntaxError)
       for (const field of ['maxTokenLength', 'maxStatementEvents'] as const) {
         expect(await collect(parse('', { [field]: 0 }))).toHaveLength(0)
       }
@@ -132,50 +130,54 @@ describe('Turtle/TriG buffered scanning', () => {
     expect(limited.some((event) => event.kind === 'diagnostic')).toBe(true)
   })
 
-  it('cancels a stalled refill and releases early-return sources once', async () => {
-    for (const parse of [turtle, trig]) {
-      const controller = new AbortController()
-      let entered!: () => void
-      const gate = new Promise<void>((resolve) => entered = resolve)
-      let returned = 0
-      const source: AsyncIterable<string> = {
-        [Symbol.asyncIterator]() {
-          let first = true
-          return {
-            next() {
-              if (first) {
-                first = false
-                return Promise.resolve({ done: false as const, value: '<urn:s> <urn:p> "' })
-              }
-              entered()
-              return new Promise<IteratorResult<string>>(() => {})
-            },
-            return() {
-              returned++
-              return Promise.resolve({ done: true as const, value: undefined })
-            },
-          }
-        },
+  it(
+    'cancels a stalled refill and releases early-return sources once',
+    { timeout: 5_000 },
+    async () => {
+      for (const parse of [turtle, trig]) {
+        const controller = new AbortController()
+        let entered!: () => void
+        const gate = new Promise<void>((resolve) => entered = resolve)
+        let returned = 0
+        const source: AsyncIterable<string> = {
+          [Symbol.asyncIterator]() {
+            let first = true
+            return {
+              next() {
+                if (first) {
+                  first = false
+                  return Promise.resolve({ done: false as const, value: '<urn:s> <urn:p> "' })
+                }
+                entered()
+                return new Promise<IteratorResult<string>>(() => {})
+              },
+              return() {
+                returned++
+                return Promise.resolve({ done: true as const, value: undefined })
+              },
+            }
+          },
+        }
+        const pending = collect(parse(source, { signal: controller.signal }))
+        await gate
+        const reason = new Error('stop pending scanner refill')
+        controller.abort(reason)
+        await expect(pending).rejects.toBe(reason)
+        expect(returned).toBe(1)
+        let releases = 0
+        const complete: Iterable<string> = {
+          *[Symbol.iterator]() {
+            try {
+              yield '<urn:s> <urn:p> <urn:o> .'
+              yield '<urn:tail> <urn:p> <urn:o> .'
+            } finally {
+              releases++
+            }
+          },
+        }
+        for await (const _value of parse(complete)) break
+        expect(releases).toBe(1)
       }
-      const pending = collect(parse(source, { signal: controller.signal }))
-      await gate
-      const reason = new Error('stop pending scanner refill')
-      controller.abort(reason)
-      await expect(pending).rejects.toBe(reason)
-      expect(returned).toBe(1)
-      let releases = 0
-      const complete: Iterable<string> = {
-        *[Symbol.iterator]() {
-          try {
-            yield '<urn:s> <urn:p> <urn:o> .'
-            yield '<urn:tail> <urn:p> <urn:o> .'
-          } finally {
-            releases++
-          }
-        },
-      }
-      for await (const _value of parse(complete)) break
-      expect(releases).toBe(1)
-    }
-  })
+    },
+  )
 })

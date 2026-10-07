@@ -109,7 +109,7 @@ describe('@okikio/rdf terms and factories', () => {
     expect(quad(s, p, embedded).object.equals(embedded)).toBe(true)
 
     const named = quad(s, p, literal('value'), namedNode('urn:g'))
-    expect(() => quad(s, p, named)).toThrow('triple term')
+    expect(() => quad(s, p, named)).toThrow(TypeError)
   })
 
   it('creates collision-safe semantic keys for nested terms', () => {

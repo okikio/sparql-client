@@ -8,21 +8,22 @@ const value = quad(namedNode('urn:s'), namedNode('urn:p'), literal('o'))
 describe('@okikio/rdf source iteration', () => {
   it('rejects cancellation that arrives with the next value before admitting that value', async () => {
     const controller = new AbortController()
+    const reason = new Error('abort with value')
     const source = {
       [Symbol.iterator]() {
         return {
           next() {
-            controller.abort(new Error('abort with value'))
+            controller.abort(reason)
             return { done: false as const, value }
           },
         }
       },
     }
-    await expect(iterate(source, { signal: controller.signal }).next()).rejects.toThrow(
-      'abort with value',
-    )
+    await expect(iterate(source, { signal: controller.signal }).next()).rejects.toBe(reason)
   })
-  it('settles a pending source read on abort and returns the iterator exactly once', async () => {
+  it('settles a pending source read on abort and returns the iterator exactly once', {
+    timeout: 5_000,
+  }, async () => {
     const controller = new AbortController()
     let returned = 0
     let entered!: () => void
@@ -46,8 +47,9 @@ describe('@okikio/rdf source iteration', () => {
     const iterator = iterate(source, { signal: controller.signal })
     const pending = iterator.next()
     await started
-    controller.abort(new Error('stop pending RDF input'))
-    await expect(pending).rejects.toThrow('stop pending RDF input')
+    const reason = new Error('stop pending RDF input')
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
     expect(returned).toBe(1)
   })
 
@@ -59,7 +61,8 @@ describe('@okikio/rdf source iteration', () => {
         return [value][Symbol.iterator]()
       },
     }
-    await expect(iterate(source, { signal: AbortSignal.abort() }).next()).rejects.toThrow()
+    const reason = new Error('stop before RDF source acquisition')
+    await expect(iterate(source, { signal: AbortSignal.abort(reason) }).next()).rejects.toBe(reason)
     expect(acquired).toBe(0)
   })
 

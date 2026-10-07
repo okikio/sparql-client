@@ -11,6 +11,7 @@ export async function identity(root = '.'): Promise<Readonly<Record<string, stri
     '.mise/tasks/benchmarks.ts',
     '.mise/tasks/bench.ts',
     '.mise/tasks/bench-identity.ts',
+    '.mise/tasks/bench-command.ts',
   ]
   for (const directory of ['packages', 'bench']) await visit(root, directory, paths)
   const result: Record<string, string> = {}
@@ -27,18 +28,26 @@ export function assertStable(
   before: Readonly<Record<string, string>>,
   after: Readonly<Record<string, string>>,
 ): void {
-  if (JSON.stringify(before) !== JSON.stringify(after)) {
+  const keys = Object.keys(before).sort()
+  const current = Object.keys(after).sort()
+  if (
+    keys.length !== current.length ||
+    keys.some((key, index) => key !== current[index] || before[key] !== after[key])
+  ) {
     throw new Error('Source or dependency inputs changed during measurement. Discard timings.')
   }
 }
 
-/** Only intentional TypeScript inputs belong to this native lane, not independent unit/compiler fixtures. */
+/** Hash timed fixtures too: store recovery borrows the development-only MemoryFileSystem module. */
 async function visit(root: string, directory: string, paths: string[]): Promise<void> {
   for await (const entry of Deno.readDir(join(root, directory))) {
     const path = `${directory}/${entry.name}`
     if (entry.isDirectory) await visit(root, path, paths)
-    else if (
-      entry.isFile && entry.name.endsWith('.ts') && !entry.name.endsWith('_test.ts') &&
+    else if (entry.isFile && (entry.name === 'deno.json' || entry.name === 'package.json')) {
+      paths.push(path)
+    } else if (
+      entry.isFile && entry.name.endsWith('.ts') &&
+      (!entry.name.endsWith('_test.ts') || path === 'packages/triplestore/_memory_test.ts') &&
       path !== 'bench/vocab/types.ts' && path !== 'bench/vocab/diagnostics.ts'
     ) paths.push(path)
   }

@@ -1,7 +1,10 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { validateObservation } from '../bench/parser/resources.ts'
-import { expectQuads } from '../bench/oracle.ts'
+import { expectQuads, expectTerm, expectTokens } from '../bench/oracle.ts'
+import { expectCompilation } from '../bench/vocab/consumer.ts'
+import type { TokenType } from '@okikio/sparql/syntax'
+import type { EmitResultType } from '../packages/vocab/emit.ts'
 import { validateMitata } from '../bench/validate.ts'
 import { parseDiagnostics } from '../bench/vocab/diagnostics.ts'
 import { assertStable, identity } from '../.mise/tasks/bench-identity.ts'
@@ -64,7 +67,103 @@ Check time: 0.00s
 Total time: 0.00s
 `
 
+/** Independent tiny generated-module shape tests consumers rather than one renderer's source spelling. */
+function vocabulary(source: string): EmitResultType {
+  return {
+    source,
+    manifest: {
+      version: 1,
+      generator: 'fixture',
+      vocabulary: 'fixture',
+      sources: [],
+      diagnostics: [],
+      symbols: [
+        { kind: 'class', name: 'Class0', iri: 'https://example.test/Class0' },
+        { kind: 'property', name: 'property0', iri: 'https://example.test/property0' },
+      ],
+    },
+  }
+}
+const generated = `
+export const Class0 = { termType: 'NamedNode', value: 'https://example.test/Class0' };
+export const property0 = { termType: 'NamedNode', value: 'https://example.test/property0' };
+export const Class0Schema = {
+  '~standard': {
+    validate(value) {
+      if (value['@type'] !== 'Class0') return { issues: [{ path: ['@type'] }] };
+      return typeof value.property0 === 'string'
+        ? { value }
+        : { issues: [{ path: ['property0'], message: 'fixture range mismatch' }] };
+    }
+  }
+};
+`
+
 describe('benchmark evidence contracts', () => {
+  it('compares all token fields independently of object property order', () => {
+    const token: TokenType = {
+      kind: 'variable',
+      value: 's',
+      raw: '?s',
+      range: { start: 0, end: 2, line: 1, column: 1, endLine: 1, endColumn: 3 },
+    }
+    const reordered: TokenType = {
+      range: { endColumn: 3, endLine: 1, column: 1, line: 1, end: 2, start: 0 },
+      raw: '?s',
+      value: 's',
+      kind: 'variable',
+    }
+    expect(() => expectTokens([token], [reordered], 'same token')).not.toThrow()
+    for (
+      const wrong of [
+        { ...token, kind: 'iri' as const },
+        { ...token, value: 'wrong' },
+        { ...token, raw: '$s' },
+        ...Object.keys(token.range).map((key) => ({
+          ...token,
+          range: { ...token.range, [key]: token.range[key as keyof TokenType['range']] + 1 },
+        })),
+      ]
+    ) expect(() => expectTokens([wrong], [token], 'wrong field')).toThrow()
+    expect(() => expectTokens([], [token], 'missing token')).toThrow()
+    expect(() => expectTokens([token, token], [token], 'extra token')).toThrow()
+    const second = { ...token, value: 'o', raw: '?o' }
+    expect(() => expectTokens([second, token], [token, second], 'changed token order')).toThrow()
+  })
+  it('accepts incidental source formatting while rejecting wrong vocabulary exports and range behavior', async () => {
+    await expectCompilation(vocabulary(generated), 1, 1)
+    await expectCompilation(vocabulary(`// changed comments and spacing\n\n${generated}`), 1, 1)
+    for (
+      const source of [
+        generated.replace('https://example.test/Class0', 'https://example.test/Wrong'),
+        generated.replace("typeof value.property0 === 'string'", 'true'),
+        generated.replace("if (value['@type'] !== 'Class0')", 'if (false)'),
+        generated.replace('? { value }', "? { value: { '@type': value['@type'] } }"),
+        generated.replace('export const Class0Schema', 'const Class0Schema'),
+      ]
+    ) await expect(expectCompilation(vocabulary(source), 1, 1)).rejects.toThrow()
+    const wrong = vocabulary(generated)
+    await expect(expectCompilation(
+      {
+        ...wrong,
+        manifest: { ...wrong.manifest, symbols: wrong.manifest.symbols.slice(1) },
+      },
+      1,
+      1,
+    )).rejects.toThrow()
+  })
+  it('checks binding term identity even when lexical values match', () => {
+    const expected = literal('binding', '', '', 'urn:type')
+    expect(() => expectTerm({ ...expected }, expected, 'same binding')).not.toThrow()
+    for (
+      const actual of [
+        named('binding'),
+        literal('binding', 'ja', '', 'urn:type'),
+        literal('binding', '', 'rtl', 'urn:type'),
+        literal('binding', '', '', 'urn:wrong'),
+      ]
+    ) expect(() => expectTerm(actual, expected, 'wrong binding')).toThrow()
+  })
   it('guards measured source and configuration while excluding separate tests/compiler workloads', async () => {
     const root = await Deno.makeTempDir({ prefix: 'benchmark-identity-' })
     try {
@@ -76,9 +175,13 @@ describe('benchmark evidence contracts', () => {
         '.mise/tasks/benchmarks.ts',
         '.mise/tasks/bench.ts',
         '.mise/tasks/bench-identity.ts',
+        '.mise/tasks/bench-command.ts',
         'packages/rdf/mod.ts',
+        'packages/rdf/deno.json',
+        'packages/vocab/package.json',
         'packages/rdf/parse_bench.ts',
         'packages/rdf/parse_test.ts',
+        'packages/triplestore/_memory_test.ts',
         'bench/parser.ts',
         'bench/vocab/types.ts',
         'bench/vocab/diagnostics.ts',
@@ -101,8 +204,12 @@ describe('benchmark evidence contracts', () => {
       assertStable(before, await identity(root))
       for (
         const path of [
+          '.mise/tasks/bench-command.ts',
           'packages/rdf/mod.ts',
+          'packages/rdf/deno.json',
+          'packages/vocab/package.json',
           'packages/rdf/parse_bench.ts',
+          'packages/triplestore/_memory_test.ts',
           'bench/parser.ts',
           'deno.json',
         ]
@@ -116,6 +223,11 @@ describe('benchmark evidence contracts', () => {
     } finally {
       await Deno.remove(root, { recursive: true })
     }
+  })
+  it('compares input hash records independently of object insertion order', () => {
+    expect(() => assertStable({ a: 'one', b: 'two' }, { b: 'two', a: 'one' })).not.toThrow()
+    expect(() => assertStable({ a: 'one' }, { a: 'two' })).toThrow()
+    expect(() => assertStable({ a: 'one' }, { a: 'one', b: 'two' })).toThrow()
   })
   it('accepts the native format with complete finite samples and statistics', () => {
     expect(() => validateMitata(native())).not.toThrow()
@@ -133,6 +245,30 @@ describe('benchmark evidence contracts', () => {
       p999: 10,
     }
     expect(() => validateMitata(zero)).not.toThrow()
+    // Clock resolution can yield a zero median with genuine positive samples.
+    const subTick = native()
+    subTick.benchmarks[0]!.runs[0]!.stats = {
+      ...zero.benchmarks[0]!.runs[0]!.stats,
+      samples: [0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10],
+      avg: 50 / 12,
+      p50: 0,
+    }
+    expect(() => validateMitata(subTick)).not.toThrow()
+    const fabricated = native()
+    fabricated.benchmarks[0]!.runs[0]!.stats = {
+      ...subTick.benchmarks[0]!.runs[0]!.stats,
+      samples: Array(12).fill(0),
+      min: 0,
+      max: 1,
+      avg: 0,
+      p25: 0,
+      p50: 0,
+      p75: 0,
+      p99: 0,
+      p999: 0,
+    }
+    expect(() => validateMitata(fabricated)).toThrow()
+
     for (
       const resources of [
         { heap: { _: 2, total: 1, min: 0.25, max: 0.75, avg: 0.5 } },

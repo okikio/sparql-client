@@ -225,25 +225,33 @@ describe('@okikio/rdf/shape', () => {
 
     const person = getShape(graph, 'PersonShape')
     expect(person?.types.includes('https://example.com/Profile')).toBe(true)
-    expect(person?.constraints.some((value) => value.kind === 'closed' && value.mode === 'byTypes'))
-      .toBe(true)
-    expect(
-      person?.constraints.some((value) =>
-        value.kind === 'uniqueValuesFor' && value.paths.length === 2
-      ),
-    ).toBe(true)
+    expect(person?.constraints).toContainEqual({
+      kind: 'closed',
+      mode: 'byTypes',
+      ignoredProperties: [RDF.type],
+    })
+    expect(person?.constraints).toContainEqual({
+      kind: 'uniqueValuesFor',
+      paths: [
+        { kind: 'predicate', iri: 'https://example.com/id' },
+        { kind: 'predicate', iri: 'https://example.com/tenant' },
+      ],
+    })
 
     const property = graph.shapes.find((shape) =>
       shape.kind === 'property' && shape.id.kind === 'blank'
     )
-    expect(property?.path?.kind).toBe('alternative')
-    if (property?.path?.kind === 'alternative') {
-      expect(property.path.items).toHaveLength(2)
-      expect(property.path.items[1]?.kind).toBe('inverse')
-    }
-    expect(
-      property?.constraints.some((value) => value.kind === 'class' && value.choices.length === 2),
-    ).toBe(true)
+    expect(property?.path).toEqual({
+      kind: 'alternative',
+      items: [
+        { kind: 'predicate', iri: 'https://example.com/name' },
+        { kind: 'inverse', path: { kind: 'predicate', iri: 'https://example.com/label' } },
+      ],
+    })
+    expect(property?.constraints).toContainEqual({
+      kind: 'class',
+      choices: ['https://example.com/Person', 'https://example.com/Organization'],
+    })
     expect(property?.metadata.names[0]?.value).toBe('Display name')
     expect(
       property?.assertions.some((value) =>

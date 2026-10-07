@@ -22,7 +22,9 @@ async function collect(
 }
 
 describe('@okikio/rdf text sources', () => {
-  it('interrupts pending iterable input and returns the iterator once across native parsers', async () => {
+  it('interrupts pending iterable input and returns the iterator once across native parsers', {
+    timeout: 5_000,
+  }, async () => {
     for (
       const parse of [parseNQuads, parseTurtle, parseTrig, parseXml, parseRdfa, parseMicrodata]
     ) {
@@ -49,8 +51,9 @@ describe('@okikio/rdf text sources', () => {
       const iterator = parse(source, { signal: controller.signal })
       const pending = iterator.next()
       await started
-      controller.abort(new Error('stop pending text input'))
-      await expect(pending).rejects.toThrow('stop pending text input')
+      const reason = new Error('stop pending text input')
+      controller.abort(reason)
+      await expect(pending).rejects.toBe(reason)
       expect(returned).toBe(1)
     }
   })
@@ -69,8 +72,8 @@ describe('@okikio/rdf text sources', () => {
         }
       },
     }
-    await expect(chunks(source, AbortSignal.abort(new Error('stop before acquire'))).next()).rejects
-      .toThrow('stop before acquire')
+    const reason = new Error('stop before acquire')
+    await expect(chunks(source, AbortSignal.abort(reason)).next()).rejects.toBe(reason)
     expect(acquired).toBe(0)
     for await (const _ of chunks(source)) break
     expect(returned).toBe(1)
@@ -106,29 +109,38 @@ describe('@okikio/rdf text sources', () => {
     expect(bytes.join('')).toBe(text)
   })
 
-  it('cancels a pending Web Stream read when the signal aborts', async () => {
+  it('cancels a pending Web Stream read when the signal aborts', { timeout: 5_000 }, async () => {
     let cancelled = false
+    const reading = Promise.withResolvers<void>()
     const stream = new ReadableStream<Uint8Array>({
+      pull() {
+        reading.resolve()
+        return new Promise<void>(() => {})
+      },
       cancel() {
         cancelled = true
       },
-    })
+    }, { highWaterMark: 0 })
     const controller = new AbortController()
     const iterator = chunks(stream, controller.signal)
     const pending = iterator.next()
-    controller.abort(new Error('stop'))
-    await expect(pending).rejects.toThrow('stop')
+    await reading.promise
+    const reason = new Error('stop pending text read')
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
     expect(cancelled).toBe(true)
+    expect(stream.locked).toBe(false)
   })
 
   it('throws the caller abort reason before accepting more work', () => {
     const controller = new AbortController()
-    controller.abort(new Error('cancelled'))
+    const reason = new Error('cancelled')
+    controller.abort(reason)
     try {
       throwIfAborted(controller.signal)
       throw new Error('Expected abort failure.')
     } catch (error) {
-      expect(error instanceof Error ? error.message : String(error)).toBe('cancelled')
+      expect(error).toBe(reason)
     }
   })
 })

@@ -25,10 +25,11 @@ describe('@okikio/comunica', () => {
 
     const query = select('*').where(triple('?s', '?p', '?o'))
     expect(await client.queryBoolean(query)).toBe(true)
-    await client.update(update().deleteWhere(triple('?s', '?p', '?o')))
+    const change = update().deleteWhere(triple('?s', '?p', '?o'))
+    await client.update(change)
     expect(seen).toEqual({ source: 'memory' })
     expect(queryText).toBe(query.build().value)
-    expect(updateText).toBe('DELETE WHERE { ?s ?p ?o . }')
+    expect(updateText).toBe(change.build().value)
   })
 
   it('destroys caller-owned result work when the consumer returns early', async () => {

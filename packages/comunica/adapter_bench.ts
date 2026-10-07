@@ -4,6 +4,7 @@ import { bench, do_not_optimize, group } from 'mitata'
 import { QueryEngine } from '@comunica/query-sparql-rdfjs'
 import { DataFactory, Store } from 'n3'
 import { report } from '../../bench/report.ts'
+import { expectTerm } from '../../bench/oracle.ts'
 import { create } from './mod.ts'
 
 const engine = new QueryEngine()
@@ -26,12 +27,12 @@ if (!await engine.queryBoolean(ask, context) || !await client.queryBoolean(ask))
 const direct = await engine.queryBindings(select, context)
 let directCount = 0
 for await (const row of direct) {
-  if (row.get('o')?.value !== 'v1729') throw new Error('Comunica direct binding value differs.')
+  expectTerm(row.get('o'), DataFactory.literal('v1729'), 'Comunica direct binding')
   directCount++
 }
 let wrappedCount = 0
 for await (const row of await client.queryBindings(select)) {
-  if (row.get('o')?.value !== 'v1729') throw new Error('Comunica adapted binding value differs.')
+  expectTerm(row.get('o'), DataFactory.literal('v1729'), 'Comunica adapted binding')
   wrappedCount++
 }
 if (directCount !== 1 || wrappedCount !== directCount) {

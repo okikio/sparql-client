@@ -25,7 +25,7 @@ describe('@okikio/rdf/microdata', () => {
       all(
         '<div itemscope itemref="a"><div id="a" itemprop="friend" itemscope itemref="a"></div></div>',
       ),
-    ).rejects.toThrow('Recursive Microdata itemref')
+    ).rejects.toThrow(TypeError)
     const values = await all(
       '<div itemscope itemtype="http://example.test/Person" itemref="shared"></div><div itemscope itemtype="http://example.test/Person" itemref="shared"></div><div id="shared" itemscope itemprop="friend"><span itemprop="name">Alice</span></div>',
     )

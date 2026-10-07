@@ -2,8 +2,12 @@
 
 import { run } from 'mitata'
 
-/** Runs registered benchmarks and emits JSON when `BENCH_FORMAT=json`. */
+/** Run measured cases, or return after their real fixture oracles in explicit preflight mode. */
 export async function report(): Promise<void> {
+  if (Deno.env.get('BENCH_PREFLIGHT_ONLY') === '1') {
+    console.log('Benchmark correctness preflight passed; no timings collected.')
+    return
+  }
   if (Deno.env.get('BENCH_FORMAT') === 'json') await run({ format: 'json', throw: true })
   else await run({ throw: true })
 }

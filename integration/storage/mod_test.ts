@@ -121,7 +121,7 @@ function keys(values: Iterable<Quad>): string[] {
 }
 
 /** The wrapper changes only publication fault timing; actual bytes still go through OPFS. */
-function fault(fs: StorageType, target: 'segment' | 'commit'): FileSystemType {
+function fault(fs: StorageType, target: 'segment' | 'commit', reason: Error): FileSystemType {
   return {
     exists: (path, options) => fs.exists(path, options),
     ensureDir: (path, options) => fs.ensureDir(path, options),
@@ -135,7 +135,7 @@ function fault(fs: StorageType, target: 'segment' | 'commit'): FileSystemType {
       if (selected) {
         const prefix = typeof data === 'string' ? data.slice(0, 12) : data.subarray(0, 12)
         await fs.writeFile(path, prefix, options)
-        throw new Error(`injected torn ${target}`)
+        throw reason
       }
       await fs.writeFile(path, data, options)
     },
@@ -151,18 +151,17 @@ for (const backend of ['memory', 'node', 'deno', 'kv'] as const) {
           quad(namedNode(`urn:batch:${index}`), namedNode('urn:p'), literal(`value ${index}`))
         )
         let returned = 0
+        const reason = new Error('source failed after incomplete batch')
         const input = async function* () {
           try {
             yield* values
-            throw new Error('source failed after incomplete batch')
+            throw reason
           } finally {
             returned++
           }
         }
         let store = await open(target.fs)
-        await expect(store.import(input(), { batchSize: 2 })).rejects.toThrow(
-          'source failed after incomplete batch',
-        )
+        await expect(store.import(input(), { batchSize: 2 })).rejects.toBe(reason)
         expect(returned).toBe(1)
         expect(store.generation).toBe(1)
         expect(keys(store.snapshot())).toEqual(keys(values.slice(0, 2)))
@@ -178,7 +177,9 @@ for (const backend of ['memory', 'node', 'deno', 'kv'] as const) {
       }
     })
 
-    it('cancels a stalled source after an acknowledged batch and releases its iterator', async () => {
+    it('cancels a stalled source after an acknowledged batch and releases its iterator', {
+      timeout: 5_000,
+    }, async () => {
       const target = await fixture(backend)
       try {
         const values = [0, 1].map((index) =>
@@ -211,8 +212,9 @@ for (const backend of ['memory', 'node', 'deno', 'kv'] as const) {
         const controller = new AbortController()
         const pending = store.import(input, { batchSize: 2, signal: controller.signal })
         await started
-        controller.abort(new Error('cancel stalled source after batch'))
-        await expect(pending).rejects.toThrow('cancel stalled source after batch')
+        const reason = new Error('cancel stalled source after batch')
+        controller.abort(reason)
+        await expect(pending).rejects.toBe(reason)
         expect(returned).toBe(1)
         expect(store.generation).toBe(1)
         await store.close()
@@ -232,8 +234,17 @@ for (const backend of ['memory', 'node', 'deno', 'kv'] as const) {
           { length: 300 },
           (_, index) => `<urn:s:${index}> <urn:p> "value ${index} 雪"@en <urn:g> .`,
         ).join('\n')
-        const expected = new Dataset()
-        for await (const value of parse(text)) expected.add(value)
+        // Derive every expected term independently; repeating the parser would
+        // admit the same wrong literal, language, graph or predicate in both lanes.
+        const expected = new Dataset(
+          Array.from({ length: 300 }, (_, index) =>
+            quad(
+              namedNode(`urn:s:${index}`),
+              namedNode('urn:p'),
+              literal(`value ${index} 雪`, 'en'),
+              namedNode('urn:g'),
+            )),
+        )
         let store = await open(target.fs)
         await store.import(parse(text), { batchSize: 73 })
         expect(store.generation).toBe(5)
@@ -270,9 +281,10 @@ for (const backend of ['memory', 'node', 'deno', 'kv'] as const) {
         try {
           const first = quad(namedNode('urn:first'), namedNode('urn:p'), literal('first'))
           const second = quad(namedNode('urn:second'), namedNode('urn:p'), literal('second'))
-          const store = await open(fault(target.fs, stage))
+          const reason = new Error(`injected torn ${stage}`)
+          const store = await open(fault(target.fs, stage, reason))
           await store.add(first)
-          await expect(store.add(second)).rejects.toThrow(`injected torn ${stage}`)
+          await expect(store.add(second)).rejects.toBe(reason)
           expect(store.generation).toBe(1)
           expect(store.has(second)).toBe(false)
           await store.close()
@@ -313,7 +325,8 @@ for (const backend of ['memory', 'node', 'deno', 'kv'] as const) {
       try {
         const value = quad(namedNode('urn:s'), namedNode('urn:p'), literal('value'))
         const store = await open(target.fs)
-        await expect(store.add(value, { signal: AbortSignal.abort() })).rejects.toThrow()
+        const reason = new Error('cancel before store mutation')
+        await expect(store.add(value, { signal: AbortSignal.abort(reason) })).rejects.toBe(reason)
         expect(store.generation).toBe(0)
         await store.add(value)
         await store.close()

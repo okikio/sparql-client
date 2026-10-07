@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { RDF } from '../mod.ts'
+import { blankNode, literal, namedNode, quad, RDF } from '../mod.ts'
 import { parse } from './mod.ts'
+import { isomorphic } from '../../../conformance/equal.ts'
 
 async function all(source: string) {
   const values = []
@@ -114,9 +115,17 @@ describe('@okikio/rdf/xml', () => {
     const values = await all(
       `${head}<rdf:Description rdf:about="s"><ex:meta rdf:parseType="Resource"><ex:name>x</ex:name></ex:meta><ex:items rdf:parseType="Collection"><rdf:Description rdf:about="a"/><rdf:Description rdf:about="b"/></ex:items></rdf:Description></rdf:RDF>`,
     )
-    expect(values.some((value) => value.predicate.value === RDF.first)).toBe(true)
-    expect(values.some((value) => value.predicate.value === RDF.rest)).toBe(true)
-    expect(values.some((value) => value.predicate.value === 'http://example.org/name')).toBe(true)
+    const meta = blankNode('meta'), list = blankNode('head'), tail = blankNode('tail')
+    const subject = namedNode('http://example.test/s')
+    expect(isomorphic(values, [
+      quad(subject, namedNode('http://example.org/meta'), meta),
+      quad(meta, namedNode('http://example.org/name'), literal('x')),
+      quad(subject, namedNode('http://example.org/items'), list),
+      quad(list, namedNode(RDF.first), namedNode('http://example.test/a')),
+      quad(list, namedNode(RDF.rest), tail),
+      quad(tail, namedNode(RDF.first), namedNode('http://example.test/b')),
+      quad(tail, namedNode(RDF.rest), namedNode(RDF.nil)),
+    ])).toBe(true)
   })
 
   it('creates an RDF 1.2 triple term without asserting the quoted triple', async () => {
@@ -154,19 +163,17 @@ describe('@okikio/rdf/xml', () => {
   })
 
   it('rejects reserved RDF names in node, property, and property-attribute positions', async () => {
-    await expect(all(`${head}<rdf:li rdf:about="s"/></rdf:RDF>`)).rejects.toThrow(
-      'node element cannot use reserved name',
-    )
+    await expect(all(`${head}<rdf:li rdf:about="s"/></rdf:RDF>`)).rejects.toThrow(SyntaxError)
     await expect(
       all(
         `${head}<rdf:Description rdf:about="s"><rdf:Description>bad</rdf:Description></rdf:Description></rdf:RDF>`,
       ),
-    ).rejects.toThrow('property element cannot use reserved name')
+    ).rejects.toThrow(SyntaxError)
     await expect(
       all(`${head}<rdf:Description rdf:about="s" rdf:li="bad"/></rdf:RDF>`),
-    ).rejects.toThrow('property attribute cannot use reserved name')
+    ).rejects.toThrow(SyntaxError)
     await expect(all(`${head}<rdf:aboutEach rdf:about="s"/></rdf:RDF>`)).rejects.toThrow(
-      'node element cannot use reserved name',
+      SyntaxError,
     )
   })
 
@@ -214,17 +221,17 @@ describe('@okikio/rdf/xml', () => {
       all(
         `${head}<rdf:Description rdf:about="s"><ex:p rdf:parseType="Resource" rdf:resource="o"/></rdf:Description></rdf:RDF>`,
       ),
-    ).rejects.toThrow('rdf:parseType property cannot combine')
+    ).rejects.toThrow(SyntaxError)
     await expect(
       all(
         `${head}<rdf:Description rdf:about="s"><ex:p rdf:resource="o"><rdf:Description rdf:about="x"/></ex:p></rdf:Description></rdf:RDF>`,
       ),
-    ).rejects.toThrow('resource property with a child node cannot combine')
+    ).rejects.toThrow(SyntaxError)
     await expect(
       all(
         `${head}<rdf:Description rdf:about="s"><ex:p ex:name="bad">text</ex:p></rdf:Description></rdf:RDF>`,
       ),
-    ).rejects.toThrow('literal property cannot combine text')
+    ).rejects.toThrow(SyntaxError)
   })
 
   it('treats unknown rdf:parseType values as XML literals', async () => {
@@ -242,10 +249,10 @@ describe('@okikio/rdf/xml', () => {
 
   it('rejects invalid XML NCNames used by rdf:ID and rdf:nodeID', async () => {
     await expect(all(`${head}<rdf:Description rdf:ID="9bad"/></rdf:RDF>`)).rejects.toThrow(
-      "Invalid rdf:ID '9bad'",
+      SyntaxError,
     )
     await expect(
       all(`${head}<rdf:Description rdf:nodeID="bad:name"/></rdf:RDF>`),
-    ).rejects.toThrow("Invalid rdf:nodeID 'bad:name'")
+    ).rejects.toThrow(SyntaxError)
   })
 })

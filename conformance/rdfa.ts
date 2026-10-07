@@ -89,27 +89,41 @@ async function runCase(
       contentType,
     }))
     const store = new Store()
-    // The official relative-prefix cases resolve serialized relative IRIs against
-    // the retrieval IRI, independently of an HTML base element. Default-graph
-    // N-Quads statements are also Turtle statements, whose loader supports this.
-    store.load(writeNQuads(actual), { format: 'text/turtle', base_iri: base })
-    const result = store.query(await Deno.readTextFile(assertion))
-    if (typeof result !== 'boolean') {
-      return {
-        ...common,
-        status: 'fail',
-        reason: 'RDFa suite assertion did not evaluate to a boolean.',
-        durationMs: performance.now() - started,
+    // This vector owns the Wasm Store. Its declaration omits free(), but the
+    // pinned engine exposes it; borrowed production adapter stores are separate.
+    const free: unknown = Reflect.get(store, 'free')
+    if (typeof free !== 'function') throw new TypeError('Pinned Oxigraph Store lacks free().')
+    let failed = false
+    let primary: unknown
+    try {
+      // The official relative-prefix cases resolve serialized relative IRIs against
+      // the retrieval IRI, independently of an HTML base element. Default-graph
+      // N-Quads statements are also Turtle statements, whose loader supports this.
+      store.load(writeNQuads(actual), { format: 'text/turtle', base_iri: base })
+      const result = store.query(await Deno.readTextFile(assertion))
+      if (typeof result !== 'boolean') {
+        return {
+          ...common,
+          status: 'fail',
+          reason: 'RDFa suite assertion did not evaluate to a boolean.',
+          durationMs: performance.now() - started,
+        }
       }
+      return result === (test.expectedResults ?? true)
+        ? { ...common, status: 'pass', durationMs: performance.now() - started }
+        : {
+          ...common,
+          status: 'fail',
+          reason: `Suite ASK returned ${result}, expected ${test.expectedResults ?? true}.`,
+          durationMs: performance.now() - started,
+        }
+    } catch (error) {
+      failed = true
+      primary = error
+      throw error
+    } finally {
+      retire(() => free.call(store), failed ? [primary] : [])
     }
-    return result === (test.expectedResults ?? true)
-      ? { ...common, status: 'pass', durationMs: performance.now() - started }
-      : {
-        ...common,
-        status: 'fail',
-        reason: `Suite ASK returned ${result}, expected ${test.expectedResults ?? true}.`,
-        durationMs: performance.now() - started,
-      }
   } catch (error) {
     return {
       ...common,
@@ -132,5 +146,25 @@ async function exists(path: string): Promise<boolean> {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) return false
     throw error
+  }
+}
+
+/**
+ * Retires an assertion's owned Wasm Store without replacing its original failure.
+ *
+ * The callback isolates the pinned undeclared free() capability. A captured
+ * failure may be undefined, so its presence is represented by an array. Both
+ * causes remain visible when the case boundary formats its diagnostic reason.
+ */
+function retire(close: () => unknown, primary: readonly unknown[]): void {
+  try {
+    close()
+  } catch (cleanup) {
+    const failures = [...primary, cleanup]
+    throw new AggregateError(
+      failures,
+      `RDFa assertion or owned Store cleanup failed: ${failures.map(String).join('; ')}`,
+      { cause: primary.length ? primary[0] : cleanup },
+    )
   }
 }

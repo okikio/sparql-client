@@ -24,6 +24,7 @@ describe('@okikio/rdf/nquads', () => {
 
     const reparsed: Quad[] = []
     for await (const quad of parse(write(quads))) reparsed.push(quad)
+    expect(reparsed).toHaveLength(quads.length)
     expect(quads.every((quad, index) => quad.equals(reparsed[index]!))).toBe(true)
   })
 

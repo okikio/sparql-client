@@ -120,37 +120,41 @@ describe('real SPARQL HTTP wire contracts', () => {
     })
   }
 
-  it('cancels stalled response consumption on timeout and caller abort', async () => {
-    let reached = () => {}
-    await serve(() =>
-      new Response(
-        new ReadableStream<Uint8Array>({
-          start(controller) {
-            reached()
-            controller.enqueue(new TextEncoder().encode('{'))
+  it(
+    'cancels stalled response consumption on timeout and caller abort',
+    { timeout: 5_000 },
+    async () => {
+      let reached = () => {}
+      await serve(() =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              reached()
+              controller.enqueue(new TextEncoder().encode('{'))
+            },
+          }),
+          {
+            headers: { 'content-type': 'application/sparql-results+json' },
           },
-        }),
-        {
-          headers: { 'content-type': 'application/sparql-results+json' },
-        },
-      ), async (endpoint) => {
-      await expect(http.create({ endpoint }).queryBoolean('ASK {}', { timeoutMs: 30 })).rejects
-        .toMatchObject({ kind: 'timeout' })
-      const signal = AbortSignal.timeout(30)
-      await expect(http.create({ endpoint }).queryBoolean('ASK {}', { signal })).rejects
-        .toMatchObject({ kind: 'timeout' })
-      const controller = new AbortController()
-      // Acquire a transition for this request so caller abort proves active
-      // wire work rather than only rejecting before the endpoint was reached.
-      const current = new Promise<void>((resolve) => reached = resolve)
-      const request = http.create({ endpoint }).queryBoolean('ASK {}', {
-        signal: controller.signal,
+        ), async (endpoint) => {
+        await expect(http.create({ endpoint }).queryBoolean('ASK {}', { timeoutMs: 30 })).rejects
+          .toMatchObject({ kind: 'timeout' })
+        const signal = AbortSignal.timeout(30)
+        await expect(http.create({ endpoint }).queryBoolean('ASK {}', { signal })).rejects
+          .toMatchObject({ kind: 'timeout' })
+        const controller = new AbortController()
+        // Acquire a transition for this request so caller abort proves active
+        // wire work rather than only rejecting before the endpoint was reached.
+        const current = new Promise<void>((resolve) => reached = resolve)
+        const request = http.create({ endpoint }).queryBoolean('ASK {}', {
+          signal: controller.signal,
+        })
+        await current
+        controller.abort(new Error('caller stopped'))
+        await expect(request).rejects.toMatchObject({ kind: 'abort' })
       })
-      await current
-      controller.abort(new Error('caller stopped'))
-      await expect(request).rejects.toMatchObject({ kind: 'abort' })
-    })
-  })
+    },
+  )
 
   it('enforces graph limits during transfer and bounds failed Graph Store bodies', async () => {
     await serve(() =>

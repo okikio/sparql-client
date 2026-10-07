@@ -4,6 +4,7 @@ import { arch, cpus, platform, release, totalmem } from 'node:os'
 import { assertStable, identity } from './bench-identity.ts'
 import { plan } from './benchmarks.ts'
 import { validateMitata } from '../../bench/validate.ts'
+import { collect } from './bench-command.ts'
 
 /** Every invocation retains its own evidence, including unsuccessful benchmark programs. */
 const OUT = `.tmp/reports/bench/${new Date().toISOString().replaceAll(':', '-')}`
@@ -38,7 +39,7 @@ const meta = {
     report: string
     stderr: string
     elapsedMs: number
-    exitCode: number
+    exitCode: number | null
     status: 'pass' | 'fail'
   }>,
 }
@@ -57,19 +58,19 @@ try {
     ]
     console.log(`Starting ${name}.`)
     const start = performance.now()
-    const output = await new Deno.Command(Deno.execPath(), {
-      args,
-      env: { BENCH_FORMAT: 'json', ...env },
-      stdout: 'piped',
-      stderr: 'piped',
-    }).output()
+    const output = await collect(Deno.execPath(), args, {
+      env: { BENCH_FORMAT: 'json', BENCH_PREFLIGHT_ONLY: '0', ...env },
+    })
     await Deno.writeFile(report, output.stdout)
     await Deno.writeFile(stderr, output.stderr)
     let validationFailed = false
     let validationFailure: unknown
     try {
       if (!output.success) {
-        throw new Error(`Benchmark failed (${output.code}): ${file}. See ${stderr}.`)
+        throw new Error(
+          `Benchmark failed (${output.code ?? 'no reported exit'}): ${file}. See ${stderr}.`,
+          { cause: output.error },
+        )
       }
       validateMitata(JSON.parse(new TextDecoder().decode(output.stdout)))
     } catch (error) {

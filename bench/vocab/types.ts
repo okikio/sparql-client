@@ -3,6 +3,8 @@
 import { dirname, join } from 'node:path'
 import { arch, cpus, platform, release, totalmem } from 'node:os'
 
+import { collect } from '../../.mise/tasks/bench-command.ts'
+
 import { parseDiagnostics } from './diagnostics.ts'
 import type { DiagnosticsType } from './diagnostics.ts'
 
@@ -86,26 +88,27 @@ const metadata = {
 const failures: unknown[] = []
 try {
   await save()
-  const version = await new Deno.Command(Deno.execPath(), {
-    args: [
-      'run',
-      '--no-config',
-      '--no-lock',
-      '--node-modules-dir=none',
-      '--cached-only',
-      '--quiet',
-      '--allow-read',
-      '--allow-env',
-      'npm:typescript@5.9.3/bin/tsc',
-      '--version',
-    ],
-    stdout: 'piped',
-    stderr: 'piped',
-  }).output()
+  const version = await collect(Deno.execPath(), [
+    'run',
+    '--no-config',
+    '--no-lock',
+    '--node-modules-dir=none',
+    '--cached-only',
+    '--quiet',
+    '--allow-read',
+    '--allow-env',
+    'npm:typescript@5.9.3/bin/tsc',
+    '--version',
+  ])
   await Deno.writeFile(`${outputDirectory}/compiler-version.stdout`, version.stdout)
   await Deno.writeFile(`${outputDirectory}/compiler-version.stderr`, version.stderr)
   if (!version.success || new TextDecoder().decode(version.stdout).trim() !== 'Version 5.9.3') {
-    throw new Error('The isolated compiler did not confirm TypeScript 5.9.3.')
+    throw new Error(
+      `The isolated compiler did not confirm TypeScript 5.9.3 (exit ${
+        version.code ?? 'unreported'
+      }).`,
+      { cause: version.error },
+    )
   }
   compilerPaths = await compilerFiles()
   metadata.compilerInputs = await hashes(compilerPaths)
@@ -180,6 +183,7 @@ async function save(): Promise<void> {
 async function identity(): Promise<Readonly<Record<string, string>>> {
   const paths = [
     'bench/vocab/types.ts',
+    '.mise/tasks/bench-command.ts',
     'bench/vocab/diagnostics.ts',
     'packages/vocab/emit.ts',
     'packages/vocab/manifest.ts',
@@ -205,21 +209,24 @@ async function hashes(paths: readonly string[]): Promise<Readonly<Record<string,
 }
 /** Resolve the actual cached compiler outside timing, isolated from ancestor config/lock/node_modules. */
 async function compilerFiles(): Promise<readonly string[]> {
-  const output = await new Deno.Command(Deno.execPath(), {
-    args: [
-      'eval',
-      '--no-config',
-      '--no-lock',
-      '--node-modules-dir=none',
-      '--cached-only',
-      'const module=await import("npm:typescript@5.9.3"); const ts=module.default??module; console.log(JSON.stringify({version:ts.version,entry:ts.sys.getExecutingFilePath()}))',
-    ],
-    stdout: 'piped',
-    stderr: 'piped',
-  }).output()
+  const output = await collect(Deno.execPath(), [
+    'eval',
+    '--no-config',
+    '--no-lock',
+    '--node-modules-dir=none',
+    '--cached-only',
+    'const module=await import("npm:typescript@5.9.3"); const ts=module.default??module; console.log(JSON.stringify({version:ts.version,entry:ts.sys.getExecutingFilePath()}))',
+  ])
   await Deno.writeFile(`${outputDirectory}/compiler-location.stdout`, output.stdout)
   await Deno.writeFile(`${outputDirectory}/compiler-location.stderr`, output.stderr)
-  if (!output.success) throw new Error('Unable to resolve the isolated cached TypeScript compiler.')
+  if (!output.success) {
+    throw new Error(
+      `Unable to resolve the isolated cached TypeScript compiler (exit ${
+        output.code ?? 'unreported'
+      }).`,
+      { cause: output.error },
+    )
+  }
   const located: { version?: unknown; entry?: unknown } = JSON.parse(
     new TextDecoder().decode(output.stdout),
   )
@@ -272,39 +279,34 @@ async function measure(value: CaseType): Promise<ResultType> {
     }
 
     const start = performance.now()
-    const command = new Deno.Command(Deno.execPath(), {
-      args: [
-        'run',
-        '--no-config',
-        '--no-lock',
-        '--node-modules-dir=none',
-        '--cached-only',
-        '--quiet',
-        '--allow-read',
-        '--allow-env',
-        'npm:typescript@5.9.3/bin/tsc',
-        '--noEmit',
-        '--strict',
-        '--exactOptionalPropertyTypes',
-        '--noUncheckedIndexedAccess',
-        '--skipLibCheck',
-        'false',
-        '--target',
-        'ESNext',
-        '--module',
-        'ESNext',
-        '--moduleResolution',
-        'Bundler',
-        '--allowImportingTsExtensions',
-        '--extendedDiagnostics',
-        use,
-        vocab,
-        support,
-      ],
-      stdout: 'piped',
-      stderr: 'piped',
-    })
-    const result = await command.output()
+    const result = await collect(Deno.execPath(), [
+      'run',
+      '--no-config',
+      '--no-lock',
+      '--node-modules-dir=none',
+      '--cached-only',
+      '--quiet',
+      '--allow-read',
+      '--allow-env',
+      'npm:typescript@5.9.3/bin/tsc',
+      '--noEmit',
+      '--strict',
+      '--exactOptionalPropertyTypes',
+      '--noUncheckedIndexedAccess',
+      '--skipLibCheck',
+      'false',
+      '--target',
+      'ESNext',
+      '--module',
+      'ESNext',
+      '--moduleResolution',
+      'Bundler',
+      '--allowImportingTsExtensions',
+      '--extendedDiagnostics',
+      use,
+      vocab,
+      support,
+    ])
     const compilerWallMs = performance.now() - start
     const stdout = new TextDecoder().decode(result.stdout)
     const stderr = new TextDecoder().decode(result.stderr)
@@ -313,7 +315,12 @@ async function measure(value: CaseType): Promise<ResultType> {
     await Deno.writeFile(stdoutPath, result.stdout)
     await Deno.writeFile(stderrPath, result.stderr)
     if (!result.success) {
-      throw new Error(`TypeScript failed for ${value.name}:\n${stdout}\n${stderr}`)
+      throw new Error(
+        `TypeScript failed for ${value.name} (exit ${
+          result.code ?? 'unreported'
+        }):\n${stdout}\n${stderr}`,
+        { cause: result.error },
+      )
     }
 
     return {

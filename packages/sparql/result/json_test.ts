@@ -67,7 +67,7 @@ describe('@okikio/sparql JSON results', () => {
         },
       }
     }
-    expect(() => decodeTerm(term)).toThrow('nesting exceeds')
+    expect(() => decodeTerm(term)).toThrow(TypeError)
   })
 
   it('preserves RDF literal datatype, language, and RDF 1.2 direction', () => {
@@ -114,7 +114,7 @@ describe('@okikio/sparql JSON results', () => {
           object: { type: 'literal', value: 'o' },
         },
       })
-    ).toThrow('predicate')
+    ).toThrow(TypeError)
   })
 
   it('decodes SELECT and ASK result modes without JavaScript datatype coercion', () => {

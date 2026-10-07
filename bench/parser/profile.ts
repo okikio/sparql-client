@@ -3,7 +3,7 @@
  *
  * Run each syntax/input shape in its own process. Example:
  * `PARSER_SYNTAX=Turtle PARSER_COUNT=100000 PARSER_PROFILE=cpu deno run
- * --v8-flags=--expose-gc --allow-env --allow-read --allow-write bench/parser/profile.ts`.
+ * --v8-flags=--expose-gc --allow-env --allow-read --allow-write --allow-sys bench/parser/profile.ts`.
  * This is a profiler, not a replacement for the package-owned Mitata matrix.
  * Allocation sampling and CPU profiling run separately from plain observations.
  * Every completed result is checked against independently constructed RDF terms
@@ -15,6 +15,7 @@ import { Session } from 'node:inspector'
 import process from 'node:process'
 import { cpus, release, totalmem } from 'node:os'
 import { createHash } from 'node:crypto'
+import { dirname } from 'node:path'
 import { Parser as N3Parser } from 'n3'
 import { validateObservation } from './resources.ts'
 import type { Quad } from '../../packages/rdf/term.ts'
@@ -56,7 +57,7 @@ const gc = (globalThis as typeof globalThis & { gc?: () => void }).gc
 if (!gc) throw new Error('Exposed GC required; use --v8-flags=--expose-gc.')
 const output = Deno.env.get('PARSER_REPORT') ??
   `.tmp/reports/parser/${syntax}-${count}-${chunkSize}-${mode}.json`
-await Deno.mkdir(output.slice(0, output.lastIndexOf('/')), { recursive: true })
+await Deno.mkdir(dirname(output), { recursive: true })
 let connected = false
 let profile: unknown
 const observations: Record<string, unknown>[] = []

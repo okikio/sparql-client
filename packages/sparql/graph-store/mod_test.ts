@@ -99,35 +99,39 @@ describe('@okikio/sparql/graph-store', () => {
     }
   })
 
-  it('interrupts a stalled response reader and preserves caller abort reason', async () => {
-    let canceled = false
-    let entered!: () => void
-    const reading = new Promise<void>((resolve) => entered = resolve)
-    const stream = new ReadableStream<Uint8Array>({
-      pull() {
-        entered()
-        return new Promise<void>(() => {})
-      },
-      cancel() {
-        canceled = true
-      },
-    }, { highWaterMark: 0 })
-    const controller = new AbortController()
-    const reason = new Error('caller stopped graph download')
-    const client = create({
-      endpoint: 'http://example.test/',
-      fetch: () =>
-        Promise.resolve(
-          new Response(stream, { headers: { 'content-type': 'application/n-triples' } }),
-        ),
-    })
-    const result = client.get({ default: true }, { signal: controller.signal })
-    await reading
-    controller.abort(reason)
-    await expect(result).rejects.toBe(reason)
-    expect(canceled).toBe(true)
-    expect(stream.locked).toBe(false)
-  })
+  it(
+    'interrupts a stalled response reader and preserves caller abort reason',
+    { timeout: 5_000 },
+    async () => {
+      let canceled = false
+      let entered!: () => void
+      const reading = new Promise<void>((resolve) => entered = resolve)
+      const stream = new ReadableStream<Uint8Array>({
+        pull() {
+          entered()
+          return new Promise<void>(() => {})
+        },
+        cancel() {
+          canceled = true
+        },
+      }, { highWaterMark: 0 })
+      const controller = new AbortController()
+      const reason = new Error('caller stopped graph download')
+      const client = create({
+        endpoint: 'http://example.test/',
+        fetch: () =>
+          Promise.resolve(
+            new Response(stream, { headers: { 'content-type': 'application/n-triples' } }),
+          ),
+      })
+      const result = client.get({ default: true }, { signal: controller.signal })
+      await reading
+      controller.abort(reason)
+      await expect(result).rejects.toBe(reason)
+      expect(canceled).toBe(true)
+      expect(stream.locked).toBe(false)
+    },
+  )
 
   it('emits the exact default selector used by Graph Store HTTP Protocol', async () => {
     let url = ''

@@ -192,7 +192,7 @@ describe('@okikio/sparql/http', () => {
     }
   })
 
-  it('cancels a response body whose read is already pending', async () => {
+  it('cancels a response body whose read is already pending', { timeout: 5_000 }, async () => {
     let cancelled = false
     let entered!: () => void
     const reading = new Promise<void>((resolve) => entered = resolve)
@@ -225,35 +225,45 @@ describe('@okikio/sparql/http', () => {
     expect(cancelled).toBe(true)
   })
 
-  it('normalizes a timeout that fires while the response body is pending', async () => {
-    let cancelled = false
-    const body = new ReadableStream<Uint8Array>({
-      cancel() {
-        cancelled = true
-      },
-    })
-    const client = create({
-      endpoint: 'https://example.com/sparql',
-      timeoutMs: 5,
-      // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
-      fetch: async () =>
-        new Response(body, { headers: { 'content-type': 'application/sparql-results+json' } }),
-    })
+  it(
+    'normalizes a timeout that fires while the response body is pending',
+    { timeout: 5_000 },
+    async (context) => {
+      const reading = Promise.withResolvers<void>()
+      const deadline = new AbortController()
+      const timeout = context.mock.method(AbortSignal, 'timeout', (delay: number) => {
+        expect(delay).toBe(5)
+        return deadline.signal
+      })
+      let cancelled = false
+      const body = new ReadableStream<Uint8Array>({
+        pull() {
+          reading.resolve()
+          return new Promise<void>(() => {})
+        },
+        cancel() {
+          cancelled = true
+        },
+      }, { highWaterMark: 0 })
+      const client = create({
+        endpoint: 'https://example.com/sparql',
+        timeoutMs: 5,
+        // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
+        fetch: async () =>
+          new Response(body, { headers: { 'content-type': 'application/sparql-results+json' } }),
+      })
 
-    const keepAlive = setTimeout(() => undefined, 50)
-    try {
-      try {
-        await client.queryBoolean('ASK {}')
-        throw new Error('Expected response-body timeout.')
-      } catch (error) {
-        expect(error instanceof QueryError).toBe(true)
-        if (error instanceof QueryError) expect(error.kind).toBe('timeout')
-      }
+      // The mock controls expiry only; the real body reader and error mapping run.
+      // A pull signal proves the deadline expires during consumption, not before fetch.
+      const pending = client.queryBoolean('ASK {}')
+      await reading.promise
+      deadline.abort(new DOMException('deadline expired', 'TimeoutError'))
+      await expect(pending).rejects.toMatchObject({ kind: 'timeout' })
+      expect(timeout.mock.callCount()).toBe(1)
       expect(cancelled).toBe(true)
-    } finally {
-      clearTimeout(keepAlive)
-    }
-  })
+      expect(body.locked).toBe(false)
+    },
+  )
 
   it('uses the configured update endpoint and SPARQL Update media type', async () => {
     let requestUrl = ''

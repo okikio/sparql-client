@@ -1,4 +1,5 @@
 import { bench, do_not_optimize } from 'mitata'
+import { expectTokens } from '../../../bench/oracle.ts'
 import { report } from '../../../bench/report.ts'
 import { inspect, tokens } from './mod.ts'
 
@@ -15,11 +16,11 @@ const document = await inspect(query)
 if (
   streamed.length !== 40_007 || document.version !== '1.2' ||
   document.diagnostics.length !== 0 ||
-  JSON.stringify(streamed) !== JSON.stringify(document.tokens) ||
   streamed.some((token) => query.slice(token.range.start, token.range.end) !== token.raw)
 ) {
   throw new Error('SPARQL syntax benchmark token/range oracle failed.')
 }
+expectTokens(streamed, document.tokens, 'SPARQL streamed/document tokens')
 for (let index = 0; index < 10_000; index++) {
   const start = 6 + index * 4
   if (

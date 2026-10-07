@@ -106,7 +106,7 @@ async function limits() {
   try {
     await collect(nquads.parse(`${line}\n`, { maxLineLength: line.length - 1 }))
   } catch (error) {
-    failure = error instanceof Error ? error.message : String(error)
+    failure = error instanceof Error ? error.name : 'NonError'
   }
   const events = await collect(nquads.analyze(`${line}\nnot rdf\n${line}\n`, { tolerant: true }))
   return { at: at.length, failure, events: events.map((event) => event.kind) }

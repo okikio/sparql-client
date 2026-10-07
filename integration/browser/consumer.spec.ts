@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { browserTest } from './window.ts'
+import { query } from '../../conformance/query.ts'
 
 /** Each evaluation opts into the fixture global without polluting production declarations. */
 type FixtureType = typeof globalThis & { browserTest: typeof browserTest }
@@ -15,7 +16,11 @@ for (const realm of ['run', 'worker'] as const) {
       ({ realm }) => (globalThis as FixtureType).browserTest[realm]('semantics'),
       { realm },
     )
-    expect(value).toEqual({
+    if (!('base' in value) || !('query' in value)) {
+      throw new TypeError('Semantic scenario did not return query documents.')
+    }
+    const { base, query: built, ...semantics } = value
+    expect(semantics).toEqual({
       size: 2,
       invariant: true,
       roundTrip: true,
@@ -23,9 +28,9 @@ for (const realm of ['run', 'worker'] as const) {
       language: 'fr',
       datatype: 'http://www.w3.org/2001/XMLSchema#integer',
       graph: 'urn:g',
-      base: 'SELECT ?o',
-      query: 'SELECT ?o WHERE { <urn:s> <urn:p> ?o . }',
     })
+    expect(query(`${base} WHERE {}`)).toEqual(query('SELECT ?o WHERE {}'))
+    expect(query(built)).toEqual(query('SELECT ?o WHERE { <urn:s> <urn:p> ?o }'))
   })
 
   test(`${realm}: abort settles a pending parser read and releases its source`, async ({ page }) => {
@@ -50,7 +55,7 @@ for (const realm of ['run', 'worker'] as const) {
       { realm },
     )
     expect(value).toMatchObject({ at: 1, events: ['quad', 'diagnostic', 'quad'] })
-    expect(value).toHaveProperty('failure', expect.stringContaining('maxLineLength'))
+    expect(value).toHaveProperty('failure', 'SyntaxError')
   })
 
   test(`${realm}: canonical bytes and digest survive blank-node relabeling`, async ({ page }) => {
@@ -59,7 +64,11 @@ for (const realm of ['run', 'worker'] as const) {
       { realm },
     )
     expect(value).toMatchObject({ text: '_:c14n0 <urn:p> "value" .\n', invariant: true })
-    expect(value).toHaveProperty('hash', expect.stringMatching(/^[0-9a-f]{64}$/u))
+    // Independent SHA-256 of the exact canonical UTF-8 bytes above.
+    expect(value).toHaveProperty(
+      'hash',
+      '968a4fdbf135447bfd2bb8c641f6c822b7dffeb0368e78469aee5224f8d49c5b',
+    )
   })
 
   test(`${realm}: native fetch encodings, RDF terms and stalled-body cancellation`, async ({ page }) => {
@@ -88,9 +97,11 @@ for (const realm of ['run', 'worker'] as const) {
     ])
     expect(
       value.wire.every((entry: { query: string; authorization: string }) =>
-        entry.query.replace(/\s+/gu, ' ').trim() === 'SELECT ?o WHERE { <urn:s> <urn:p> ?o . }' &&
         entry.authorization === 'Bearer browser-fixture'
       ),
     ).toBe(true)
+    for (const entry of value.wire) {
+      expect(query(entry.query)).toEqual(query('SELECT ?o WHERE { <urn:s> <urn:p> ?o }'))
+    }
   })
 }

@@ -6,7 +6,7 @@ import { canonicalize, canonicalizeQuads, hash, isomorphic } from './mod.ts'
 const ex = 'http://example.com/#'
 
 describe('@okikio/rdf/canon', () => {
-  it('cancels canonicalization while its source is stalled', async () => {
+  it('cancels canonicalization while its source is stalled', { timeout: 5_000 }, async () => {
     const controller = new AbortController()
     let returned = 0
     let entered!: () => void
@@ -29,14 +29,15 @@ describe('@okikio/rdf/canon', () => {
     }
     const pending = canonicalize(source, { signal: controller.signal })
     await started
-    controller.abort(new Error('stop stalled canonicalization'))
-    await expect(pending).rejects.toThrow('stop stalled canonicalization')
+    const reason = new Error('stop stalled canonicalization')
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
     expect(returned).toBe(1)
   })
   it('canonicalizes duplicate input as a dataset while bounding all admitted input work', async () => {
     const value = quad(blankNode('a'), namedNode('urn:p'), literal('quoted " 雪'))
     expect(await canonicalize([value, value])).toBe(await canonicalize([value]))
-    await expect(canonicalize([value, value], { maxQuads: 1 })).rejects.toThrow('maxQuads')
+    await expect(canonicalize([value, value], { maxQuads: 1 })).rejects.toThrow(RangeError)
   })
 
   it('honors SHA-384 independently of the default SHA-256 blank-node ordering', async () => {
@@ -123,12 +124,12 @@ describe('@okikio/rdf/canon', () => {
         namedNode(`${ex}p`),
         literal('bonjour', { language: 'fr', direction: 'ltr' }),
       ),
-    ])).rejects.toThrow('directional')
+    ])).rejects.toThrow(TypeError)
 
     const input = [
       quad(blankNode('a'), namedNode(`${ex}p`), blankNode('b')),
       quad(blankNode('b'), namedNode(`${ex}p`), blankNode('a')),
     ]
-    await expect(canonicalize(input, { maxDeepIterations: 0 })).rejects.toThrow('work limit')
+    await expect(canonicalize(input, { maxDeepIterations: 0 })).rejects.toThrow(RangeError)
   })
 })

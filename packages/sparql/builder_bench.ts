@@ -87,21 +87,14 @@ for (
   if (!rejected) throw new Error('SPARQL builder benchmark semantic negative control was accepted.')
 }
 
-// This diagnostic mode executes all real preflights/controls without registering or timing benchmarks.
-if (Deno.env.get('BENCH_BUILDER_PREFLIGHT_ONLY') !== '1') {
-  group('sparql structured construction: 1k triple patterns', () => {
-    bench('direct string assembly baseline', () => {
-      do_not_optimize(direct())
-    })
-
-    bench('immutable QueryBuilder', () => {
-      do_not_optimize(structured())
-    })
+group('sparql structured construction: 1k triple patterns', () => {
+  bench('direct string assembly baseline', () => {
+    do_not_optimize(direct())
   })
 
-  await report()
-} else {
-  console.log(
-    'Builder semantic preflight passed: 1000 independent triples, 3 valid queries, 6 valid-syntax negative controls; no timings collected.',
-  )
-}
+  bench('immutable QueryBuilder', () => {
+    do_not_optimize(structured())
+  })
+})
+
+await report()

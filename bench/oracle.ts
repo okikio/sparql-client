@@ -1,5 +1,22 @@
 /** Independent collision-free RDF identity checks used only before benchmark timing. @module */
 
+import { deepStrictEqual } from 'node:assert'
+import type { TokenType } from '@okikio/sparql/syntax'
+
+/**
+ * Compares every public token/range field while ignoring object insertion order.
+ *
+ * Token order and multiplicity are semantic. A deep record comparison also
+ * detects missing or additional fields instead of silently weakening the oracle.
+ */
+export function expectTokens(
+  actual: readonly TokenType[],
+  expected: readonly TokenType[],
+  lane: string,
+): void {
+  deepStrictEqual(actual, expected, `${lane}: token/range identity differs.`)
+}
+
 /** Reads RDF/JS-shaped values without importing a parser or dataset implementation. */
 function record(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null) throw new Error('Expected an RDF term/quad.')
@@ -23,6 +40,13 @@ function term(value: unknown): unknown[] {
   }
   if (item.termType === 'Quad') return ['Quad', ...quadTerms(item)]
   return [item.termType, item.value]
+}
+
+/** Compares complete binding identity before timing, without depending on an engine's term class. */
+export function expectTerm(actual: unknown, expected: unknown, lane: string): void {
+  if (JSON.stringify(term(actual)) !== JSON.stringify(term(expected))) {
+    throw new Error(`${lane}: exact RDF term identity oracle differs.`)
+  }
 }
 
 /** Keeps graph identity and tuple boundaries distinct even for whitespace/control-containing literals. */

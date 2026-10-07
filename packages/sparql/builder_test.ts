@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { namedNode, namespace } from '@okikio/rdf'
-import { Parser } from '@traqula/parser-sparql-1-2'
+import { query } from '../../conformance/query.ts'
 import { tokens } from './syntax/mod.ts'
 import {
   construct,
@@ -14,29 +14,6 @@ import {
   triple,
   v,
 } from './mod.ts'
-
-/** Ignores source locations and BGP conjunction order, retaining multiplicity and other syntax roles. */
-function semantics(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(semantics)
-  if (typeof value !== 'object' || value === null) return value
-  const result = Object.fromEntries(
-    Object.entries(value).filter(([key]) => key !== 'loc').map((
-      [key, item],
-    ) => [key, semantics(item)]),
-  )
-  if (result.type === 'pattern' && result.subType === 'bgp' && Array.isArray(result.triples)) {
-    result.triples.sort((left: unknown, right: unknown) => {
-      const first = JSON.stringify(left), second = JSON.stringify(right)
-      return first < second ? -1 : first > second ? 1 : 0
-    })
-  }
-  return result
-}
-
-/** Hand-written query fixtures define clauses/terms independently of builder serialization. */
-function query(value: string): unknown {
-  return semantics(new Parser().parse(value))
-}
 
 const PREFIX = 'PREFIX schema: <https://schema.org/>'
 

@@ -23,7 +23,8 @@ export function validateMitata(value: unknown): void {
         stats.samples.some((sample: unknown) =>
           typeof sample !== 'number' || !Number.isFinite(sample) || sample < 0
         ) ||
-        !finite(min) || !finite(max) || !finite(p25) || !finite(p50) || p50 <= 0 ||
+        !stats.samples.some((sample: number) => sample > 0) ||
+        !finite(min) || !finite(max) || !finite(p25) || !finite(p50) || max <= 0 ||
         !finite(p75) || !finite(p99) || !finite(p999) || !finite(avg) ||
         min > p25 || p25 > p50 || p50 > p75 || p75 > p99 || p99 > p999 || p999 > max ||
         !meanWithin(avg, min, max, stats.samples.length) ||

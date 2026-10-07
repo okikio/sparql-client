@@ -3,6 +3,7 @@
 import { bench, do_not_optimize, group } from 'mitata'
 import { Store } from 'oxigraph'
 import { report } from '../../bench/report.ts'
+import { expectTerm } from '../../bench/oracle.ts'
 import { create } from './mod.ts'
 
 const store = new Store()
@@ -16,19 +17,29 @@ for (let index = 0; index < rows; index++) {
 }
 /** The benchmark owns query-result wrappers; the production adapter still borrows its supplied store. */
 const pending = new Set<{ free(): void }>()
+/** Getter-produced datatype wrappers share the benchmark's lifetime, including during adapter conversion. */
+function track<T extends object>(value: T): T {
+  if (typeof Reflect.get(value, 'free') === 'function') {
+    pending.add(value as T & { free(): void })
+  }
+  return new Proxy(value, {
+    get(target, key) {
+      const child: unknown = Reflect.get(target, key, target)
+      return key === 'datatype' && typeof child === 'object' && child !== null
+        ? track(child)
+        : child
+    },
+  })
+}
 const view = {
   query(query: string): ReturnType<Store['query']> {
     const result = store.query(query)
     if (Array.isArray(result)) {
       for (const row of result) {
-        const terms = row instanceof Map ? row.values() : [row]
-        for (const value of terms) {
-          if (
-            typeof value === 'object' && value !== null && 'free' in value &&
-            typeof value.free === 'function'
-          ) {
-            pending.add(value as unknown as { free(): void })
-          }
+        if (row instanceof Map) {
+          for (const [key, value] of row) row.set(key, track(value))
+        } else {
+          throw new Error('Benchmark view expects SELECT bindings or ASK booleans.')
         }
       }
     }
@@ -40,8 +51,16 @@ const view = {
 }
 /** Release work belongs to both timed lanes; it does not depend on GC finalizer scheduling. */
 function retire(): void {
-  for (const value of pending) value.free()
-  pending.clear()
+  const failures: unknown[] = []
+  for (const value of [...pending].reverse()) {
+    pending.delete(value)
+    try {
+      value.free()
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length) throw new AggregateError(failures, 'Benchmark term retirement failed.')
 }
 /** Consumes the same count and complete literal value through either API shape. */
 function direct(query: string): { count: number; values: string[] } {
@@ -63,10 +82,74 @@ async function wrapped(query: string): Promise<{ count: number; values: string[]
 }
 const ask = 'ASK { <https://example.com/s/1729> <https://example.com/p> ?o }'
 const select = 'SELECT ?o WHERE { <https://example.com/s/1729> <https://example.com/p> ?o }'
+const expected = {
+  termType: 'Literal',
+  value: 'v1729',
+  language: '',
+  datatype: { termType: 'NamedNode', value: 'http://www.w3.org/2001/XMLSchema#string' },
+}
+const failures: unknown[] = []
 try {
+  let termReleased = false, datatypeReleased = false
+  const owned = track({
+    free() {
+      termReleased = true
+    },
+    get datatype() {
+      return {
+        free() {
+          datatypeReleased = true
+        },
+      }
+    },
+  })
+  void owned.datatype
+  retire()
+  if (!termReleased || !datatypeReleased) {
+    throw new Error('Benchmark ownership did not release a getter-produced datatype.')
+  }
+  const refusal = new Error('Fixture retirement refusal')
+  termReleased = false
+  const refusing = track({
+    free() {
+      termReleased = true
+    },
+    get datatype() {
+      return {
+        free() {
+          throw refusal
+        },
+      }
+    },
+  })
+  void refusing.datatype
+  let observed: unknown
+  try {
+    retire()
+  } catch (error) {
+    observed = error
+  }
+  if (
+    !termReleased || !(observed instanceof AggregateError) || !observed.errors.includes(refusal)
+  ) {
+    throw new Error('One failed term release blocked another owned release.')
+  }
   store.load(data, { format: 'application/n-triples' })
   if (view.query(ask) !== true || await client.queryBoolean(ask) !== true) {
     throw new Error('Oxigraph ASK benchmark oracle failed.')
+  }
+  try {
+    const bindings = view.query(select)
+    if (!Array.isArray(bindings)) throw new Error('SELECT result is not an array.')
+    for (const row of bindings) {
+      if (!(row instanceof Map)) throw new Error('SELECT row is not a binding Map.')
+      expectTerm(row.get('o'), expected, 'Oxigraph direct binding')
+    }
+    for await (const row of await client.queryBindings(select)) {
+      expectTerm(row.get('o'), expected, 'Oxigraph adapted binding')
+    }
+  } finally {
+    retire()
   }
   for (const consume of [direct, wrapped]) {
     try {
@@ -97,7 +180,18 @@ try {
     }).gc('inner')
   })
   await report()
+} catch (error) {
+  failures.push(error)
 } finally {
-  retire()
-  free.call(store)
+  try {
+    retire()
+  } catch (error) {
+    failures.push(error)
+  }
+  try {
+    free.call(store)
+  } catch (error) {
+    failures.push(error)
+  }
 }
+if (failures.length) throw new AggregateError(failures, 'Owned Oxigraph benchmark failed.')
