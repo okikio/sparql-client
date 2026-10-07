@@ -17,6 +17,11 @@ on:
         type: choice
         default: both
         options: [both, jsr, npm]
+      prepared_run:
+        description: Existing preparation run to reuse without rebuilding archives
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -29,6 +34,7 @@ concurrency:
 
 jobs:
   prepare:
+    if: inputs.prepared_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -77,9 +83,15 @@ jobs:
 
   publish:
     needs: prepare
+    if: ${{ !cancelled() && (needs.prepare.result == 'success' || inputs.prepared_run != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Validate immutable publication inputs
+        env:
+          REVISION: ${{ inputs.revision }}
+          PREPARED_RUN: ${{ inputs.prepared_run }}
+        run: '[[ "$REVISION" =~ ^[a-f0-9]{40}$ && ( -z "$PREPARED_RUN" || "$PREPARED_RUN" =~ ^[1-9][0-9]*$ ) ]]'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.revision }}
@@ -92,7 +104,18 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: prepared-${{ inputs.revision }}
+          run-id: ${{ inputs.prepared_run || github.run_id }}
+          github-token: ${{ github.token }}
           path: .
+      - name: Restore receipts from the selected preparation run
+        if: inputs.prepared_run != '' && github.run_attempt == 1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: publication-${{ inputs.revision }}-*
+          run-id: ${{ inputs.prepared_run }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: .tmp/releases
       - name: Find receipts from the preceding attempt
         id: receipts
         if: github.run_attempt > 1
@@ -115,11 +138,22 @@ jobs:
       - name: Publish the requested registries
         env:
           TARGET: ${{ inputs.target }}
-        run: deno task release:publish "$TARGET"
-      - name: Verify public package consumers
+          REVISION: ${{ inputs.revision }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$REVISION"
+          env GITHUB_SHA="$REVISION" deno task release:publish "$TARGET"
+      - name: Select current verification controls
+      # Verification controls can be repaired after a partial publication. The
+      # prepared source and archive remain in the immutable root checkout.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: .tmp/release-controls
+          persist-credentials: false
+      - name: Verify exact public package consumers
         env:
           TARGET: ${{ inputs.target }}
-        run: deno task release:consumer "$TARGET"
+        run: deno run -A .tmp/release-controls/.mise/tasks/release-consumer.ts "$TARGET"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

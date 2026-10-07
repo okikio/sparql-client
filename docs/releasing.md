@@ -67,9 +67,21 @@ Use `both`, `jsr`, or `npm` explicitly. Read-only registry checks distinguish a 
 
 Retain the candidate archives and `.tmp/releases/` receipts after any failure. Retry only the failed registry with the same source and artifact identities. Do not rerun preparation and replace an already approved archive during a partial release. Existing versions must match retained release evidence; a matching version string alone cannot prove matching bytes.
 
+The publishing workflow accepts `prepared_run` to select a retained preparation artifact from another run in the same repository. Supply its exact source `revision` and the remaining registry `target`. This skips preparation and restores the archives and receipts; the upload command still checks source, revision, and archive identities. Verification controls come from the workflow's current commit under ignored `.tmp/release-controls/`, while publication uses the original immutable source checkout. This permits a consumer-check repair after one registry has accepted a release without rebuilding the archive or moving its release tag.
+
+A JSR upload can succeed while a previously cached missing-version API response remains visible. Registry management checks use a fresh query URL to avoid reusing that cached response. A missing JSR receipt still requires independent published-source verification. Do not infer matching source from an upload message alone.
+
 For npm, use existing user authentication locally or trusted publishing in the configured GitHub workflow. For JSR, use the package-linked OIDC workflow or Deno's documented interactive authorization. Keep tokens out of arguments, source manifests, archives, and logs. The Deno release adapter uses Bumpy's public publishing pipeline with custom commands; it disables automatic Git tags and GitHub release creation so source references cannot silently point to the wrong commit.
 
 After publication, run `deno task release:consumer both` against exact public versions. The command creates owned fresh consumers and caches. It checks direct npm, native JSR, and JSR npm compatibility separately; `jsr` selects both JSR distribution routes and `jsr-npm` checks only the compatibility route. Runtime executables are selected before entering the fresh project, so a repository-local tool selection does not disappear when the working directory changes. Then use a fresh project and exact public versions. Import every public subpath, type-check the public types, and run meaningful read/write, parse/query, or persistence behavior. For npm, compare the downloaded tarball to the prepared archive. For JSR, verify the published source/dependency graph and package version. Run the changelog examples from the installed packages. Record actual registry and consumer results before calling a release complete.
+
+Immediate native JSR consumer checks set `--minimum-dependency-age=0` only in their owned child processes and select
+the exact reviewed package versions. Deno's dependency-age policy can otherwise reject a just-published release before
+checking its code. This release check does not change an application's dependency-age policy.
+
+The upload workflow checks the actual checkout revision before npm publication and supplies that revision to npm's
+provenance source dependency. The workflow commit can contain newer verification controls; it must not be mistaken for
+the source commit that produced the retained archive.
 
 ## Standards and resource evidence
 
