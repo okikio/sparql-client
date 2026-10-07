@@ -47,6 +47,7 @@ if (command === 'plan' || command === 'version') {
     // Retain the authored notes and their exact propagation plan before Bumpy consumes them.
     await save(`${STORE}/version-plan.json`, plan)
     await applyReleasePlan(plan, packages, ROOT, config)
+    const changelogs: string[] = []
     for (const release of plan.releases) {
       const member = packages.get(release.name)!
       const path = `${member.dir}/deno.json`
@@ -55,7 +56,15 @@ if (command === 'plan' || command === 'version') {
         path,
         source.replace(/("version"\s*:\s*")[^"]+(")/u, `$1${release.newVersion}$2`),
       )
+      const changelog = `${member.dir}/CHANGELOG.md`
+      try {
+        if ((await Deno.stat(changelog)).isFile) changelogs.push(changelog)
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error
+      }
     }
+    // Authored Markdown keeps its examples while adopting the repository's formatter.
+    if (changelogs.length) await run(Deno.execPath(), ['fmt', ...changelogs])
     console.log(
       'Bumpy versions, dependency ranges, release notes, and Deno versions written. Run release:prepare next.',
     )
