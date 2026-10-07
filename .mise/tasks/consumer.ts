@@ -83,11 +83,42 @@ async function smoke(): Promise<string> {
     '@okikio/oxigraph': ['create'],
     '@okikio/comunica': ['create'],
   }
-  return `import { realpathSync } from 'node:fs'\nimport { sep } from 'node:path'\nimport { fileURLToPath } from 'node:url'\nconst installed = realpathSync(new URL('./node_modules/', import.meta.url)) + sep\nconst specs = ${
-    JSON.stringify(specs, null, 2)
-  }\nconst required = ${
-    JSON.stringify(required, null, 2)
-  }\nfor (const spec of specs) {\n  const path = realpathSync(fileURLToPath(import.meta.resolve(spec)))\n  if (!path.startsWith(installed)) throw new Error(\`Public entry resolves outside installed artifacts: \${spec}: \${path}\`)\n  const mod = await import(spec)\n  if (Object.keys(mod).length === 0 && spec !== '@okikio/vocab/standard') throw new Error(\`Public entry point exported nothing: \${spec}\`)\n}\nfor (const [spec, names] of Object.entries(required)) {\n  const mod = await import(spec)\n  for (const name of names) if (!(name in mod)) throw new Error(\`Missing \${spec} export: \${name}\`)\n}\nconsole.log(\`Imported \${specs.length} installed public entry points.\`)\n`
+  return `import assert from 'node:assert/strict'
+import { realpathSync } from 'node:fs'
+import * as paths from 'node:path'
+import { fileURLToPath } from 'node:url'
+const installed = realpathSync(fileURLToPath(new URL('./node_modules/', import.meta.url)))
+/** Check path components after realpath resolves aliases and links; Windows paths may differ in case or separators. */
+function inside(root: string, entry: string, path: Pick<typeof paths, 'relative' | 'sep' | 'isAbsolute'> = paths): boolean {
+  const value = path.relative(root, entry)
+  return value !== '' && value !== '..' && !value.startsWith('..' + path.sep) && !path.isAbsolute(value)
+}
+// Platform-independent controls distinguish installed descendants from siblings, parent paths and other drives/shares.
+for (const [path, root, entry, expected] of [
+  [paths.win32, 'D:/a/consumer/node_modules', paths.win32.join('d:/a/consumer/node_modules', '@okikio/rdf/mod.js'), true],
+  [paths.win32, 'D:/a/consumer/node_modules', 'D:/a/consumer/node_modules-old/rdf/mod.js', false],
+  [paths.win32, 'D:/a/consumer/node_modules', 'D:/a/consumer/source/mod.js', false],
+  [paths.win32, 'D:/a/consumer/node_modules', 'E:/a/consumer/node_modules/rdf/mod.js', false],
+  [paths.win32, '//server/share/node_modules', '//other/share/node_modules/rdf/mod.js', false],
+  [paths.posix, '/a/node_modules', '/a/node_modules/rdf/mod.js', true],
+  [paths.posix, '/a/node_modules', '/a/node_modules-old/rdf/mod.js', false],
+  [paths.posix, '/a/node_modules', '/a/source/mod.js', false],
+  [paths.posix, '/a/node_modules', '/a/node_modules', false],
+] as const) assert.equal(inside(root, entry, path), expected)
+const specs = ${JSON.stringify(specs, null, 2)}
+const required = ${JSON.stringify(required, null, 2)}
+for (const spec of specs) {
+  const path = realpathSync(fileURLToPath(import.meta.resolve(spec)))
+  if (!inside(installed, path)) throw new Error(\`Public entry resolves outside installed artifacts: \${spec}: \${path} (root: \${installed})\`)
+  const mod = await import(spec)
+  if (Object.keys(mod).length === 0 && spec !== '@okikio/vocab/standard') throw new Error(\`Public entry point exported nothing: \${spec}\`)
+}
+for (const [spec, names] of Object.entries(required)) {
+  const mod = await import(spec)
+  for (const name of names) if (!(name in mod)) throw new Error(\`Missing \${spec} export: \${name}\`)
+}
+console.log(\`Imported \${specs.length} installed public entry points.\`)
+`
 }
 
 async function exists(path: string): Promise<boolean> {

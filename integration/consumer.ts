@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { sep } from 'node:path'
+import { isAbsolute, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as rdf from '@okikio/rdf'
 import type { Quad } from '@okikio/rdf'
@@ -18,7 +18,7 @@ import { compile } from '@okikio/vocab/compile'
 import { ProductSchema } from '@okikio/vocab/schema'
 
 // Workspace aliases cannot stand in for the archives this fixture is intended to exercise.
-const installed = `${realpathSync(new URL('./node_modules/', import.meta.url))}${sep}`
+const installed = realpathSync(fileURLToPath(new URL('./node_modules/', import.meta.url)))
 const resolutions = Object.fromEntries([
   '@okikio/rdf',
   '@okikio/rdf/nquads',
@@ -34,12 +34,18 @@ const resolutions = Object.fromEntries([
 ].map((specifier) => {
   const path = realpathSync(fileURLToPath(import.meta.resolve(specifier)))
   assert.ok(
-    path.startsWith(installed),
+    inside(installed, path),
     `${specifier} resolves outside installed artifacts: ${path}`,
   )
   return [specifier, path]
 }))
 console.log(`Installed behavior module paths: ${JSON.stringify(resolutions)}`)
+
+/** Checks native path components after realpath resolves aliases and links. */
+function inside(root: string, entry: string): boolean {
+  const path = relative(root, entry)
+  return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path)
+}
 
 const value = rdf.quad(
   rdf.namedNode('urn:s'),
