@@ -106,6 +106,6 @@ Unset `BENCH_ONLY`, `BENCH_PARSE_FORMAT` and `BENCH_PARSE_COUNT` for the full ma
 
 The runner saves progress after each program. A nonzero child exit fails the report while preserving its evidence. After all programs finish, the runner hashes its inputs again; any source or dependency change invalidates the timings. Source, tests, manifests and benchmark runner code must stay frozen during collection. Documentation edits outside those hashed inputs do not change the measurements.
 
-The optional `bench:storage` task requires the installed sibling OPFS artifact and the six current workspace artifacts; prepare them through `consumer:storage`. Its report records actual installed-input and fixture identities. It is outside the standalone release DAG.
+`bench:storage` requires the installed sibling OPFS artifact and the six current workspace artifacts; prepare them through `consumer:storage`. Its report records actual installed-input and fixture identities. The full `release-check` DAG runs this gate after the installed storage consumer checks. The publishing workflow selects the exact published OPFS version from its reviewed source commit before running those gates.
 
 CI uploads `.tmp/reports/bench/` with the commit SHA in the artifact name. A completed equivalent-work report can support a performance decision; a partial report or historical timing cannot establish a current performance pass or a universal throughput SLO.
