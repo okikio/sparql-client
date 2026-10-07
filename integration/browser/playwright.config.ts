@@ -10,6 +10,7 @@ export default defineConfig({
   forbidOnly: Boolean(Deno.env.get('CI')),
   retries: 0,
   workers: 3,
+  reporter: [['line'], ['json', { outputFile: '.tmp/reports/browser/results.json' }]],
   use: { baseURL: origin, trace: 'retain-on-failure' },
   webServer: {
     command:
