@@ -47,9 +47,9 @@ export function emit(model: VocabularyModelType, options: EmitOptionsType): Emit
   writer.line(' * @module')
   writer.line(' */')
   writer.line('')
-  writer.line(`import { namedNode } from ${quote(rdfImport)}`)
+  writer.line(`import { namedNode, type NamedNode } from ${quote(rdfImport)}`)
   writer.line(
-    `import { createSchema, type IdReferenceType, type NodeType, type ValueType } from ${
+    `import { createSchema, type IdReferenceType, type NodeType, type ValueType, type VocabularySchema } from ${
       quote(runtimeImport)
     }`,
   )
@@ -75,7 +75,7 @@ function emitTerms(writer: Writer, model: VocabularyModelType, names: NamePlanTy
   for (const value of model.classes) {
     const name = names.classes.get(value.iri)!
     emitDoc(writer, value.comments, value.deprecated, `RDF class term for ${name}.`)
-    writer.line(`export const ${name} = namedNode(${quote(value.iri)})`)
+    writer.line(`export const ${name}: NamedNode = namedNode(${quote(value.iri)})`)
   }
   writer.line('')
 
@@ -83,7 +83,7 @@ function emitTerms(writer: Writer, model: VocabularyModelType, names: NamePlanTy
   for (const iri of model.datatypes) {
     const name = names.datatypes.get(iri)!
     writer.line(`/** RDF datatype term for ${name}. */`)
-    writer.line(`export const ${name} = namedNode(${quote(iri)})`)
+    writer.line(`export const ${name}: NamedNode = namedNode(${quote(iri)})`)
   }
   writer.line('')
 
@@ -91,7 +91,7 @@ function emitTerms(writer: Writer, model: VocabularyModelType, names: NamePlanTy
   for (const value of model.properties) {
     const name = names.properties.get(value.iri)!
     emitDoc(writer, value.comments, value.deprecated, `RDF property term for ${name}.`)
-    writer.line(`export const ${name} = namedNode(${quote(value.iri)})`)
+    writer.line(`export const ${name}: NamedNode = namedNode(${quote(value.iri)})`)
   }
   writer.line('')
 }
@@ -113,6 +113,12 @@ function emitProperties(writer: Writer, model: VocabularyModelType, names: NameP
     writer.indent(() => {
       for (const property of byDomain.get(value.iri) ?? []) {
         const propertyName = names.properties.get(property.iri)!
+        emitDoc(
+          writer,
+          property.comments,
+          property.deprecated,
+          `JSON-LD value for ${propertyName}.`,
+        )
         writer.line(
           `readonly ${propertyKey(propertyName)}?: ValueType<${propertyType(property, names)}>`,
         )
@@ -134,7 +140,9 @@ function emitClasses(writer: Writer, model: VocabularyModelType, names: NamePlan
     writer.line(`/** JSON-LD node typed as ${name}. */`)
     writer.line(`export type ${name}Type = NodeType<${quote(name)}, ${name}PropertiesType>`)
     writer.line(`/** Standard Schema validator and JSON Schema converter for ${name}. */`)
-    writer.line(`export const ${name}Schema = createSchema<${name}Type>({`)
+    writer.line(
+      `export const ${name}Schema: VocabularySchema<unknown, ${name}Type> = createSchema<${name}Type>({`,
+    )
     writer.indent(() => {
       writer.line(`types: [${quote(name)}],`)
       if (parents.length > 0) {
@@ -173,6 +181,7 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   writer.indent(() => {
     for (const value of model.classes) {
       const name = names.classes.get(value.iri)!
+      writer.line(`/** Property interface contributed by ${name} nodes. */`)
       writer.line(`readonly ${propertyKey(name)}: ${name}PropertiesType`)
     }
   })
@@ -182,20 +191,20 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   writer.line('export type ClassNameType = keyof TypeMapType')
   writer.line('/** Resolves one generated class name to its property interface. */')
   writer.line(
-    'type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never',
+    'export type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never',
   )
   writer.line(
     '/** Converts the selected class-property union into one intersection for multi-typed nodes. */',
   )
   writer.line(
-    'type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never',
+    'export type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never',
   )
   writer.line('')
   writer.line(
     '/** Intersects the properties contributed by every class on a multi-typed JSON-LD node. */',
   )
   writer.line(
-    'type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object',
+    'export type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object',
   )
   writer.line(
     '/** JSON-LD node carrying all properties contributed by the selected generated class names. */',

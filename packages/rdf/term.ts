@@ -131,7 +131,7 @@ export const XSD = {
 } as const
 
 /** Base immutable term implementation. */
-abstract class BaseTerm implements Term {
+export abstract class BaseTerm implements Term {
   /** RDF/JS term-kind discriminator used for standards-compatible term interoperability. */
   abstract readonly termType: Term['termType']
 
@@ -217,7 +217,9 @@ export class LiteralValue extends BaseTerm implements Literal {
     return this.value === literal.value &&
       this.datatype.equals(literal.datatype) &&
       this.language.toLowerCase() === literal.language.toLowerCase() &&
-      this.direction === literal.direction
+      // RDF/JS permits legacy literals to omit direction or use null. Those
+      // values describe the same nondirectional literal as the native ''.
+      (this.direction || '') === (literal.direction || '')
   }
 }
 
@@ -294,7 +296,7 @@ export function key(term: Term): string {
       const literal = term as Literal
       return `L${atom('', literal.value)}${atom('', literal.datatype.value)}${
         atom('', literal.language.toLowerCase())
-      }${atom('', literal.direction)}`
+      }${atom('', literal.direction || '')}`
     }
     case 'Quad': {
       const quad = term as Quad

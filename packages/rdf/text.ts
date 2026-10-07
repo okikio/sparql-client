@@ -1,5 +1,7 @@
 /** Incremental UTF-8/text source helpers shared by RDF syntax parsers. @module */
 
+import { consume } from './iteration.ts'
+
 const DIRECT_CHUNK_SIZE = 16 * 1024
 
 /** Byte/text source accepted by streaming RDF parsers. */
@@ -11,7 +13,11 @@ export type TextSourceType =
   | ReadableStream<Uint8Array>
 
 /**
- * Iterates source chunks without taking ownership of ordinary iterables.
+ * Iterates source chunks while borrowing the owning source resource.
+ *
+ * A signal interrupts pending iterable reads. Early exit, failure, and abort
+ * call the acquired iterator return method once; cooperative upstream cleanup
+ * must settle for the parser operation to finish.
  *
  * A Web `ReadableStream` reader is cancelled when the consumer returns before
  * source completion. This prevents an upstream producer from continuing work
@@ -21,6 +27,7 @@ export async function* chunks(
   source: TextSourceType,
   signal?: AbortSignal,
 ): AsyncGenerator<string | Uint8Array> {
+  throwIfAborted(signal)
   if (typeof source === 'string') {
     for (let offset = 0; offset < source.length; offset += DIRECT_CHUNK_SIZE) {
       throwIfAborted(signal)
@@ -60,18 +67,10 @@ export async function* chunks(
     }
   }
 
-  if (Symbol.asyncIterator in Object(source)) {
-    for await (const chunk of source as AsyncIterable<string | Uint8Array>) {
-      throwIfAborted(signal)
-      yield chunk
-    }
-    return
-  }
-
-  for (const chunk of source as Iterable<string | Uint8Array>) {
-    throwIfAborted(signal)
-    yield chunk
-  }
+  yield* consume(
+    source as Iterable<string | Uint8Array> | AsyncIterable<string | Uint8Array>,
+    signal,
+  )
 }
 
 /** Read from the supplied source while preserving caller ownership. */

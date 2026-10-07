@@ -1,6 +1,7 @@
 /** RDF term factories and RDF/JS conversion helpers. @module */
 
 import {
+  type BlankNode,
   BlankNodeValue,
   DefaultGraphValue,
   type DirectionalLanguageType,
@@ -42,7 +43,7 @@ export function namedNode(value: string): NamedNode {
  * therefore not make the next anonymous blank node reuse `b1` and silently
  * merge two unrelated RDF resources. A caller-supplied label is preserved.
  */
-export function blankNode(value?: string): ReturnType<typeof createBlankNode> {
+export function blankNode(value?: string): BlankNode {
   return createBlankNode(value ?? anonymousBlankNode())
 }
 

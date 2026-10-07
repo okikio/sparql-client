@@ -103,7 +103,7 @@ export interface InspectOptionsType {
   readonly domainPredicates?: readonly string[]
   /** Additional predicates that behave like vocabulary-range declarations. */
   readonly rangePredicates?: readonly string[]
-  /** Maximum quads across all sources. Default is 5,000,000. */
+  /** Positive safe-integer maximum quads across all sources. Default is 5,000,000. */
   readonly maxQuads?: number
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
@@ -181,7 +181,7 @@ interface PendingDeprecatedType {
  * engines or future consumers can interpret richer class expressions later.
  *
  * Input sources remain caller-owned. `maxQuads` limits materialized work across
- * all sources, and `signal` can stop ingestion between quads.
+ * all sources, and `signal` can stop ingestion, including a pending source read.
  *
  * @example
  * ```ts
@@ -202,6 +202,9 @@ export async function inspect(
   sources: readonly OntologySourceType[],
   options: InspectOptionsType = {},
 ): Promise<ModelType> {
+  if (options.signal?.aborted) {
+    throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+  }
   const classes = new Map<string, MutableClassType>()
   const properties = new Map<string, MutablePropertyType>()
   const datatypes = new Set<string>()
@@ -211,11 +214,11 @@ export async function inspect(
   const pendingDeprecated: PendingDeprecatedType[] = []
   const domainPredicates = new Set([RDFS_DOMAIN, ...(options.domainPredicates ?? [])])
   const rangePredicates = new Set([RDFS_RANGE, ...(options.rangePredicates ?? [])])
-  const maxQuads = options.maxQuads ?? 5_000_000
+  const maxQuads = positive(options.maxQuads ?? 5_000_000, 'maxQuads')
   let count = 0
 
   for (const source of sources) {
-    for await (const quad of iterate(source.quads)) {
+    for await (const quad of iterate(source.quads, options)) {
       if (options.signal?.aborted) {
         throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
       }
@@ -544,4 +547,12 @@ function byIri<
   },
 >(left: T, right: T): number {
   return left.iri.localeCompare(right.iri)
+}
+
+/** Rejects disabled or ambiguous bounds before acquiring any source iterator. */
+function positive(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive safe integer.`)
+  }
+  return value
 }

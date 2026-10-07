@@ -1,106 +1,40 @@
-# Validation record
+# Run the validation lanes
 
-This file records executed evidence for the current repository state. It separates canonical Deno
-release gates from fallback checks so a partial or host-specific result cannot be mistaken for a
-release certification.
+Start with the source contracts before starting services or collecting timings:
 
-## Latest canonical Deno run
-
-A Deno 2.9.5 run on 2026-08-19 exposed failures before this repair pass. The command sequence was:
-
-```text
-deno install && pnpm install
-deno fmt --check
-deno lint
-deno check
-deno test
-deno task conformance
-deno task bench
-deno task integration
-deno task release-check
+```sh
+deno task verify
 ```
 
-The observed failures were:
+This runs formatting, lint, strict types, the core dependency firewall, documentation diagnostics, and package/conformance-oracle unit tests. The [testing guide](docs/testing.md) explains what each suite protects. A successful source gate does not establish service interoperability, browser capability, or installed-package behavior.
 
-| Gate | Result before this repair pass | Verified cause |
-| --- | --- | --- |
-| `deno fmt --check` | FAIL | Generated `pnpm-lock.yaml` was included in root formatter discovery. |
-| `deno lint` | FAIL, 51 findings | Unnecessary `async`, control-character regular expressions, stale imports, an unreachable throw, and one banned open-string type trick. |
-| `deno check` | FAIL, 4 errors | Typed-array DOM generic mismatches and a stale SPARQL.js-style assertion against Traqula's AST. |
-| `deno test` | FAIL before execution | The Traqula property test failed type checking. |
-| `deno task conformance` | FAIL, 0 pass / 6 fail | Standalone conformance execution did not synchronize its pinned external suites first. |
-| `deno task bench` | FAIL | The Comunica adapter required a non-standard `entries()` method on RDF/JS bindings. |
-| `deno task integration` | FAIL | The same Comunica binding defect plus missing named Deno system permissions required by Testcontainers. |
-| `deno task release-check` | FAIL | `verify` stopped at the lint gate before later release gates could run. |
+## Choose the environment the change affects
 
-These failures are historical evidence for the input tree. They are not the result of the repaired
-source below.
+| Command                                 | Protected contract and prerequisites                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno task conformance`                 | Download pinned official corpora and run supported native standards profiles. Fixture/setup failures and skipped cases fail the gate.                                   |
+| `deno task support`                     | Validate claims, report schema/statuses, source identity and pinned revisions against fresh official evidence. Run conformance first.                                   |
+| `deno task integration`                 | Real Oxigraph/Comunica and disposable HTTP engines, Graph Store operations, and transport faults. Requires Docker.                                                      |
+| `deno task browser`                     | Actual Window/Worker parsing and cancellation in Chromium, Firefox, and WebKit. Requires installed Playwright browsers.                                                 |
+| `OPFS_SOURCE=../opfs deno task browser` | Add browser OPFS persistence through the selected sibling checkout. Probe the API in its actual realm; report absent capabilities explicitly.                           |
+| `deno task package`                     | Build all workspace npm archives and check JSR publication without publishing.                                                                                          |
+| `deno task distribution`                | Check package/dependency and browser bundle contents. Requires built artifacts.                                                                                         |
+| `deno task consumer`                    | Install the exact archives in a clean consumer and check public exports, declarations, RDF/query behavior, and HTTP encodings.                                          |
+| `deno task consumer:linux`              | Run that installed consumer in the task's pinned Node, Deno, and Bun Linux images. Requires `consumer` output and Docker.                                               |
+| `deno task integration:storage`         | Recovery, interruption, cancellation, and borrowed filesystem behavior with sibling OPFS source across memory, native files, and Deno KV.                               |
+| `deno task consumer:storage`            | Install six workspace archives plus the selected OPFS archive; exercise persistence in host and Linux runtimes. Requires Docker and both repositories' built artifacts. |
+| `deno task bench:report`                | Collect isolated, serial runtime benchmark samples with semantic preflight and source identities.                                                                       |
+| `deno task bench:types`                 | Compile generated vocabulary consumers and record source size, compiler time, memory, and instantiations.                                                               |
+| `deno task bench:storage`               | Measure fresh-process recovery through installed OPFS and triplestore artifacts. Prepare with `consumer:storage`.                                                       |
 
-## Repair-pass validation
+The storage tasks accept `OPFS_SOURCE` or `OPFS_TARBALL` where applicable. The default source is the sibling `../opfs`; the default archive is its `.release/npm/okikio-opfs-0.0.0-quality.tgz`. Missing inputs fail rather than silently substituting another implementation.
 
-The current repair pass changed the implementation and release task graph to address the failures
-above. The execution host used for this pass does not provide Deno, Docker, or the project registry
-cache, so the canonical Deno gates have **not** been rerun here.
+`deno task release-check` runs the source, standards, service, browser, artifact, borrowed-storage and benchmark gates in the order defined by `.mise/tasks/release-check.ts`. Supply the exact OPFS source and archive for that composition. The publishing workflow selects a reviewed OPFS revision and its exact public version.
 
-The following fallback checks were executed against the repaired source:
+## Read the result at the scope it proves
 
-| Check | Result |
-| --- | --- |
-| Strict TypeScript, changed production slice | PASS |
-| Strict TypeScript, changed test slice | PASS |
-| Strict TypeScript, changed task/conformance slice | PASS |
-| Traqula property-test AST shape type check | PASS |
-| Focused runtime lane | 57 / 57 PASS |
-| Broader package runtime lane | 195 / 195 PASS |
+Standards support requires the pinned applicable cases to pass. An unavailable browser API is an unsupported case, not evidence of byte persistence. A container startup failure is infrastructure evidence, not a parser verdict. Native Windows, other architectures, and deployed cloud services require their own executions.
 
-The strict TypeScript checks used `strict`, `noUncheckedIndexedAccess`,
-`exactOptionalPropertyTypes`, and `noImplicitOverride`. Runtime fallback tests used the same project
-sources but did not substitute for Deno's formatter, linter, permission model, npm/JSR resolution, or
-official external conformance corpora.
+Benchmark numbers answer the questions in [the benchmark guide](docs/benchmarks.md). Review equivalent output, setup/cache state, retained samples, and run-to-run noise before using a timing to justify a change. Source tests passing does not validate a benchmark's workload.
 
-## Repairs covered by this record
-
-The repair pass addresses these release failures:
-
-- root formatter discovery excludes the generated pnpm lockfile;
-- Deno lint findings are fixed without disabling recommended rules;
-- Web Crypto and Fetch typed-array call sites provide concrete `ArrayBuffer` values;
-- Traqula assertions use its current `type` / `subType` AST contract;
-- Comunica bindings are decoded through the RDF/JS iterable contract instead of Map-only APIs;
-- Oxigraph and other promise-returning adapters preserve promise rejection semantics without
-  unnecessary `async` declarations;
-- bare `deno test` discovers package and conformance tests only, while Docker integration remains an
-  explicit privileged lane;
-- the integration child grants only the named system information Testcontainers currently reads;
-- standalone conformance execution synchronizes pinned W3C/upstream suites before running cases;
-- `support.json` resides at the repository root used by the support gate and documentation;
-- release packaging expands concrete Deno workspace members instead of treating `./packages/*` as a
-  literal directory and permits the same dirty-tree dry-run workflow as the JSR publish check.
-
-## Canonical gates still required
-
-Do not call this repository release-validated until the repaired tree passes the following commands
-on a host with Deno 2.9.5, the resolved npm/JSR graph, and Docker where required:
-
-```text
-deno install
-pnpm install
-deno fmt --check
-deno lint
-deno check
-deno test
-deno task conformance
-deno task support
-deno task bench
-deno task integration
-deno task release-check
-```
-
-The conformance gate is intentionally strict. Synchronizing the external suites fixes orchestration;
-it does **not** turn processor failures or skips into passes. Any remaining official RDF, JSON-LD,
-RDFC, RDFa, or Microdata failures must remain visible and continue to block the corresponding public
-support claim.
-
-The real Comunica/Oxigraph benchmark and Docker integration paths also remain pending on this host.
-Their source contracts and local regression tests were reviewed, but the exact external engines were
-not executable here.
+Generated corpora, packages, consumer installations, screenshots, raw measurements, and one-off investigation reports belong under ignored `.tmp/`. Reports are local or CI artifacts and must record their source identity and environment. Keep reusable fixtures and task definitions visible in version control; preserve dated execution narratives locally rather than presenting them as current guarantees.

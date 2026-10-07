@@ -357,6 +357,8 @@ The repository uses several explicit seams so changing specifications do not for
 
 ## Cancellation and ownership flow
 
+JSON-LD generalized RDF is an explicit result boundary. The JSON-LD facade returns `Quad` values by default and `GeneralizedQuadType` values when `produceGeneralizedRdf` is enabled. The wider type permits blank predicates without weakening the ordinary RDF term model. Dataset storage, canonicalization, and standard syntax writers continue to require named predicates. JSON-LD conversion allocates fresh RDF blank identities per document while preserving repeated references across the document's graphs and generalized predicate positions. RDF-to-JSON-LD conversion retains caller-supplied RDF identities.
+
 ```text
 caller AbortSignal
       |
@@ -479,7 +481,7 @@ There is no permanent root `src/` or centralized `tests/` directory.
 
 ## Remaining release gates
 
-The architecture is not a release certification. Before publication, the project still needs canonical Deno/JSR validation and external integration/conformance work documented in `VALIDATION.md`.
+The architecture is not a release certification. Each publication needs current canonical Deno/JSR, interoperability, conformance and artifact evidence under the gates documented in `VALIDATION.md`. Earlier successful runs do not certify a later source or package artifact.
 
 Most importantly:
 

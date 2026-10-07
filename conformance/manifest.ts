@@ -26,6 +26,8 @@ export interface EntryType {
   readonly types: readonly string[]
   readonly action?: string
   readonly result?: string
+  /** Canonicalization digest requested by an official vector, distinct from the default digest. */
+  readonly hashAlgorithm?: string
   readonly manifest: string
 }
 
@@ -56,12 +58,18 @@ function entry(quads: readonly QuadType[], id: string, manifest: string): EntryT
   const name = first(quads, id, `${MF}name`)?.value ?? first(quads, id, RDFS_LABEL)?.value ?? id
   const action = first(quads, id, `${MF}action`)?.value
   const result = first(quads, id, `${MF}result`)?.value
+  const hashAlgorithm = first(
+    quads,
+    id,
+    'https://w3c.github.io/rdf-canon/tests/vocab#hashAlgorithm',
+  )?.value
   return {
     id,
     name,
     types: values(quads, id, RDF_TYPE).map((value) => value.value),
     ...(action ? { action } : {}),
     ...(result ? { result } : {}),
+    ...(hashAlgorithm ? { hashAlgorithm } : {}),
     manifest,
   }
 }
@@ -75,6 +83,7 @@ function entry(quads: readonly QuadType[], id: string, manifest: string): EntryT
  * Microdata case runs, so the reader recognizes the actual graph shape first.
  */
 function items(quads: readonly QuadType[], value: TermType): TermType[] {
+  if (value.termType === 'NamedNode' && value.value === RDF_NIL) return []
   return first(quads, value.value, RDF_FIRST) || first(quads, value.value, RDF_REST)
     ? list(quads, value)
     : [value]

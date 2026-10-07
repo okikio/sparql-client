@@ -2,7 +2,8 @@
 
 import { bench, do_not_optimize, group } from 'mitata'
 import { report } from '../../../bench/report.ts'
-import { datasetKey } from '../dataset.ts'
+import { expectQuads } from '../../../bench/oracle.ts'
+import { literal, namedNode, quad } from '../factory.ts'
 import { parse } from './mod.ts'
 
 const COUNT = 10_000
@@ -14,11 +15,19 @@ const text = Array.from(
     }> .`,
 ).join('\n')
 const chunks = split(text, 4096)
-const expected = await read(text)
-const expectedDigest = datasetKey(expected)
-const chunked = await read(chunks)
-if (chunked.length !== COUNT || datasetKey(chunked) !== expectedDigest) {
-  throw new Error('Chunked N-Quads benchmark oracle does not match whole-source output.')
+await preflight()
+
+/** Expected RDF terms come from fixture meaning rather than either parser invocation. */
+async function preflight(): Promise<void> {
+  const expected = Array.from({ length: COUNT }, (_, index) =>
+    quad(
+      namedNode(`https://example.com/s/${index}`),
+      namedNode('https://example.com/p'),
+      literal(`value-${index}`),
+      namedNode(`https://example.com/g/${index % 8}`),
+    ))
+  expectQuads(await read(text), expected, 'N-Quads whole')
+  expectQuads(await read(chunks), expected, 'N-Quads chunked')
 }
 
 /** Splits one deterministic fixture without adding work to the timed callback. */

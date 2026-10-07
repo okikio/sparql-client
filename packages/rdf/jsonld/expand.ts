@@ -1,6 +1,7 @@
 /** Native JSON-LD 1.1 expansion. @module */
 import {
   abort,
+  absolute,
   type ActiveContextType,
   compare,
   type ContextStateType,
@@ -24,6 +25,8 @@ interface NestType {
   readonly value: JsonLdValueType
   /** One-based nesting depth used to enforce the configured work limit. */
   readonly depth: number
+  /** Context applied by the term that names this nest entry. */
+  readonly context: ActiveContextType
 }
 
 /** Options affecting recursive expansion. */
@@ -56,6 +59,9 @@ export async function expandValue(
         propertyDefinition.context,
         state,
         propertyDefinition.base ?? baseUrl,
+        true,
+        false,
+        true,
       )
     }
     return valueExpansion(context, activeProperty, element)
@@ -90,24 +96,39 @@ export async function expandValue(
       propertyDefinition.context,
       state,
       propertyDefinition.base ?? baseUrl,
+      true,
+      false,
+      true,
     )
   }
   if (Object.hasOwn(element, '@context')) {
     context = await process(context, element['@context']!, state, baseUrl)
   }
+  const typeContext = context
   const typeEntries = Object.entries(element).filter(([key]) =>
     expandIri(context, key, { vocab: true }) === '@type'
   ).sort(([a], [b]) => compare(a, b))
   for (const [, raw] of typeEntries) {
     for (const term of array(raw).filter((v): v is string => typeof v === 'string').sort(compare)) {
-      const scoped = definition(context, term)
+      const scoped = definition(typeContext, term)
       if (scoped?.context !== undefined) {
         context = await process(context, scoped.context, state, scoped.base ?? baseUrl, false)
       }
     }
   }
   const result = Object.create(null) as Record<string, JsonLdValueType>, nests: NestType[] = []
-  await entries(element, context, result, nests, activeProperty, baseUrl, state, options, 0)
+  await entries(
+    element,
+    context,
+    result,
+    nests,
+    activeProperty,
+    baseUrl,
+    state,
+    options,
+    0,
+    typeContext,
+  )
   const maxNestDepth = options.maxNestDepth ?? MAX_NEST_DEPTH
   for (let i = 0; i < nests.length; i++) {
     const nest = nests[i]!
@@ -115,12 +136,12 @@ export async function expandValue(
       throw new RangeError(`JSON-LD @nest depth exceeds the configured limit of ${maxNestDepth}.`)
     }
     for (const nested of array(nest.value)) {
-      if (!object(nested)) {
+      if (!object(nested) || hasExpandedKey(nested, nest.context, '@value')) {
         fail('invalid @nest value', '@nest value must contain node-object entries.')
       }
       await entries(
         nested,
-        context,
+        nest.context,
         result,
         nests,
         activeProperty,
@@ -128,6 +149,7 @@ export async function expandValue(
         state,
         options,
         nest.depth,
+        typeContext,
       )
     }
   }
@@ -143,6 +165,7 @@ export async function expandValue(
   state: ContextStateType,
   options: ExpandOptionsType,
   nestDepth: number,
+  typeContext: ActiveContextType,
 ) {
   let values = Object.entries(element)
   if (options.ordered) values = values.sort(([a], [b]) => compare(a, b))
@@ -155,6 +178,9 @@ export async function expandValue(
       (!property.includes(':') && !KEYWORDS.has(property) && !FRAME_KEYWORDS.has(property))
     ) continue
     if (KEYWORDS.has(property) || (options.frame && FRAME_KEYWORDS.has(property))) {
+      if (activeProperty === '@reverse') {
+        fail('invalid reverse property map', 'A reverse property map cannot contain keywords.')
+      }
       await keyword(
         property,
         value,
@@ -166,6 +192,8 @@ export async function expandValue(
         state,
         options,
         nestDepth,
+        typeContext,
+        key,
       )
       continue
     }
@@ -183,6 +211,17 @@ export async function expandValue(
     if (container.includes('@list') && !listObject(expanded)) {
       expanded = { '@list': array(expanded) }
     }
+    if (
+      active.mode === 'json-ld-1.0' && container.includes('@list') && listObject(expanded) &&
+      object(expanded) && array(expanded['@list']!).some(listObject)
+    ) {
+      fail('list of lists', 'JSON-LD 1.0 cannot contain nested lists.')
+    }
+    if (
+      container.includes('@graph') && !container.includes('@id') && !container.includes('@index')
+    ) {
+      expanded = array(expanded).map((item) => ({ '@graph': array(item) }))
+    }
     if (term?.reverse) {
       const reverse =
         (object(result['@reverse']) ? result['@reverse'] : Object.create(null)) as Record<
@@ -199,7 +238,12 @@ export async function expandValue(
         }
         add(reverse, property, item)
       }
-    } else for (const item of array(expanded)) add(result, property, item)
+    } else {
+      // An explicitly empty property remains present in expanded JSON-LD.
+      // Compaction and node-map generation distinguish it from an absent property.
+      result[property] ??= []
+      for (const item of array(expanded)) add(result, property, item)
+    }
   }
 }
 /** Expands one JSON-LD keyword/alias. */ async function keyword(
@@ -213,22 +257,52 @@ export async function expandValue(
   state: ContextStateType,
   options: ExpandOptionsType,
   nestDepth: number,
+  typeContext: ActiveContextType,
+  key: string,
 ) {
   if (Object.hasOwn(result, expanded) && expanded !== '@type' && expanded !== '@included') {
     fail('colliding keywords', `Multiple aliases for ${expanded}.`)
   }
   switch (expanded) {
     case '@id':
+      if (options.frame) {
+        result['@id'] = array(value).map((item) => {
+          if (object(item) && !Object.keys(item).length) return {}
+          if (typeof item !== 'string') {
+            fail('invalid frame', 'A frame identifier must be an IRI or wildcard.')
+          }
+          const id = expandIri(active, item, { documentRelative: true })
+          if (id === undefined || !absolute(id)) {
+            fail('invalid frame', 'A frame identifier must be an absolute IRI.')
+          }
+          return id
+        })
+        return
+      }
       if (typeof value !== 'string') fail('invalid @id value', '@id must be string.')
-      result['@id'] = expandIri(active, value, { documentRelative: true }) ?? value
+      {
+        const id = expandIri(active, value, { documentRelative: true })
+        result['@id'] = id ?? null
+      }
       return
     case '@type': {
       const output: JsonLdValueType[] = []
       for (const item of array(value)) {
         if (typeof item === 'string') {
-          output.push(expandIri(active, item, { documentRelative: true, vocab: true }) ?? item)
+          const type = expandIri(typeContext, item, { documentRelative: true, vocab: true })
+          if (options.frame && type !== '@json' && (type === undefined || !absolute(type))) {
+            fail('invalid frame', 'A frame type must be an absolute IRI.')
+          }
+          if (type !== undefined) output.push(type)
         } else if (options.frame && object(item) && !Object.keys(item).length) output.push({})
-        else fail('invalid type value', '@type must be string or strings.')
+        else if (options.frame && object(item) && Object.hasOwn(item, '@default')) {
+          const fallback = array(item['@default']!).map((value) =>
+            typeof value === 'string'
+              ? expandIri(typeContext, value, { documentRelative: true, vocab: true }) ?? value
+              : value
+          )
+          output.push({ '@default': fallback })
+        } else fail('invalid type value', '@type must be string or strings.')
       }
       result['@type'] = [...array(result['@type'] ?? []), ...output]
       return
@@ -237,19 +311,29 @@ export async function expandValue(
       result['@graph'] = array(await expandValue(active, '@graph', value, baseUrl, state, options))
         .filter((v) => v !== null)
       return
-    case '@included':
+    case '@included': {
       if (active.mode === 'json-ld-1.0') return
+      const included = array(await expandValue(active, '@included', value, baseUrl, state, options))
+        .filter((v) => v !== null)
+      if (included.some((item) => !nodeObject(item))) {
+        fail('invalid @included value', '@included only permits node objects.')
+      }
       result['@included'] = [
         ...array(result['@included'] ?? []),
-        ...array(await expandValue(active, null, value, baseUrl, state, options)).filter((v) =>
-          v !== null
-        ),
+        ...included,
       ]
       return
+    }
     case '@value':
       result['@value'] = value
       return
     case '@language':
+      if (options.frame) {
+        result['@language'] = array(value).map((item) =>
+          typeof item === 'string' ? item.toLowerCase() : item
+        )
+        return
+      }
       if (typeof value !== 'string') {
         fail('invalid language-tagged string', '@language must be string.')
       }
@@ -270,6 +354,9 @@ export async function expandValue(
         result['@list'] = array(
           await expandValue(active, activeProperty, value, baseUrl, state, options),
         )
+        if (active.mode === 'json-ld-1.0' && array(result['@list']!).some(listObject)) {
+          fail('list of lists', 'JSON-LD 1.0 cannot contain nested lists.')
+        }
       }
       return
     case '@set':
@@ -301,11 +388,24 @@ export async function expandValue(
       if (Object.keys(reverse).length) result['@reverse'] = reverse
       return
     }
-    case '@nest':
-      nests.push({ value, depth: nestDepth + 1 })
+    case '@nest': {
+      const scoped = definition(active, key)
+      const context = scoped?.context === undefined
+        ? active
+        : await process(active, scoped.context, state, scoped.base ?? baseUrl, true, false, true)
+      nests.push({ value, depth: nestDepth + 1, context })
       return
+    }
     default:
-      if (options.frame && FRAME_KEYWORDS.has(expanded)) result[expanded] = value
+      if (options.frame && FRAME_KEYWORDS.has(expanded)) {
+        result[expanded] = expanded === '@default' && object(value) &&
+            (Object.hasOwn(value, '@value') || Object.hasOwn(value, '@id'))
+          ? await expandValue(active, activeProperty, value, baseUrl, state, {
+            ...options,
+            frame: false,
+          })
+          : value
+      }
   }
 }
 /** Expands a language map. */ function languageMap(
@@ -325,7 +425,7 @@ export async function expandValue(
         fail('invalid language map value', 'Language map values must be strings.')
       }
       const value: Record<string, JsonLdValueType> = { '@value': item }
-      if (language !== '@none') {
+      if (expandIri(active, language, { vocab: true }) !== '@none') {
         value['@language'] = language.toLowerCase()
       }
       if (direction) value['@direction'] = direction
@@ -349,21 +449,46 @@ export async function expandValue(
     container = term?.container ?? [],
     indexKey = term?.index ?? '@index'
   for (const [index, value] of entries) {
+    let context = (container.includes('@id') || container.includes('@type'))
+      ? active.previous ?? active
+      : active
+    const scoped = definition(context, index)
+    if (container.includes('@type') && scoped?.context !== undefined) {
+      context = await process(context, scoped.context, state, scoped.base ?? baseUrl)
+    }
     const expanded = array(
-      await expandValue(active, activeProperty, value, baseUrl, state, options, true),
+      await expandValue(context, activeProperty, array(value), baseUrl, state, options, true),
     )
     for (const candidate of expanded) {
       if (!object(candidate)) {
         output.push(candidate)
         continue
       }
-      const item = { ...candidate }
+      const item = container.includes('@graph') && !Object.hasOwn(candidate, '@graph')
+        ? { '@graph': [candidate] } as Record<string, JsonLdValueType>
+        : { ...candidate }
+      const none = expandIri(active, index, { vocab: true }) === '@none'
+      if (none) {
+        output.push(item)
+        continue
+      }
       if (container.includes('@index') && !Object.hasOwn(item, '@index')) {
         if (indexKey === '@index') {
           item['@index'] = index
         } else {
           const property = expandIri(active, indexKey, { vocab: true })
-          if (property) add(item, property, valueExpansion(active, indexKey, index))
+          if (property) {
+            if (valueObject(item)) {
+              fail(
+                'invalid value object',
+                'A custom index cannot add properties to a value object.',
+              )
+            }
+            item[property] = [
+              valueExpansion(active, indexKey, index),
+              ...array(item[property] ?? []),
+            ]
+          }
         }
       } else if (container.includes('@id') && !Object.hasOwn(item, '@id')) {
         item['@id'] = expandIri(active, index, { documentRelative: true }) ?? index
@@ -386,13 +511,15 @@ export function valueExpansion(
 ): JsonLdValueType {
   const term = active.terms.get(property)
   if (term?.type === '@id' && typeof value === 'string') {
-    return { '@id': expandIri(active, value, { documentRelative: true }) ?? value }
+    const id = expandIri(active, value, { documentRelative: true })
+    return id === undefined ? null : { '@id': id }
   }
   if (term?.type === '@vocab' && typeof value === 'string') {
-    return { '@id': expandIri(active, value, { documentRelative: true, vocab: true }) ?? value }
+    const id = expandIri(active, value, { documentRelative: true, vocab: true })
+    return id === undefined ? null : { '@id': id }
   }
   const result: Record<string, JsonLdValueType> = { '@value': value }
-  if (term?.type && term.type !== '@none') result['@type'] = term.type
+  if (term?.type && !['@none', '@id', '@vocab'].includes(term.type)) result['@type'] = term.type
   else if (typeof value === 'string') {
     const language = term?.language !== undefined ? term.language : active.language,
       direction = term?.direction !== undefined ? term.direction : active.direction
@@ -407,8 +534,7 @@ export function valueExpansion(
   frame: boolean,
 ): JsonLdValueType {
   if (Object.hasOwn(result, '@value')) {
-    if (result['@value'] === null) return null
-    if (Array.isArray(result['@type'])) {
+    if (!frame && Array.isArray(result['@type'])) {
       const types = result['@type']
       if (types.length !== 1 || typeof types[0] !== 'string') {
         fail('invalid typed value', 'A value object must contain exactly one string @type.')
@@ -416,14 +542,49 @@ export function valueExpansion(
       result['@type'] = types[0]!
     }
     if (
-      Object.hasOwn(result, '@type') &&
+      Object.keys(result).some((key) =>
+        !['@value', '@type', '@language', '@direction', '@index'].includes(key)
+      )
+    ) {
+      fail('invalid value object', 'A value object contains an unsupported property.')
+    }
+    if (
+      !frame && Object.hasOwn(result, '@type') &&
       (Object.hasOwn(result, '@language') || Object.hasOwn(result, '@direction'))
     ) fail('invalid value object', 'Value object cannot combine @type with @language/@direction.')
+    if (result['@type'] !== '@json' && !frame) {
+      if (object(result['@value']) || Array.isArray(result['@value'])) {
+        fail('invalid value object value', 'An object or array value requires @type @json.')
+      }
+      if (Object.hasOwn(result, '@language') && typeof result['@value'] !== 'string') {
+        fail('invalid language-tagged value', 'A language-tagged value must be a string.')
+      }
+      const type = result['@type']
+      if (typeof type === 'string' && (!absolute(type) || type.startsWith('_:'))) {
+        fail('invalid typed value', 'A value datatype must be an absolute IRI.')
+      }
+      if (result['@value'] === null) return null
+    }
   }
-  if (Object.hasOwn(result, '@set')) return result['@set'] ?? null
+  if (Object.hasOwn(result, '@set') || Object.hasOwn(result, '@list')) {
+    if (
+      Object.keys(result).some((key) => !['@set', '@list', '@index'].includes(key)) ||
+      (Object.hasOwn(result, '@set') && Object.hasOwn(result, '@list'))
+    ) {
+      fail(
+        'invalid set or list object',
+        'A set or list object only permits @index alongside its contents.',
+      )
+    }
+    if (Object.hasOwn(result, '@set')) return result['@set'] ?? null
+  }
+  if (Object.keys(result).length === 1 && Object.hasOwn(result, '@language')) return null
   if ((activeProperty === null || activeProperty === '@graph') && !frame) {
     const keys = Object.keys(result)
-    if (!keys.length || (keys.length === 1 && ['@id', '@value', '@list'].includes(keys[0]!))) {
+    if (
+      !keys.length || Object.hasOwn(result, '@value') || Object.hasOwn(result, '@list') ||
+      (keys.length === 1 && keys[0] === '@id')
+    ) {
       return null
     }
   }
@@ -447,15 +608,15 @@ export function array(
   return Array.isArray(value) ? value : [value]
 }
 /** Tests value object. */
-export function valueObject(value: JsonLdValueType) {
+export function valueObject(value: JsonLdValueType): boolean {
   return object(value) && Object.hasOwn(value, '@value')
 }
 /** Tests list object. */
-export function listObject(value: JsonLdValueType) {
+export function listObject(value: JsonLdValueType): boolean {
   return object(value) && Object.hasOwn(value, '@list')
 }
 /** Tests node object. */
-export function nodeObject(value: JsonLdValueType) {
+export function nodeObject(value: JsonLdValueType): boolean {
   return object(value) && !valueObject(value) && !listObject(value)
 }
 /** Appends expanded output flattening arrays/null. */ function append(

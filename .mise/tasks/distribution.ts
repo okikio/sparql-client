@@ -1,5 +1,9 @@
 /** Proves light public entry points stay isolated from optional processors and engine packages. @module */
 
+import { fromFileUrl, toFileUrl } from '@std/path'
+import { coreRoots, ownedModule, processorRoots, repository } from '../../conformance/ownership.ts'
+import { bundleGraph } from '../../conformance/bundle.ts'
+
 const ROOT = '.tmp/distribution'
 await Deno.remove(ROOT, { recursive: true }).catch((error: unknown) => {
   if (!(error instanceof Deno.errors.NotFound)) throw error
@@ -16,17 +20,7 @@ const entries = [
     "import { select } from '../../packages/sparql/mod.ts'; console.log(select('*').build().value.length)",
   ],
 ] as const
-const forbidden = [
-  'jsonld',
-  'rdf-canonize',
-  'rdfxml-streaming-parser',
-  'rdfa-streaming-parser',
-  'microdata-rdf-streaming-parser',
-  '@comunica/',
-  'oxigraph',
-  'testcontainers',
-]
-const results: Array<{ name: string; bytes: number }> = []
+const results: Array<{ name: string; bytes: number; modules: string[]; packages: string[] }> = []
 for (const [name, source] of entries) {
   const input = `${ROOT}/${name}.ts`
   const output = `${ROOT}/${name}.js`
@@ -38,13 +32,31 @@ for (const [name, source] of entries) {
   })
   const status = await command.spawn().status
   if (!status.success) throw new Error(`Browser bundle failed for ${name}.`)
-  const text = await Deno.readTextFile(output)
-  for (const token of forbidden) {
-    if (text.includes(token)) {
-      throw new Error(`${name} bundle unexpectedly contains optional dependency token '${token}'.`)
+  const graph = await new Deno.Command(Deno.execPath(), {
+    args: ['info', '--json', '--frozen-lockfile', '--node-modules-dir=none', input],
+    stdout: 'piped',
+    stderr: 'piped',
+  }).output()
+  if (!graph.success) {
+    throw new Error(`Module graph failed for ${name}: ${new TextDecoder().decode(graph.stderr)}`)
+  }
+  await Deno.writeFile(`${ROOT}/${name}.graph.json`, graph.stdout)
+  const approved = [...coreRoots, new URL(input, repository).href]
+  const proof = bundleGraph(
+    JSON.parse(new TextDecoder().decode(graph.stdout)),
+    approved,
+    processorRoots,
+  )
+  for (const module of proof.modules) {
+    const physical = toFileUrl(await Deno.realPath(fromFileUrl(module))).href
+    if (!ownedModule(physical, approved)) {
+      throw new Error(`${name}: resolved source escapes the owned core graph: ${module}`)
+    }
+    if (ownedModule(physical, processorRoots)) {
+      throw new Error(`${name}: resolved concrete processor enters the light root graph: ${module}`)
     }
   }
-  results.push({ name, bytes: (await Deno.stat(output)).size })
+  results.push({ name, bytes: (await Deno.stat(output)).size, ...proof })
 }
 await Deno.mkdir('.tmp/reports', { recursive: true })
 await Deno.writeTextFile(

@@ -1,6 +1,7 @@
 /** SPARQL 1.1/1.2 Query Results JSON decoding. @module */
 
 import {
+  type BlankNode,
   blankNode,
   literal,
   namedNode,
@@ -54,7 +55,7 @@ export type JsonTermType =
 
 /** Raw SELECT results object. */
 export interface JsonBindingsType {
-  /** Requests Graph Store metadata without downloading a graph response body. */
+  /** SELECT variables and optional protocol metadata supplied by the endpoint. */
   readonly head: {
     /** Ordered SELECT variable names declared by the SPARQL Results JSON header. */
     readonly vars: readonly string[]
@@ -72,7 +73,7 @@ export interface JsonBindingsType {
 
 /** Raw ASK results object. */
 export interface JsonBooleanType {
-  /** Requests Graph Store metadata without downloading a graph response body. */
+  /** Optional protocol metadata supplied with an ASK result. */
   readonly head?: {
     /** Version marker retained by this syntax record. */
     readonly version?: string
@@ -84,22 +85,57 @@ export interface JsonBooleanType {
 }
 
 /** Decodes one SPARQL JSON RDF term without JavaScript datatype coercion. */
-export function decodeTerm(value: JsonTermType): TermType {
+export function decodeTerm(value: unknown): TermType {
+  return term(value, 0)
+}
+
+/** Validates each hostile JSON term before recursive conversion; depth bounds nested triple work. */
+function term(input: unknown, depth: number, blanks?: Map<string, BlankNode>): TermType {
+  if (depth > 128) throw new TypeError('SPARQL JSON triple nesting exceeds 128 levels.')
+  if (!record(input)) throw new TypeError('SPARQL JSON term must be an object.')
+  const value = input
+  if (value.type !== 'triple' && typeof value.value !== 'string') {
+    throw new TypeError('SPARQL JSON term value must be a string.')
+  }
   switch (value.type) {
     case 'uri':
-      return namedNode(value.value)
-    case 'bnode':
-      return blankNode(value.value)
+      return namedNode(value.value as string)
+    case 'bnode': {
+      const label = value.value as string
+      if (!blanks) return blankNode(label)
+      let node = blanks.get(label)
+      if (!node) {
+        node = blankNode()
+        blanks.set(label, node)
+      }
+      return node
+    }
     case 'literal': {
       const language = value['xml:lang']
       const direction = value['its:dir']
-      if (language) return literal(value.value, direction ? { language, direction } : language)
-      return literal(value.value, value.datatype ? namedNode(value.datatype) : undefined)
+      const datatype = value.datatype
+      if (language !== undefined && (typeof language !== 'string' || language.length === 0)) {
+        throw new TypeError('SPARQL JSON literal language must be a nonempty string.')
+      }
+      if (direction !== undefined && (direction !== 'ltr' && direction !== 'rtl')) {
+        throw new TypeError('SPARQL JSON literal direction must be ltr or rtl.')
+      }
+      if (direction !== undefined && language === undefined) {
+        throw new TypeError('SPARQL JSON literal direction requires a language.')
+      }
+      if (datatype !== undefined && typeof datatype !== 'string') {
+        throw new TypeError('SPARQL JSON literal datatype must be an IRI string.')
+      }
+      if (language !== undefined) {
+        return literal(value.value as string, direction ? { language, direction } : language)
+      }
+      return literal(value.value as string, datatype ? namedNode(datatype) : undefined)
     }
     case 'triple': {
-      const subject = decodeTerm(value.value.subject)
-      const predicate = decodeTerm(value.value.predicate)
-      const object = decodeTerm(value.value.object)
+      if (!record(value.value)) throw new TypeError('SPARQL JSON triple value must be an object.')
+      const subject = term(value.value.subject, depth + 1, blanks)
+      const predicate = term(value.value.predicate, depth + 1, blanks)
+      const object = term(value.value.object, depth + 1, blanks)
       if (subject.termType !== 'NamedNode' && subject.termType !== 'BlankNode') {
         throw new TypeError(`SPARQL JSON triple subject cannot be ${subject.termType}.`)
       }
@@ -111,6 +147,8 @@ export function decodeTerm(value: JsonTermType): TermType {
       }
       return quad(subject as SubjectTermType, predicate as PredicateTermType, object)
     }
+    default:
+      throw new TypeError(`Unknown SPARQL JSON term type '${String(value.type)}'.`)
   }
 }
 
@@ -119,9 +157,19 @@ export function decodeBindings(value: unknown): readonly BindingType[] {
   if (!isBindingsResult(value)) {
     throw new TypeError('Response is not a SPARQL bindings JSON result.')
   }
+  // SPARQL result labels have authority only within this one results object.
+  const blanks = new Map<string, BlankNode>()
+  const variables = new Set(value.head.vars)
+  if (variables.size !== value.head.vars.length) {
+    throw new TypeError('Duplicate SPARQL result variable.')
+  }
   return value.results.bindings.map((row) => {
+    if (!record(row)) throw new TypeError('SPARQL bindings row must be an object.')
     const binding = new Map<string, TermType>()
-    for (const [name, term] of Object.entries(row)) binding.set(name, decodeTerm(term))
+    for (const [name, input] of Object.entries(row)) {
+      if (!variables.has(name)) throw new TypeError(`Undeclared SPARQL result variable '${name}'.`)
+      binding.set(name, term(input, 0, blanks))
+    }
     return binding
   })
 }
@@ -139,6 +187,9 @@ function isBindingsResult(value: unknown): value is JsonBindingsType {
   if (typeof record.head !== 'object' || record.head === null) return false
   if (typeof record.results !== 'object' || record.results === null) return false
   return Array.isArray((record.head as Record<string, unknown>).vars) &&
+    ((record.head as Record<string, unknown>).vars as unknown[]).every((name) =>
+      typeof name === 'string'
+    ) &&
     Array.isArray((record.results as Record<string, unknown>).bindings)
 }
 
@@ -152,4 +203,9 @@ function isBooleanResult(value: unknown): value is JsonBooleanType {
 function isObjectTerm(term: TermType): term is ObjectTermType {
   return term.termType === 'NamedNode' || term.termType === 'BlankNode' ||
     term.termType === 'Literal' || term.termType === 'Quad'
+}
+
+/** Recognizes plain JSON objects without accepting arrays as records. */
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

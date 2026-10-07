@@ -2,6 +2,7 @@
 
 import { blankNode, defaultGraph, literal, namedNode, quad, triple } from './factory.ts'
 import * as language from './language.ts'
+import { resolve as resolveIri } from './iri.ts'
 import { chunks, type TextSourceType, throwIfAborted } from './text.ts'
 import {
   type GraphTermType,
@@ -46,11 +47,11 @@ export interface CompactOptionsType {
   readonly baseIri?: string
   /** Emit diagnostics and resume at the next statement where safe. */
   readonly tolerant?: boolean
-  /** Maximum decoded lexical token length. */
+  /** Maximum lexical token source length in UTF-16 code units, including escapes and delimiters; nonnegative safe integer. */
   readonly maxTokenLength?: number
-  /** Maximum nested collection/property-list/triple-term depth. */
+  /** Maximum nested collection/property-list/triple-term depth; nonnegative safe integer. */
   readonly maxDepth?: number
-  /** Maximum semantic events buffered for one invalidatable statement in tolerant mode. */
+  /** Maximum semantic events buffered for one invalidatable statement in tolerant mode; nonnegative safe integer. */
   readonly maxStatementEvents?: number
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
@@ -211,7 +212,10 @@ class Scanner {
   /** Creates one incremental scanner over bounded source chunks without materializing a token array. */
   constructor(source: TextSourceType, options: CompactOptionsType) {
     this.signal = options.signal
-    this.maxTokenLength = options.maxTokenLength ?? DEFAULT_MAX_TOKEN_LENGTH
+    this.maxTokenLength = limit(
+      options.maxTokenLength ?? DEFAULT_MAX_TOKEN_LENGTH,
+      'maxTokenLength',
+    )
     this.#source = chunks(source, options.signal)
   }
 
@@ -226,14 +230,16 @@ class Scanner {
     this.line = this.#line
     this.column = this.#column
 
-    const first = await this.#peek()
+    const first = this.#peek() ?? await this.#read()
     if (first === undefined) {
       this.kind = KindType.Eof
       this.end = this.#absolute
       return
     }
 
-    const three = `${first}${await this.#peek(1) ?? ''}${await this.#peek(2) ?? ''}`
+    const three = `${first}${(this.#peek(1) ?? await this.#read(1)) ?? ''}${
+      (this.#peek(2) ?? await this.#read(2)) ?? ''
+    }`
     const two = three.slice(0, 2)
 
     if (three === '<<(') return await this.#punct(KindType.TripleStart, 3)
@@ -246,7 +252,7 @@ class Scanner {
 
     switch (first) {
       case '.': {
-        const next = await this.#peek(1)
+        const next = this.#peek(1) ?? await this.#read(1)
         if (next !== undefined && /[0-9]/.test(next)) return await this.#number()
         return await this.#punct(KindType.Dot, 1)
       }
@@ -284,7 +290,7 @@ class Scanner {
         if (/[0-9]/.test(first)) return await this.#number()
         if (two === '_:') return await this.#blank()
         if (isNameStart(first)) return await this.#wordOrPname()
-        await this.#take()
+        void (this.#take() ?? await this.#readTake())
         this.kind = KindType.Unknown
         this.raw = first
         this.value = first
@@ -305,17 +311,17 @@ class Scanner {
   /** Skips space in the current parser or scanner state. */
   async #skipSpace(): Promise<void> {
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined) return
       if (isWhitespace(char)) {
-        await this.#take()
+        this.#take() ?? await this.#readTake()
         continue
       }
       if (char === '#') {
         while (true) {
-          const item = await this.#peek()
+          const item = this.#peek() ?? await this.#read()
           if (item === undefined || item === '\n' || item === '\r') break
-          await this.#take()
+          this.#take() ?? await this.#readTake()
         }
         continue
       }
@@ -326,7 +332,7 @@ class Scanner {
   /** Punct as one isolated step of the Scanner state machine. */
   async #punct(kind: KindType, width: number): Promise<void> {
     let raw = ''
-    for (let i = 0; i < width; i++) raw += await this.#take() ?? ''
+    for (let i = 0; i < width; i++) raw += (this.#take() ?? await this.#readTake()) ?? ''
     this.kind = kind
     this.raw = raw
     this.value = raw
@@ -336,14 +342,14 @@ class Scanner {
   /** Iri as one isolated step of the Scanner state machine. */
   async #iri(): Promise<void> {
     const mark = this.#absolute
-    await this.#take()
+    void (this.#take() ?? await this.#readTake())
     let value = ''
     let raw = '<'
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined) throw this.error('turtle-iri-end', 'Unterminated IRI reference.')
       if (char === '>') {
-        raw += await this.#take()
+        raw += this.#take() ?? await this.#readTake()
         this.#guard(mark)
         this.kind = KindType.Iri
         this.value = value
@@ -352,16 +358,21 @@ class Scanner {
         return
       }
       if (char === '\\') {
-        raw += await this.#take()
+        raw += this.#take() ?? await this.#readTake()
         const escape = await this.#unicodeEscape()
         raw += escape.raw
+        // deno-lint-ignore no-control-regex -- RDF IRIREF excludes decoded control characters even when escaped.
+        if (/[\u0000-\u0020<>"{}|^`\\]/u.test(escape.value)) {
+          throw this.error('turtle-iri-char', 'Escaped IRI character is forbidden.')
+        }
         value += escape.value
+        this.#guard(mark)
         continue
       }
       if (char <= ' ' || /[<>"{}|^`]/.test(char)) {
         throw this.error('turtle-iri-char', 'IRI reference contains a forbidden character.')
       }
-      raw += await this.#take()
+      raw += this.#take() ?? await this.#readTake()
       value += char
       this.#guard(mark)
     }
@@ -370,25 +381,29 @@ class Scanner {
   /** String as one isolated step of the Scanner state machine. */
   async #string(quote: string): Promise<void> {
     const mark = this.#absolute
-    const long = await this.#peek(1) === quote && await this.#peek(2) === quote
+    const long = (this.#peek(1) ?? await this.#read(1)) === quote &&
+      (this.#peek(2) ?? await this.#read(2)) === quote
     const width = long ? 3 : 1
     let raw = ''
-    for (let i = 0; i < width; i++) raw += await this.#take() ?? ''
+    for (let i = 0; i < width; i++) raw += (this.#take() ?? await this.#readTake()) ?? ''
     let value = ''
 
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined) {
         throw this.error('turtle-string-end', 'Unterminated Turtle string literal.')
       }
       if (char === quote) {
         if (long) {
-          if (await this.#peek(1) === quote && await this.#peek(2) === quote) {
-            for (let i = 0; i < 3; i++) raw += await this.#take() ?? ''
+          if (
+            (this.#peek(1) ?? await this.#read(1)) === quote &&
+            (this.#peek(2) ?? await this.#read(2)) === quote
+          ) {
+            for (let i = 0; i < 3; i++) raw += (this.#take() ?? await this.#readTake()) ?? ''
             break
           }
         } else {
-          raw += await this.#take()
+          raw += this.#take() ?? await this.#readTake()
           break
         }
       }
@@ -399,22 +414,24 @@ class Scanner {
         )
       }
       if (char === '\\') {
-        raw += await this.#take()
-        const next = await this.#peek()
+        raw += this.#take() ?? await this.#readTake()
+        const next = this.#peek() ?? await this.#read()
         if (next === 'u' || next === 'U') {
           const escape = await this.#unicodeEscape()
           raw += escape.raw
           value += escape.value
+          this.#guard(mark)
           continue
         }
         if (next === undefined || !'tbnrf"\'\\'.includes(next)) {
           throw this.error('turtle-string-escape', 'Invalid Turtle string escape.')
         }
-        raw += await this.#take()
+        raw += this.#take() ?? await this.#readTake()
         value += escapeValue(next)
+        this.#guard(mark)
         continue
       }
-      raw += await this.#take()
+      raw += this.#take() ?? await this.#readTake()
       value += char
       this.#guard(mark)
     }
@@ -429,11 +446,11 @@ class Scanner {
   /** At as one isolated step of the Scanner state machine. */
   async #at(): Promise<void> {
     const mark = this.#absolute
-    let raw = await this.#take() ?? ''
+    let raw = (this.#take() ?? await this.#readTake()) ?? ''
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined || !/[A-Za-z0-9-]/.test(char)) break
-      raw += await this.#take()
+      raw += this.#take() ?? await this.#readTake()
       this.#guard(mark)
     }
 
@@ -449,15 +466,17 @@ class Scanner {
   /** Blank as one isolated step of the Scanner state machine. */
   async #blank(): Promise<void> {
     const mark = this.#absolute
-    let raw = `${await this.#take() ?? ''}${await this.#take() ?? ''}`
-    const first = await this.#peek()
+    let raw = `${(this.#take() ?? await this.#readTake()) ?? ''}${
+      (this.#take() ?? await this.#readTake()) ?? ''
+    }`
+    const first = this.#peek() ?? await this.#read()
     if (first === undefined || !isBlankStart(first)) {
       throw this.error('turtle-blank', 'Invalid blank-node label.')
     }
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined || !isBlankChar(char)) break
-      raw += await this.#take()
+      raw += this.#take() ?? await this.#readTake()
       this.#guard(mark)
     }
     if (raw.endsWith('.')) {
@@ -472,15 +491,15 @@ class Scanner {
 
   /** Number or unknown as one isolated step of the Scanner state machine. */
   async #numberOrUnknown(): Promise<void> {
-    const next = await this.#peek(1)
-    const after = await this.#peek(2)
+    const next = this.#peek(1) ?? await this.#read(1)
+    const after = this.#peek(2) ?? await this.#read(2)
     if (
       next !== undefined &&
       (/[0-9]/.test(next) || (next === '.' && after !== undefined && /[0-9]/.test(after)))
     ) {
       return await this.#number()
     }
-    const first = await this.#take() ?? ''
+    const first = (this.#take() ?? await this.#readTake()) ?? ''
     this.kind = KindType.Unknown
     this.raw = first
     this.value = first
@@ -491,42 +510,42 @@ class Scanner {
   async #number(): Promise<void> {
     const mark = this.#absolute
     let raw = ''
-    let char = await this.#peek()
+    let char = this.#peek() ?? await this.#read()
     if (char === '+' || char === '-') {
-      raw += await this.#take()
-      char = await this.#peek()
+      raw += this.#take() ?? await this.#readTake()
+      char = this.#peek() ?? await this.#read()
     }
 
     while (char !== undefined && /[0-9]/.test(char)) {
-      raw += await this.#take()
-      char = await this.#peek()
+      raw += this.#take() ?? await this.#readTake()
+      char = this.#peek() ?? await this.#read()
       this.#guard(mark)
     }
     if (char === '.') {
-      const next = await this.#peek(1)
+      const next = this.#peek(1) ?? await this.#read(1)
       if (next !== undefined && (/[0-9]/.test(next) || next === 'e' || next === 'E')) {
-        raw += await this.#take()
-        char = await this.#peek()
+        raw += this.#take() ?? await this.#readTake()
+        char = this.#peek() ?? await this.#read()
         while (char !== undefined && /[0-9]/.test(char)) {
-          raw += await this.#take()
-          char = await this.#peek()
+          raw += this.#take() ?? await this.#readTake()
+          char = this.#peek() ?? await this.#read()
           this.#guard(mark)
         }
       }
     }
     if (char === 'e' || char === 'E') {
-      raw += await this.#take()
-      char = await this.#peek()
+      raw += this.#take() ?? await this.#readTake()
+      char = this.#peek() ?? await this.#read()
       if (char === '+' || char === '-') {
-        raw += await this.#take()
-        char = await this.#peek()
+        raw += this.#take() ?? await this.#readTake()
+        char = this.#peek() ?? await this.#read()
       }
       if (char === undefined || !/[0-9]/.test(char)) {
         throw this.error('turtle-number', 'Exponent requires at least one digit.')
       }
       while (char !== undefined && /[0-9]/.test(char)) {
-        raw += await this.#take()
-        char = await this.#peek()
+        raw += this.#take() ?? await this.#readTake()
+        char = this.#peek() ?? await this.#read()
         this.#guard(mark)
       }
     }
@@ -543,39 +562,42 @@ class Scanner {
     const mark = this.#absolute
     let raw = ''
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined || !isPrefixChar(char)) break
-      raw += await this.#take()
+      raw += this.#take() ?? await this.#readTake()
       this.#guard(mark)
     }
 
-    if (await this.#peek() === ':') {
-      raw += await this.#take()
+    if ((this.#peek() ?? await this.#read()) === ':') {
+      raw += this.#take() ?? await this.#readTake()
       while (true) {
-        const char = await this.#peek()
+        const char = this.#peek() ?? await this.#read()
         if (char === undefined) break
         if (char === '\\') {
-          raw += await this.#take()
-          const escaped = await this.#peek()
+          raw += this.#take() ?? await this.#readTake()
+          const escaped = this.#peek() ?? await this.#read()
           if (escaped === undefined || !isLocalEscape(escaped)) {
             throw this.error('turtle-pname-escape', 'Invalid prefixed-name escape.')
           }
-          raw += await this.#take()
+          raw += this.#take() ?? await this.#readTake()
+          this.#guard(mark)
           continue
         }
         if (char === '%') {
-          const a = await this.#peek(1)
-          const b = await this.#peek(2)
+          const a = this.#peek(1) ?? await this.#read(1)
+          const b = this.#peek(2) ?? await this.#read(2)
           if (
             a !== undefined && b !== undefined && /[0-9A-Fa-f]/.test(a) && /[0-9A-Fa-f]/.test(b)
           ) {
-            raw += `${await this.#take()}${await this.#take()}${await this.#take()}`
+            raw += `${(this.#take() ?? await this.#readTake())}${(this.#take() ??
+              await this.#readTake())}${(this.#take() ?? await this.#readTake())}`
+            this.#guard(mark)
             continue
           }
           break
         }
         if (!isLocalChar(char)) break
-        raw += await this.#take()
+        raw += this.#take() ?? await this.#readTake()
         this.#guard(mark)
       }
       while (raw.endsWith('.')) {
@@ -606,30 +628,33 @@ class Scanner {
   /** Pname as one isolated step of the Scanner state machine. */
   async #pname(): Promise<void> {
     const mark = this.#absolute
-    let raw = await this.#take() ?? ''
+    let raw = (this.#take() ?? await this.#readTake()) ?? ''
     while (true) {
-      const char = await this.#peek()
+      const char = this.#peek() ?? await this.#read()
       if (char === undefined) break
       if (char === '\\') {
-        raw += await this.#take()
-        const escaped = await this.#peek()
+        raw += this.#take() ?? await this.#readTake()
+        const escaped = this.#peek() ?? await this.#read()
         if (escaped === undefined || !isLocalEscape(escaped)) {
           throw this.error('turtle-pname-escape', 'Invalid prefixed-name escape.')
         }
-        raw += await this.#take()
+        raw += this.#take() ?? await this.#readTake()
+        this.#guard(mark)
         continue
       }
       if (char === '%') {
-        const a = await this.#peek(1)
-        const b = await this.#peek(2)
+        const a = this.#peek(1) ?? await this.#read(1)
+        const b = this.#peek(2) ?? await this.#read(2)
         if (a !== undefined && b !== undefined && /[0-9A-Fa-f]/.test(a) && /[0-9A-Fa-f]/.test(b)) {
-          raw += `${await this.#take()}${await this.#take()}${await this.#take()}`
+          raw += `${(this.#take() ?? await this.#readTake())}${(this.#take() ??
+            await this.#readTake())}${(this.#take() ?? await this.#readTake())}`
+          this.#guard(mark)
           continue
         }
         break
       }
       if (!isLocalChar(char)) break
-      raw += await this.#take()
+      raw += this.#take() ?? await this.#readTake()
       this.#guard(mark)
     }
     while (raw.endsWith('.')) {
@@ -649,12 +674,12 @@ class Scanner {
     /** Unicode scalar decoded from the Turtle escape sequence. */
     readonly value: string
   }> {
-    const kind = await this.#take()
+    const kind = this.#take() ?? await this.#readTake()
     if (kind !== 'u' && kind !== 'U') throw this.error('turtle-unicode', 'Expected Unicode escape.')
     const width = kind === 'u' ? 4 : 8
     let hex = ''
     for (let i = 0; i < width; i++) {
-      const char = await this.#take()
+      const char = this.#take() ?? await this.#readTake()
       if (char === undefined || !/[0-9A-Fa-f]/.test(char)) {
         throw this.error('turtle-unicode', 'Invalid Unicode escape.')
       }
@@ -667,15 +692,32 @@ class Scanner {
     return { raw: `${kind}${hex}`, value: String.fromCodePoint(point) }
   }
 
-  /** Reads the next buffered source value without consuming it. */
-  async #peek(offset = 0): Promise<string | undefined> {
-    await this.#fill(offset + 1)
+  /**
+   * Reads buffered characters without scheduling a promise for each code unit.
+   * Only an absent character enters `#read`; EOF remains an absent value.
+   */
+  #peek(offset = 0): string | undefined {
     return this.#buffer[this.#index + offset]
   }
 
-  /** Consumes and returns the next buffered source value. */
-  async #take(): Promise<string | undefined> {
+  /** Refills only at a chunk edge, retaining lookahead and fatal UTF-8 decoding. */
+  async #read(offset = 0): Promise<string | undefined> {
+    await this.#fill(offset + 1)
+    return this.#peek(offset)
+  }
+
+  /** Refills an exhausted window before consuming its next code unit. */
+  async #readTake(): Promise<string | undefined> {
     await this.#fill(1)
+    return this.#take()
+  }
+
+  /**
+   * Consumes a buffered code unit synchronously; positions and compaction follow
+   * the same path for buffered and refilled input. Asynchronous work belongs to
+   * input acquisition, rather than an already available character.
+   */
+  #take(): string | undefined {
     const char = this.#buffer[this.#index]
     if (char === undefined) return undefined
     this.#index++
@@ -758,19 +800,22 @@ class Parser {
   baseIri: string | undefined
   /** RDF syntax version announced or inferred for the current document. */
   version: CompactVersionType | undefined
-  /** Blank-node counter used to create deterministic parser-local identifiers when the syntax requires them. */
-  #generated = 0
+  /** Document-local label identity; separate documents receive disjoint opaque node identifiers. */
+  readonly #blanks = new Map<string, SubjectTermType>()
   /** Whether the parser has consumed the first significant token and therefore fixed first-statement rules. */
   #started = false
 
   /** Creates semantic Turtle/TriG parser state with isolated prefixes, base IRI, graph, and statement buffers. */
   constructor(source: TextSourceType, options: CompactOptionsType, allowGraphs: boolean) {
+    this.maxDepth = limit(options.maxDepth ?? DEFAULT_MAX_DEPTH, 'maxDepth')
+    this.maxStatementEvents = limit(
+      options.maxStatementEvents ?? DEFAULT_MAX_STATEMENT_EVENTS,
+      'maxStatementEvents',
+    )
     this.scanner = new Scanner(source, options)
     this.options = options
     this.allowGraphs = allowGraphs
     this.baseIri = options.baseIri
-    this.maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
-    this.maxStatementEvents = options.maxStatementEvents ?? DEFAULT_MAX_STATEMENT_EVENTS
   }
 
   /** Parses the complete document and yields semantic/directive events. */
@@ -960,7 +1005,9 @@ class Parser {
       subject = lead
     } else if (this.#kind() === KindType.LBracket) {
       subject = yield* this.#blankPropertyList(graph, 0)
-      if (this.#kind() !== KindType.Dot) {
+      if (
+        this.#kind() !== KindType.Dot && !(this.allowGraphs && this.#kind() === KindType.RBrace)
+      ) {
         yield* this.#predicateObjectList(subject, graph, 0)
       }
       await this.#expectDot()
@@ -997,7 +1044,8 @@ class Parser {
       if (terminator !== undefined && this.#kind() === terminator) return
       if (
         this.#kind() === KindType.Dot || this.#kind() === KindType.RBracket ||
-        this.#kind() === KindType.AnnotationEnd
+        this.#kind() === KindType.AnnotationEnd ||
+        (this.allowGraphs && this.#kind() === KindType.RBrace)
       ) return
     }
   }
@@ -1370,6 +1418,9 @@ class Parser {
         )
       }
       const prefix = this.scanner.raw.slice(0, -1)
+      if (prefix.endsWith('.')) {
+        throw this.scanner.error('turtle-prefix-name', 'A prefix cannot end in a period.')
+      }
       await this.#advance()
       if (this.#kind() !== KindType.Iri) {
         throw this.scanner.error('turtle-prefix-iri', 'PREFIX requires an IRI reference.')
@@ -1396,6 +1447,9 @@ class Parser {
       if (this.#kind() !== KindType.String) {
         throw this.scanner.error('turtle-version', 'VERSION requires a quoted RDF version label.')
       }
+      if (this.scanner.raw.startsWith('"""') || this.scanner.raw.startsWith("'''")) {
+        throw this.scanner.error('turtle-version', 'VERSION requires a short quoted string.')
+      }
       const version = this.scanner.value
       if (version !== '1.1' && version !== '1.2-basic' && version !== '1.2') {
         throw this.scanner.error('turtle-version', `Unsupported RDF version '${version}'.`)
@@ -1420,7 +1474,11 @@ class Parser {
       const raw = this.scanner.raw
       const colon = raw.indexOf(':')
       const prefix = raw.slice(0, colon)
-      const local = decodeLocal(raw.slice(colon + 1))
+      const localRaw = raw.slice(colon + 1)
+      if (localRaw.startsWith('-') || localRaw.startsWith('.')) {
+        throw this.scanner.error('turtle-local-name', 'Invalid initial local name character.')
+      }
+      const local = decodeLocal(localRaw)
       const base = this.prefixes.get(prefix)
       if (base === undefined) {
         throw this.scanner.error('turtle-prefix', `Prefix '${prefix}' is not defined.`)
@@ -1453,9 +1511,14 @@ class Parser {
     if (this.#kind() !== KindType.Blank) {
       throw this.scanner.error('turtle-blank', 'Expected blank node.')
     }
-    const value = `l${this.scanner.value.length}:${this.scanner.value}`
+    const label = this.scanner.value
     await this.#advance()
-    return blankNode(value)
+    let value = this.#blanks.get(label)
+    if (!value) {
+      value = blankNode()
+      this.#blanks.set(label, value)
+    }
+    return value
   }
 
   /** Anonymous as one isolated step of the Parser state machine. */
@@ -1471,6 +1534,7 @@ class Parser {
 
   /** Expect dot as one isolated step of the Parser state machine. */
   async #expectDot(): Promise<void> {
+    if (this.allowGraphs && this.#kind() === KindType.RBrace) return
     if (this.#kind() !== KindType.Dot) {
       throw this.scanner.error('turtle-period', "Expected '.' after Turtle statement.")
     }
@@ -1490,8 +1554,7 @@ class Parser {
   /** Resolve as one isolated step of the Parser state machine. */
   #resolve(reference: string): string {
     try {
-      if (this.baseIri !== undefined) return new URL(reference, this.baseIri).href
-      return new URL(reference).href
+      return resolveIri(reference, this.baseIri)
     } catch {
       throw this.scanner.error(
         'turtle-relative-iri',
@@ -1502,7 +1565,7 @@ class Parser {
 
   /** Fresh as one isolated step of the Parser state machine. */
   #fresh(): SubjectTermType {
-    return blankNode(`g:${++this.#generated}`)
+    return blankNode()
   }
 
   /** Depth as one isolated step of the Parser state machine. */
@@ -1677,4 +1740,12 @@ function mergeRange(start: CompactRangeType, end: CompactRangeType): CompactRang
     line: start.line,
     column: start.column,
   }
+}
+
+/** Rejects disabled or fractional resource caps before acquiring any upstream iterator. */
+function limit(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError(`${name} must be a nonnegative safe integer.`)
+  }
+  return value
 }

@@ -2,6 +2,7 @@
 
 import { bench, do_not_optimize } from 'mitata'
 import { report } from '../../bench/report.ts'
+import { expectCompilation } from '../../bench/vocab/consumer.ts'
 import { namedNode, type Quad, quad } from '@okikio/rdf'
 import { compile } from './compile.ts'
 
@@ -35,9 +36,7 @@ const options = {
 
 const compileFixture = () => compile([{ id: 'benchmark', quads }], options)
 const oracle = await compileFixture()
-if (!oracle.source.includes('export const Class499 =')) {
-  throw new Error('Vocabulary compiler benchmark oracle failed.')
-}
+await expectCompilation(oracle, CLASS_COUNT, PROPERTY_COUNT)
 
 bench('vocab compile: 500 classes + 250 properties', async () => {
   do_not_optimize((await compileFixture()).source.length)

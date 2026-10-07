@@ -56,7 +56,8 @@ export const sources = [
     standard: 'Microdata to RDF tests',
     repository: 'https://github.com/w3c/microdata-rdf.git',
     revision: 'f4162846153dea1351194e338caff086830a7d00',
-    web: 'https://w3c.github.io/microdata-rdf/',
+    // Vectors embed this historical scheme in absolute expected IRIs.
+    web: 'http://w3c.github.io/microdata-rdf/',
     license: 'W3C Software and Document Notice and License',
   },
 ] as const satisfies readonly SourceType[]
