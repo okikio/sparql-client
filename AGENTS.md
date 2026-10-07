@@ -69,6 +69,13 @@ Read [`docs/architecture.md`](./docs/architecture.md) before architecture or pub
 
 ## Validation
 
+Local runtime tests use `deno task test` and `deno task test:release`, which supply `--no-check`.
+Use `deno test --no-check` for focused runs too. Integration tasks apply the same separation.
+Do not run `deno check`, `verify`, release preparation, or compiler-cost benchmarks on a workstation
+where checking has caused memory spikes. Run type and publication checks serially in CI or an
+isolated runner with a memory budget. Do not run checking beside local tests or benchmarks,
+and do not report runtime-only passes as type validation.
+
 Canonical Deno gates:
 
 ```sh

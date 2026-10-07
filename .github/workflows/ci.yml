@@ -36,7 +36,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: package-tarballs
-          path: .tmp/packages/*.tgz
+          path: |
+            .tmp/packages/*.tgz
+            .tmp/packages/artifacts.json
           include-hidden-files: true
 
   consumers:
@@ -102,12 +104,58 @@ jobs:
   benchmark:
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
       - run: deno ci
       - run: deno task bench:report
+      - run: deno task bench:types
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-evidence-${{ github.sha }}
-          path: .tmp/reports/bench
+          path: |
+            .tmp/reports/bench
+            .tmp/reports/types
+          include-hidden-files: true
+
+  storage:
+    name: Packed OPFS storage composition
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: okikio/opfs
+          ref: 34851e0415483563b861978241ba62e507e63253
+          path: .tmp/opfs-source
+          persist-credentials: false
+      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+      - run: deno ci
+      - run: deno task deps:ci && deno task pack:npm
+        working-directory: .tmp/opfs-source
+        env:
+          RELEASE_VERSION: 0.0.0-quality
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: package-tarballs
+          path: .tmp/packages
+      - run: deno task integration:storage
+        env:
+          OPFS_SOURCE: .tmp/opfs-source
+      - run: deno task consumer:storage
+        env:
+          OPFS_TARBALL: .tmp/opfs-source/.release/npm/okikio-opfs-0.0.0-quality.tgz
+      - run: deno task bench:storage
+        env:
+          STORAGE_COLD_REPORT: .tmp/reports/storage-cold
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: storage-evidence
+          path: .tmp/reports/storage-cold
+          include-hidden-files: true
