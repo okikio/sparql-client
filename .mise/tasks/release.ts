@@ -285,8 +285,20 @@ async function published(registry: 'jsr' | 'npm', name: string, version: string)
   const url = registry === 'jsr'
     ? `https://jsr.io/api/scopes/${name.slice(1).replace('/', '/packages/')}/versions/${version}`
     : `https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`
+  const request = new URL(url)
+  // A cached preflight 404 can outlive a successful JSR upload. Each management
+  // observation needs a fresh URL; Cache-Control: no-cache does not bypass its CDN.
+  if (registry === 'jsr') request.searchParams.set('release_check', crypto.randomUUID())
   const result = await new Deno.Command('curl', {
-    args: ['--silent', '--show-error', '--max-time', '30', '--write-out', '\n%{http_code}', url],
+    args: [
+      '--silent',
+      '--show-error',
+      '--max-time',
+      '30',
+      '--write-out',
+      '\n%{http_code}',
+      request.href,
+    ],
     stdout: 'piped',
     stderr: 'piped',
   }).output()

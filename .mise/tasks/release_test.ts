@@ -17,6 +17,7 @@ interface RegistryType {
   status?: number
   different?: boolean
   failUpload?: boolean
+  staleJsr?: boolean
   uploads: string[][]
   archive: string
 }
@@ -385,6 +386,22 @@ describe('Deno release command', { skip: Deno.build.os === 'windows' }, () => {
     })
   }
 
+  it('observes the origin JSR version despite a cached missing-version response', async () => {
+    await fixture(async (value) => {
+      await registry(value, { staleJsr: true })
+      const preflight = await value.release('registry', 'jsr')
+      success(preflight)
+      expect(JSON.parse(new TextDecoder().decode(preflight.stdout)).published).toBe(false)
+      await registry(value, { jsr: true })
+      for (let observation = 0; observation < 2; observation++) {
+        const result = await value.release('registry', 'jsr')
+        success(result)
+        expect(JSON.parse(new TextDecoder().decode(result.stdout)).published).toBe(true)
+      }
+      await noUploads(value)
+    })
+  })
+
   it('treats HTTP401 as a registry failure rather than available version', async () => {
     await fixture(async (value) => {
       success(await value.release('prepare'))
@@ -445,7 +462,9 @@ if(process.env.REGISTRY_COMMAND==='npm'){
 }
 const url=args.at(-1);const npm=url.startsWith('https://registry.npmjs.org/');
 if(url.endsWith('.tgz')){process.stdout.write(state.different?Buffer.from('different archive'):readFileSync(state.archive));process.exit(0);}
-const status=state.status??((npm?state.npm:state.jsr)?200:404);
+const origin=state.status??((npm?state.npm:state.jsr)?200:404);
+let status=origin;
+if(!npm&&state.staleJsr){state.jsrCache??={};status=state.jsrCache[url]??=origin;writeFileSync(path,JSON.stringify(state));}
 const body=JSON.stringify({name:'@okikio/rdf',version:'0.1.0',dist:{tarball:'https://registry.npmjs.org/@okikio/rdf/-/opfs-0.1.0.tgz'}});
 process.stdout.write(body+(args.includes('--write-out')?'\\n'+status:''));
 if(args.includes('--fail')&&status>=400)process.exit(22);
