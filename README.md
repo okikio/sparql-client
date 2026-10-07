@@ -225,7 +225,7 @@ The normal RDF path does not create an AST. Source-ranged event streams exist wh
 
 ## Validation and benchmarks
 
-The [testing guide](./docs/testing.md) explains permanent suite ownership and correctness oracles.
+The [testing guide](./docs/testing.md) explains permanent suite ownership and correctness oracles. The [review inventory](./docs/review.md) records each suite's purpose, benchmark scenarios, and the corrections from the test and benchmark review.
 [VALIDATION.md](./VALIDATION.md) lists the runtime, standards, service, browser, and package commands.
 Local execution logs and investigation reports stay in ignored `.tmp/reports/` directories.
 

@@ -31,7 +31,9 @@ The [Mitata documentation](https://github.com/evanwashere/mitata) describes resu
 
 ## Durable benchmark programs
 
-Both `deno task bench` and `deno task bench:report` discover the twelve package-owned Mitata definitions and use the same process plan from `.mise/tasks/benchmarks.ts`. Programs run serially in deterministic path order. The competitive parser definition expands into one process per syntax and fixture size; the other eleven definitions each use one process:
+Both `deno task bench` and `deno task bench:report` discover the twelve package-owned Mitata definitions and use the same process plan from `.mise/tasks/benchmarks.ts`. Programs run serially in a deterministic order, with the competitive parser matrix last. The competitive parser definition expands into one process per syntax and fixture size; the other eleven definitions each use one process.
+
+Use `deno task bench:check` to run every program's correctness preflight without collecting timings. It imports generated vocabulary modules, exercises their schemas, compares complete RDF results, and checks query semantics before any Mitata callback runs. Measured tasks explicitly disable this mode so an inherited environment flag cannot turn a report into a preflight-only run.
 
 | Program                                   | Equivalent work and oracle                                                              |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -103,6 +105,12 @@ BENCH_LARGE=1 BENCH_ONLY=packages/rdf/parse_compare_bench.ts BENCH_PARSE_FORMAT=
 Unset `BENCH_ONLY`, `BENCH_PARSE_FORMAT` and `BENCH_PARSE_COUNT` for the full matrix. The shared plan validates those selectors and records each completed child's name, environment and arguments. A focused result is evidence for its selected cell, not completion of the full matrix.
 
 `bench:report` selects Mitata JSON output with `BENCH_FORMAT=json`. Each invocation creates its own timestamped directory and writes `meta.json` before collecting samples. Every program retains raw JSON stdout and a separate `.stderr` file, including unsuccessful runs. Metadata records the exact child arguments, runtime, CPU/OS/memory, large-fixture mode, elapsed time, exit code and SHA-256 identities for package TypeScript, benchmark source and pinned configuration.
+
+Native benchmark children have a twenty-minute operational watchdog and 32MiB limits on each captured output stream.
+A deadline kills the owned child and waits for output closure; startup failures, nonzero exits, and deadlines retain
+partial output and an unsuccessful status. These limits diagnose stalled or malformed producers, rather than define
+throughput requirements. Compiler-cost probes use the same child-lifetime primitive; they remain a separate isolated
+validation lane.
 
 The runner saves progress after each program. A nonzero child exit fails the report while preserving its evidence. After all programs finish, the runner hashes its inputs again; any source or dependency change invalidates the timings. Source, tests, manifests and benchmark runner code must stay frozen during collection. Documentation edits outside those hashed inputs do not change the measurements.
 

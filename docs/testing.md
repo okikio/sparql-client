@@ -1,8 +1,8 @@
 # Testing and validation
 
-Run `deno task verify` for the source contracts, then choose the affected real-environment lanes from
-[VALIDATION.md](../VALIDATION.md). Test definitions belong to the capability they protect; generated output and local
-investigations have separate lifetimes.
+For the local runtime loop, run `deno task test`, then choose the affected real-environment lanes from
+[VALIDATION.md](../VALIDATION.md). Run `deno task verify` for the full source contracts on CI or an isolated runner.
+Test definitions belong to the capability they protect; generated output and local investigations have separate lifetimes.
 
 ## Permanent tests
 
@@ -70,6 +70,20 @@ deno task consumer:linux
 
 `verify` runs the formatting check, lint, strict type check, core dependency firewall, documentation lint, and permanent tests.
 
+`test`, `test:release`, `integration`, and `integration:storage` run Deno tests with `--no-check`.
+Focused local runs must use it too, for example:
+
+```sh
+deno test --no-check packages/rdf/shape/inspect_test.ts
+```
+
+On a workstation where type checking has caused memory spikes, keep `check`, `check:release`, `verify`,
+`release-check`, `release:prepare`, and installed-consumer type checks on CI or an isolated runner with a memory
+budget. Run compiler-cost benchmarks (`bench:types` and `bench:all`) there too. Keep checking serial and separate
+from runtime tests and benchmark measurement. The test flag does not disable compiler subprocesses inside tests
+or tooling and does not bound the tested code's memory use. Record runtime and static validation separately;
+release and JSR publication gates still require static validation.
+
 The dependency firewall parses TypeScript imports and exports rather than matching lines or comments. It rejects
 computed dynamic imports and runtime references outside the four owned core packages, including relative traversal and
 symlink escapes. Type-only references remain separate because they are erased from runtime code. Its pinned compiler
@@ -81,6 +95,13 @@ its package name changed. npm and JSR export maps must expose the same names and
 incidental. Permanent controls challenge each boundary with valid harmless changes and prohibited runtime edges.
 
 The root npm scripts are only aliases to the Deno tasks. They do not define a second Node project lifecycle.
+
+The package task writes `.tmp/packages/artifacts.json` only after source inputs remain unchanged throughout packing.
+Installed consumers require that receipt, the exact current name/version/archive set, and matching SHA-256 archive
+bytes. They also compare the installed first-party payload with extracted archive members. Same-version source edits,
+extra or stale archives, and a modified installed tree fail before runtime or Linux validation. Receipt and tarballs
+travel together in CI. Rebuild on CI or an isolated runner after changing package inputs; `package` includes a JSR
+dry-run and can invoke type checking. Root runtime-test task edits and JSON record order do not invalidate an archive.
 
 The package task preserves generated JavaScript exports and resolves workspace dependency versions in the actual
 archives. Its tar child suppresses macOS AppleDouble files and extended-attribute headers. When changing packaging,
@@ -123,7 +144,14 @@ Use [Node test lifecycle hooks](https://nodejs.org/api/test.html) or `try/finall
 is acquired. Test-scoped mocks restore their patched methods automatically; a global tracker requires explicit reset.
 Injected protocol doubles remain useful when they make bytes, retries, cancellation, and ownership observable across
 runtimes. Await the source's explicit pull/open signal before aborting pending work; a microtask or short sleep does not
-prove that the operation reached the intended state.
+prove that the operation reached the intended state. When cancellation promises to preserve the caller's reason,
+assert the same reason object rather than its message. Use a test deadline around a deliberately stalled source so a
+regression terminates with a failed test; that deadline is a hang guard, not a performance target.
+
+For graph-pattern builders, parse a complete query with independently written expected terms. Keep projection and
+clause roles, triple multiplicity, and ordered syntax visible while permitting harmless whitespace and basic graph
+pattern conjunction order. For scanner benchmarks, compare every public token and range field independently of
+record property insertion order; token order and range values remain exact.
 
 [Standard-library expectations](https://jsr.io/@std/expect/doc) include `rejects`, `resolves`, partial object matching,
 and asymmetric matchers. Select the assertion that expresses the contract. Partial matching is appropriate for a
