@@ -33,10 +33,18 @@ describe('@okikio/comunica', () => {
 
   it('destroys caller-owned result work when the consumer returns early', async () => {
     let destroyed = false
-    const stream: ResultStream<Map<string, ReturnType<typeof literal>>> = {
+    const stream: ResultStream<Iterable<readonly [string, ReturnType<typeof literal>]>> = {
       async *[Symbol.asyncIterator]() {
-        yield { *[Symbol.iterator]() { yield ['name', literal('Alice')] as const } }
-        yield { *[Symbol.iterator]() { yield ['name', literal('Bob')] as const } }
+        yield {
+          *[Symbol.iterator]() {
+            yield ['name', literal('Alice')] as const
+          },
+        }
+        yield {
+          *[Symbol.iterator]() {
+            yield ['name', literal('Bob')] as const
+          },
+        }
       },
       destroy() {
         destroyed = true

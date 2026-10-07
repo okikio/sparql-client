@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dmno-dev/bumpy/main/packages/bumpy/config-schema.json",
+  "baseBranch": "dev",
+  "access": "public",
+  "changelog": "./.bumpy/format.ts",
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
+  "updateInternalDependencies": "out-of-range"
+}

@@ -10,4 +10,4 @@ RUN apk add --no-cache curl \
   rm /tmp/fuseki.jar.sha1
 EXPOSE 3030
 ENTRYPOINT ["java", "-jar", "/opt/fuseki.jar"]
-CMD ["--mem", "/ds", "--port", "3030"]
+CMD ["--mem", "--port", "3030", "/ds"]

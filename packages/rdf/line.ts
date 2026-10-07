@@ -119,7 +119,7 @@ function pn(point: number): boolean {
 }
 
 /** Internal line record retaining absolute source offsets. */
-interface LineRecordType {
+export interface LineRecordType {
   /** Decoded source window that contains this logical line. */
   readonly source: string
   /** Inclusive line start within `source`. */
@@ -446,7 +446,9 @@ class Cursor {
   /** Reads a lexical string plus datatype, language, and optional RDF 1.2 direction into one literal. */
   literal(): ReturnType<typeof literal> {
     const value = this.string()
+    this.space()
     if (this.take('^^')) {
+      this.space()
       const datatype = this.iri()
       if (datatype.value === RDF.langString || datatype.value === RDF.dirLangString) {
         throw this.error(

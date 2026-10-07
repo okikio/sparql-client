@@ -1,5 +1,11 @@
 /** Generated vocabulary TypeScript compiler benchmark. @module */
 
+import { dirname, join } from 'node:path'
+import { arch, cpus, platform, release, totalmem } from 'node:os'
+
+import { parseDiagnostics } from './diagnostics.ts'
+import type { DiagnosticsType } from './diagnostics.ts'
+
 import { emit } from '../../packages/vocab/emit.ts'
 import type { ClassType, PropertyType, VocabularyModelType } from '../../packages/vocab/model.ts'
 
@@ -11,27 +17,17 @@ interface CaseType {
   readonly multiTypes?: number
 }
 
-interface ResultType {
+interface ResultType extends DiagnosticsType {
   readonly case: string
   readonly classes: number
   readonly properties: number
   readonly shape: CaseType['shape']
   readonly multiTypes: number
+  readonly stdout: string
+  readonly stderr: string
   readonly sourceBytes: number
   readonly generationMs: number
   readonly compilerWallMs: number
-  readonly files?: number
-  readonly linesOfLibrary?: number
-  readonly linesOfTypeScript?: number
-  readonly identifiers?: number
-  readonly symbols?: number
-  readonly types?: number
-  readonly instantiations?: number
-  readonly memoryBytes?: number
-  readonly parseMs?: number
-  readonly bindMs?: number
-  readonly checkMs?: number
-  readonly totalMs?: number
 }
 
 const cases: readonly CaseType[] = [
@@ -51,38 +47,198 @@ const cases: readonly CaseType[] = [
 const supportSource = `
 export interface NamedNode { readonly termType: 'NamedNode'; readonly value: string }
 export function namedNode(value: string): NamedNode { return { termType: 'NamedNode', value } }
-export interface IdReferenceType { readonly '@id': string }
-export type ValueType<Value> = Value | readonly Value[]
-export type NodeType<Name, Properties extends object> = Readonly<Properties> & {
-  readonly '@type': Name
-  readonly '@id'?: string
-}
-export function createSchema<Value>(_options: unknown): { readonly '~standard': unknown } {
-  return { '~standard': {} }
-}
+export { createSchema, type IdReferenceType, type ValueType, type NodeType, type VocabularySchema } from './runtime.ts'
 `
 
 const selected = selectCases(Deno.args)
+/** Compiler evidence has its own snapshot; it is distinct from native Mitata measurements. */
+const outputDirectory = Deno.env.get('BENCH_TYPES_REPORT') ??
+  `.tmp/reports/types/${new Date().toISOString().replaceAll(':', '-')}`
+await Deno.mkdir(outputDirectory, { recursive: true })
+const inputs = await identity()
+let compilerPaths: readonly string[] = []
 const results: ResultType[] = []
-for (const value of selected) results.push(await measure(value))
-
-const baseline = results.find((entry) => entry.case === 'baseline-1-flat')
-const output = {
-  version: 1,
-  runtime: `deno ${Deno.version.deno}`,
+const metadata = {
+  version: 2,
+  status: 'running' as 'running' | 'pass' | 'fail' | 'invalid',
+  runtime: Deno.version,
   compiler: 'typescript 5.9.3',
+  compilerInputs: undefined as Readonly<Record<string, string>> | undefined,
+  compilerInputsAfter: undefined as Readonly<Record<string, string>> | undefined,
   date: new Date().toISOString(),
-  baseline: baseline?.case,
-  results: results.map((entry) => ({
-    ...entry,
-    compilerDeltaMs: baseline ? entry.compilerWallMs - baseline.compilerWallMs : undefined,
-    memoryDeltaBytes:
-      baseline && entry.memoryBytes !== undefined && baseline.memoryBytes !== undefined
-        ? entry.memoryBytes - baseline.memoryBytes
-        : undefined,
-  })),
+  host: {
+    os: platform(),
+    release: release(),
+    arch: arch(),
+    cpu: cpus()[0]?.model,
+    cpus: cpus().length,
+    memoryBytes: totalmem(),
+  },
+  method:
+    'one isolated compiler process per fixture; pin checked before cases; generation times only emit; compiler wall includes process startup; OS caches warm or unknown; Memory used is compiler-reported heapUsed at diagnostic reporting, rounded to nearest decimal kilobyte (1000 bytes); optional global.gc precedes it only when exposed; it is not peak RSS or retained memory',
+  selectedCases: selected.map((value) => value.name),
+  currentCase: undefined as string | undefined,
+  inputs,
+  inputsAfter: undefined as Readonly<Record<string, string>> | undefined,
+  failure: undefined as string | undefined,
+  results,
 }
-console.log(JSON.stringify(output, null, 2))
+const failures: unknown[] = []
+try {
+  await save()
+  const version = await new Deno.Command(Deno.execPath(), {
+    args: [
+      'run',
+      '--no-config',
+      '--no-lock',
+      '--node-modules-dir=none',
+      '--cached-only',
+      '--quiet',
+      '--allow-read',
+      '--allow-env',
+      'npm:typescript@5.9.3/bin/tsc',
+      '--version',
+    ],
+    stdout: 'piped',
+    stderr: 'piped',
+  }).output()
+  await Deno.writeFile(`${outputDirectory}/compiler-version.stdout`, version.stdout)
+  await Deno.writeFile(`${outputDirectory}/compiler-version.stderr`, version.stderr)
+  if (!version.success || new TextDecoder().decode(version.stdout).trim() !== 'Version 5.9.3') {
+    throw new Error('The isolated compiler did not confirm TypeScript 5.9.3.')
+  }
+  compilerPaths = await compilerFiles()
+  metadata.compilerInputs = await hashes(compilerPaths)
+  await save()
+  for (const value of selected) {
+    metadata.currentCase = value.name
+    await save()
+    results.push(await measure(value))
+    await save()
+  }
+  metadata.currentCase = undefined
+  metadata.status = 'pass'
+} catch (error) {
+  failures.push(error)
+  metadata.status = 'fail'
+} finally {
+  try {
+    metadata.inputsAfter = await identity()
+    if (compilerPaths.length) {
+      metadata.compilerInputsAfter = await hashes(compilerPaths)
+      if (
+        JSON.stringify(metadata.compilerInputs) !== JSON.stringify(metadata.compilerInputsAfter)
+      ) {
+        metadata.status = 'invalid'
+        failures.push(
+          new Error('Compiler package or bundled declarations changed during measurements.'),
+        )
+      }
+    }
+    if (JSON.stringify(inputs) !== JSON.stringify(metadata.inputsAfter)) {
+      metadata.status = 'invalid'
+      failures.push(new Error('Compiler source or configuration changed during measurements.'))
+    }
+  } catch (error) {
+    failures.push(error)
+    metadata.status = 'fail'
+  }
+  metadata.failure = failures.length ? failures.map(String).join('\n') : undefined
+  try {
+    await save()
+  } catch (error) {
+    failures.push(error)
+    if (metadata.status !== 'invalid') metadata.status = 'fail'
+    console.error('Compiler final evidence write failed:', error)
+  }
+}
+if (failures.length) throw new AggregateError(failures, 'Compiler benchmark or evidence failed.')
+console.log(JSON.stringify(output(), null, 2))
+
+/** Baseline deltas remain descriptive single-process observations, never percentile claims. */
+function output(): object {
+  const baseline = results.find((entry) => entry.case === 'baseline-1-flat')
+  return {
+    ...metadata,
+    outputDirectory,
+    baseline: baseline?.case,
+    results: results.map((entry) => ({
+      ...entry,
+      compilerDeltaMs: baseline ? entry.compilerWallMs - baseline.compilerWallMs : undefined,
+      memoryDeltaBytes: baseline ? entry.memoryBytes - baseline.memoryBytes : undefined,
+    })),
+  }
+}
+/** Keep partial fixtures and raw outputs after failures rather than certifying absent diagnostics. */
+async function save(): Promise<void> {
+  await Deno.writeTextFile(
+    `${outputDirectory}/report.json`,
+    `${JSON.stringify(output(), null, 2)}\n`,
+  )
+}
+/** Hash every generator/runtime input actually used, together with the compiler pin/configuration. */
+async function identity(): Promise<Readonly<Record<string, string>>> {
+  const paths = [
+    'bench/vocab/types.ts',
+    'bench/vocab/diagnostics.ts',
+    'packages/vocab/emit.ts',
+    'packages/vocab/manifest.ts',
+    'packages/vocab/name.ts',
+    'packages/vocab/model.ts',
+    'packages/vocab/runtime.ts',
+    'packages/vocab/standard.ts',
+    'deno.json',
+    'deno.lock',
+    'package.json',
+  ]
+  return await hashes(paths)
+}
+/** Hash files without modifying source/configuration or dependency metadata. */
+async function hashes(paths: readonly string[]): Promise<Readonly<Record<string, string>>> {
+  const result: Record<string, string> = {}
+  for (const path of paths.toSorted()) {
+    const digest = await crypto.subtle.digest('SHA-256', await Deno.readFile(path))
+    result[path] = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0'))
+      .join('')
+  }
+  return result
+}
+/** Resolve the actual cached compiler outside timing, isolated from ancestor config/lock/node_modules. */
+async function compilerFiles(): Promise<readonly string[]> {
+  const output = await new Deno.Command(Deno.execPath(), {
+    args: [
+      'eval',
+      '--no-config',
+      '--no-lock',
+      '--node-modules-dir=none',
+      '--cached-only',
+      'const module=await import("npm:typescript@5.9.3"); const ts=module.default??module; console.log(JSON.stringify({version:ts.version,entry:ts.sys.getExecutingFilePath()}))',
+    ],
+    stdout: 'piped',
+    stderr: 'piped',
+  }).output()
+  await Deno.writeFile(`${outputDirectory}/compiler-location.stdout`, output.stdout)
+  await Deno.writeFile(`${outputDirectory}/compiler-location.stderr`, output.stderr)
+  if (!output.success) throw new Error('Unable to resolve the isolated cached TypeScript compiler.')
+  const located: { version?: unknown; entry?: unknown } = JSON.parse(
+    new TextDecoder().decode(output.stdout),
+  )
+  if (located.version !== '5.9.3' || typeof located.entry !== 'string') {
+    throw new Error('Unexpected compiler location/version.')
+  }
+  const library = dirname(located.entry)
+  const files = [
+    join(library, '..', 'package.json'),
+    join(library, '..', 'bin', 'tsc'),
+    join(library, 'tsc.js'),
+    join(library, '_tsc.js'),
+    located.entry,
+  ]
+  for await (const entry of Deno.readDir(library)) {
+    if (entry.isFile && entry.name.endsWith('.d.ts')) files.push(join(library, entry.name))
+  }
+  return files
+}
 
 /** Measures one generated vocabulary with an isolated TypeScript compiler process. */
 async function measure(value: CaseType): Promise<ResultType> {
@@ -97,19 +253,32 @@ async function measure(value: CaseType): Promise<ResultType> {
   })
   const generationMs = performance.now() - generationStart
   const directory = await Deno.makeTempDir({ prefix: 'okikio-vocab-type-bench-' })
-
+  let failed = false
+  let primary: unknown
   try {
+    const raw = `${outputDirectory}/${value.name}`
+    await Deno.mkdir(raw, { recursive: true })
     const vocab = `${directory}/vocab.ts`
     const support = `${directory}/support.ts`
     const use = `${directory}/use.ts`
     await Deno.writeTextFile(vocab, generated.source)
     await Deno.writeTextFile(support, supportSource)
+    // The generated module must compile against the actual public runtime contract.
+    await Deno.copyFile('packages/vocab/runtime.ts', `${directory}/runtime.ts`)
+    await Deno.copyFile('packages/vocab/standard.ts', `${directory}/standard.ts`)
     await Deno.writeTextFile(use, useSource(value))
+    for (const file of ['vocab.ts', 'support.ts', 'use.ts', 'runtime.ts', 'standard.ts']) {
+      await Deno.copyFile(`${directory}/${file}`, `${raw}/${file}`)
+    }
 
     const start = performance.now()
     const command = new Deno.Command(Deno.execPath(), {
       args: [
         'run',
+        '--no-config',
+        '--no-lock',
+        '--node-modules-dir=none',
+        '--cached-only',
         '--quiet',
         '--allow-read',
         '--allow-env',
@@ -139,6 +308,10 @@ async function measure(value: CaseType): Promise<ResultType> {
     const compilerWallMs = performance.now() - start
     const stdout = new TextDecoder().decode(result.stdout)
     const stderr = new TextDecoder().decode(result.stderr)
+    const stdoutPath = `${raw}/compiler.stdout`
+    const stderrPath = `${raw}/compiler.stderr`
+    await Deno.writeFile(stdoutPath, result.stdout)
+    await Deno.writeFile(stderrPath, result.stderr)
     if (!result.success) {
       throw new Error(`TypeScript failed for ${value.name}:\n${stdout}\n${stderr}`)
     }
@@ -149,13 +322,28 @@ async function measure(value: CaseType): Promise<ResultType> {
       properties: value.classes * value.propertiesPerClass,
       shape: value.shape,
       multiTypes: value.multiTypes ?? 0,
+      stdout: stdoutPath,
+      stderr: stderrPath,
       sourceBytes: new TextEncoder().encode(generated.source).byteLength,
       generationMs,
       compilerWallMs,
       ...parseDiagnostics(stdout),
     }
+  } catch (error) {
+    failed = true
+    primary = error
+    throw error
   } finally {
+    await remove(directory, failed ? [primary] : [])
+  }
+}
+
+/** Cleanup cannot replace an original compiler/write rejection, including undefined. */
+async function remove(directory: string, primary: readonly unknown[]): Promise<void> {
+  try {
     await Deno.remove(directory, { recursive: true })
+  } catch (error) {
+    throw new AggregateError([...primary, error], 'Compiler fixture cleanup failed.')
   }
 }
 
@@ -220,7 +408,22 @@ function useSource(value: CaseType): string {
     `declare const last: Class${last}Type`,
     'void first',
     'void last',
+    `const own: string | readonly string[] | undefined = last.property${last}_0`,
+    'void own',
+    `// @ts-expect-error A string-range property rejects numeric values.`,
+    `const invalidProperty: typeof last.property${last}_0 = 1`,
+    'void invalidProperty',
+    '// @ts-expect-error The generated node retains its class discriminator.',
+    `const invalidType: typeof last['@type'] = 'OtherClass'`,
+    'void invalidType',
   ]
+  if (value.shape !== 'flat') {
+    lines.push('const inherited: string | readonly string[] | undefined = last.property0_0')
+    lines.push('void inherited')
+    lines.push('// @ts-expect-error Inherited string ranges reject numeric values.')
+    lines.push('const invalidInherited: typeof last.property0_0 = 1')
+    lines.push('void invalidInherited')
+  }
   if (value.multiTypes) {
     const names = Array.from({ length: value.multiTypes }, (_, index) => `'Class${index}'`).join(
       ', ',
@@ -228,6 +431,12 @@ function useSource(value: CaseType): string {
     lines.push(`type Combined = MultiTypeType<readonly [${names}]>`)
     lines.push('declare const combined: Combined')
     lines.push('void combined')
+    for (let index = 0; index < value.multiTypes; index++) {
+      lines.push(
+        `const combined${index}: string | readonly string[] | undefined = combined.property${index}_0`,
+      )
+      lines.push(`void combined${index}`)
+    }
   }
   return `${lines.join('\n')}\n`
 }
@@ -240,45 +449,4 @@ function selectCases(args: readonly string[]): readonly CaseType[] {
     if (!value) throw new Error(`Unknown benchmark case: ${name}`)
     return value
   })
-}
-
-function parseDiagnostics(text: string): Partial<ResultType> {
-  const values = new Map<string, number>()
-  for (const line of text.split(/\r?\n/)) {
-    const match = /^([^:]+):\s+([\d.]+)\s*(K|M|s|ms)?$/.exec(line.trim())
-    if (!match) continue
-    const raw = Number(match[2])
-    const unit = match[3]
-    values.set(
-      match[1]!.trim(),
-      unit === 'K'
-        ? raw * 1024
-        : unit === 'M'
-        ? raw * 1024 * 1024
-        : unit === 's'
-        ? raw * 1000
-        : raw,
-    )
-  }
-  return {
-    ...optional('files', values.get('Files')),
-    ...optional('linesOfLibrary', values.get('Lines of Library')),
-    ...optional('linesOfTypeScript', values.get('Lines of TypeScript')),
-    ...optional('identifiers', values.get('Identifiers')),
-    ...optional('symbols', values.get('Symbols')),
-    ...optional('types', values.get('Types')),
-    ...optional('instantiations', values.get('Instantiations')),
-    ...optional('memoryBytes', values.get('Memory used')),
-    ...optional('parseMs', values.get('Parse time')),
-    ...optional('bindMs', values.get('Bind time')),
-    ...optional('checkMs', values.get('Check time')),
-    ...optional('totalMs', values.get('Total time')),
-  }
-}
-
-function optional<Key extends string>(
-  key: Key,
-  value: number | undefined,
-): Partial<Record<Key, number>> {
-  return value === undefined ? {} : { [key]: value } as Partial<Record<Key, number>>
 }

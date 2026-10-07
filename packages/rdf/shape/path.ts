@@ -20,9 +20,9 @@ const PATH_PREDICATES = [
 
 /** Limits and diagnostics shared by recursive path parsing. */
 export interface PathOptionsType {
-  /** Maximum recursive SHACL property-path depth followed before inspection reports a limit. */
+  /** Positive safe-integer maximum recursive SHACL property-path depth. */
   readonly maxDepth: number
-  /** Maximum RDF-list members followed from one list before inspection reports a limit. */
+  /** Positive safe-integer maximum RDF-list members followed from one list. */
   readonly maxListItems: number
   /** Structured diagnostics retained so recoverable source information is not silently discarded. */
   readonly diagnostics: DiagnosticType[]
@@ -38,6 +38,11 @@ export function getPath(
   value: ObjectTermType,
   options: PathOptionsType,
 ): PathType {
+  for (const value of [options.maxDepth, options.maxListItems]) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new RangeError('SHACL path bounds must be positive safe integers.')
+    }
+  }
   return getPathAt(index, value, options, new Set(), 0)
 }
 

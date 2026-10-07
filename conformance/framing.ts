@@ -108,6 +108,8 @@ function options(
     maxRedirects: 16,
     ...(typeof option.processingMode === 'string'
       ? { processingMode: option.processingMode as jsonld.ProcessingModeType }
+      : option.specVersion === 'json-ld-1.0'
+      ? { processingMode: 'json-ld-1.0' as const }
       : {}),
     ...(typeof option.compactArrays === 'boolean' ? { compactArrays: option.compactArrays } : {}),
     ...(typeof option.ordered === 'boolean' ? { ordered: option.ordered } : {}),
@@ -133,7 +135,10 @@ function suiteFetch(): typeof fetch {
       if (error instanceof Deno.errors.NotFound) return new Response('not found', { status: 404 })
       throw error
     }
-    return new Response(new Uint8Array(bytes).buffer, { status: 200, headers: { 'content-type': media(local) } })
+    return new Response(new Uint8Array(bytes).buffer, {
+      status: 200,
+      headers: { 'content-type': media(local) },
+    })
   }
 }
 

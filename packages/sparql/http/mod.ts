@@ -3,9 +3,10 @@
 import { parse as parseNQuads } from '@okikio/rdf/nquads'
 import { parse as parseNTriples } from '@okikio/rdf/ntriples'
 import { parse as parseTurtle } from '@okikio/rdf/turtle'
-import type { Quad } from '@okikio/rdf'
+import type { BlankNode, Quad } from '@okikio/rdf'
 import { getQueryText, getUpdateText, type Queryable, type QueryOptionsType } from '../client.ts'
 import { decodeBindings, decodeBoolean } from '../result/json.ts'
+import { relabel } from '../result/graph.ts'
 import { QueryError } from './error.ts'
 
 /** SPARQL Query request transfer mode. */
@@ -53,9 +54,9 @@ export interface HttpOptionsType {
   readonly fetch?: typeof fetch
   /** HTTP headers merged into protocol requests without mutating the caller-supplied Headers object. */
   readonly headers?: HeadersInit
-  /** Maximum request duration in milliseconds before the operation aborts its internal request. */
+  /** Request deadline in whole milliseconds, 0 to 2^31-1; zero disables the deadline. */
   readonly timeoutMs?: number
-  /** Maximum response body size accepted before the protocol client aborts decoding. */
+  /** Positive safe-integer byte limit accepted before the protocol client aborts decoding. */
   readonly maxResponseBytes?: number
   /** HTTP encoding used for SPARQL Query requests. */
   readonly queryMethod?: QueryMethodType
@@ -120,6 +121,10 @@ export function create(options: HttpOptionsType): Client {
   const updateEndpoint = new URL(options.updateEndpoint ?? options.endpoint)
   const fetchImpl = options.fetch ?? fetch
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES
+  if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1) {
+    throw new RangeError('maxResponseBytes must be a positive safe integer.')
+  }
+  deadline(options.timeoutMs ?? 0)
 
   return {
     endpoint,
@@ -136,8 +141,15 @@ export function create(options: HttpOptionsType): Client {
         queryOptions,
         'application/sparql-results+json; version=1.2, application/sparql-results+json',
       )
-      const bindings = decodeBindings(await readJson(response, maxResponseBytes))
-      return array(bindings)
+      const value = await readJson(response, maxResponseBytes)
+      try {
+        return array(decodeBindings(value))
+      } catch (cause) {
+        throw new QueryError('protocol', 'SPARQL endpoint returned invalid bindings results.', {
+          query: preview(text),
+          cause,
+        })
+      }
     },
     /** Executes a SPARQL ASK query and decodes the boolean result. */
     async queryBoolean(query, queryOptions = {}) {
@@ -151,7 +163,15 @@ export function create(options: HttpOptionsType): Client {
         queryOptions,
         'application/sparql-results+json; version=1.2, application/sparql-results+json',
       )
-      return decodeBoolean(await readJson(response, maxResponseBytes))
+      const value = await readJson(response, maxResponseBytes)
+      try {
+        return decodeBoolean(value)
+      } catch (cause) {
+        throw new QueryError('protocol', 'SPARQL endpoint returned invalid boolean results.', {
+          query: preview(text),
+          cause,
+        })
+      }
     },
     /** Executes a graph-producing SPARQL query and returns its RDF quad stream. */
     async queryQuads(query, queryOptions = {}) {
@@ -222,6 +242,7 @@ async function request(
     ...(signal ? { signal } : {}),
     ...(options.signal ? { callerSignal: options.signal } : {}),
   }
+  if (signal?.aborted) throw abortError(context, signal.reason)
   const headers = new Headers(client.headers)
   for (const [key, value] of new Headers(options.headers)) headers.set(key, value)
   headers.set('accept', accept)
@@ -259,6 +280,7 @@ async function request(
       response,
       Math.min(client.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES, 16 * 1024),
       context,
+      true,
     )
     throw new QueryError(
       'http',
@@ -383,6 +405,7 @@ async function readText(
   response: Response,
   limit: number,
   request?: RequestType,
+  previewOnly = false,
 ): Promise<string> {
   if (!response.body) return ''
   const reader = response.body.getReader()
@@ -397,8 +420,10 @@ async function readText(
         complete = true
         break
       }
+      const remaining = limit - bytes
       bytes += item.value.byteLength
-      if (bytes > limit) {
+      if (bytes > limit || (previewOnly && bytes === limit)) {
+        if (previewOnly) return text + decoder.decode(item.value.subarray(0, remaining))
         await reader.cancel('SPARQL response size limit exceeded').catch(() => undefined)
         throw new QueryError('limit', `SPARQL response exceeded ${limit} bytes.`)
       }
@@ -407,7 +432,11 @@ async function readText(
     return text + decoder.decode()
   } catch (error) {
     if (request?.signal?.aborted) throw abortError(request, error)
-    throw error
+    if (error instanceof QueryError) throw error
+    throw new QueryError('network', 'SPARQL response transfer failed before completion.', {
+      ...(request ? { query: preview(request.query) } : {}),
+      cause: error,
+    })
   } finally {
     if (!complete) {
       await reader.cancel('SPARQL response consumption stopped before completion').catch(() =>
@@ -471,11 +500,19 @@ async function* graph(
   source: AsyncIterable<Quad>,
   request: RequestType,
 ): AsyncGenerator<Quad> {
+  const labels = new Map<string, BlankNode>()
   try {
-    yield* source
+    for await (const value of source) yield relabel(value, labels)
   } catch (error) {
     if (request.signal?.aborted) throw abortError(request, error)
-    throw error
+    if (error instanceof QueryError) throw error
+    throw new QueryError(
+      error instanceof SyntaxError ? 'protocol' : 'network',
+      error instanceof SyntaxError
+        ? 'SPARQL endpoint returned malformed RDF results.'
+        : 'SPARQL graph transfer failed before completion.',
+      { query: preview(request.query), cause: error },
+    )
   }
 }
 
@@ -536,9 +573,17 @@ function readBody(
 
 /** Returns the caller signal or a timeout-linked signal for the current request. */
 function getSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal | undefined {
+  deadline(timeoutMs)
   const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
   if (signal && timeout) return AbortSignal.any([signal, timeout])
   return signal ?? timeout
+}
+
+/** Keeps timer behavior consistent with the integer range supported by Node and browser timers. */
+function deadline(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0 || value > 2_147_483_647) {
+    throw new RangeError('timeoutMs must be an integer from 0 to 2147483647.')
+  }
 }
 
 /** Returns the normalized response media type without parameters. */

@@ -7,7 +7,10 @@ export async function get(): Promise<string[]> {
   const members: string[] = []
   for (const value of root.workspace) {
     const member = String(value).replace(/^\.\//u, '')
-    if (!member.endsWith('/*')) { members.push(member); continue }
+    if (!member.endsWith('/*')) {
+      members.push(member)
+      continue
+    }
     const parent = member.slice(0, -2)
     for await (const entry of Deno.readDir(parent)) {
       if (entry.isDirectory) members.push(`${parent}/${entry.name}`)

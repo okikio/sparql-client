@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { namedNode, namespace } from '@okikio/rdf'
+import { Parser } from '@traqula/parser-sparql-1-2'
+import { tokens } from './syntax/mod.ts'
 import {
   construct,
   describe as describeQuery,
@@ -13,52 +15,115 @@ import {
   v,
 } from './mod.ts'
 
+/** Ignores source locations and BGP conjunction order, retaining multiplicity and other syntax roles. */
+function semantics(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(semantics)
+  if (typeof value !== 'object' || value === null) return value
+  const result = Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== 'loc').map((
+      [key, item],
+    ) => [key, semantics(item)]),
+  )
+  if (result.type === 'pattern' && result.subType === 'bgp' && Array.isArray(result.triples)) {
+    result.triples.sort((left: unknown, right: unknown) => {
+      const first = JSON.stringify(left), second = JSON.stringify(right)
+      return first < second ? -1 : first > second ? 1 : 0
+    })
+  }
+  return result
+}
+
+/** Hand-written query fixtures define clauses/terms independently of builder serialization. */
+function query(value: string): unknown {
+  return semantics(new Parser().parse(value))
+}
+
+const PREFIX = 'PREFIX schema: <https://schema.org/>'
+
 describe('@okikio/sparql query builder', () => {
   it('is immutable when clauses are added', () => {
-    const base = select(['name'])
-    const filtered = base.where(triple('?thing', 'schema:name', '?name'))
-    expect(base.build().value).toBe('SELECT ?name')
-    expect(filtered.build().value.includes('?thing schema:name ?name .')).toBe(true)
+    const base = select(['name']).where(triple('?thing', 'https://schema.org/name', '?name'))
+    const before = query(base.build().value)
+    const extended = base.where(triple('?thing', 'https://schema.org/sku', '?sku'))
+    expect(query(base.build().value)).toEqual(before)
+    expect(query(base.build().value)).toEqual(
+      query('SELECT ?name WHERE { ?thing <https://schema.org/name> ?name }'),
+    )
+    expect(query(extended.build().value)).toEqual(
+      query(`SELECT ?name WHERE {
+        ?thing <https://schema.org/name> ?name .
+        ?thing <https://schema.org/sku> ?sku .
+      }`),
+    )
   })
 
   it('keeps CONSTRUCT templates separate from WHERE patterns', () => {
     const template = triple('?copy', 'schema:name', '?name')
     const where = triple('?source', 'schema:name', '?name')
-    const query = construct(template).where(where).build()
+    const queryDocument = construct(template).where(where).build()
 
-    expect(query.value.includes('CONSTRUCT {\n  ?copy schema:name ?name .\n}')).toBe(true)
-    expect(query.value.includes('WHERE {\n  ?source schema:name ?name .\n}')).toBe(true)
+    expect(query(`${PREFIX} ${queryDocument.value}`)).toEqual(
+      query(`${PREFIX} CONSTRUCT { ?copy schema:name ?name } WHERE { ?source schema:name ?name }`),
+    )
   })
 
-  it('supports the CONSTRUCT WHERE shorthand without duplicating the pattern', () => {
-    const query = construct().where(triple('?s', '?p', '?o')).build()
-    expect(query.value).toBe('CONSTRUCT\nWHERE {\n  ?s ?p ?o .\n}')
+  it('supports the CONSTRUCT WHERE shorthand without duplicating the pattern', async () => {
+    const built = construct().where(triple('?s', '?p', '?o')).build()
+    expect(query(built.value)).toEqual(query('CONSTRUCT WHERE { ?s ?p ?o }'))
+    // The public construct() contract promises this grammar form, independently of layout.
+    const syntax: string[] = []
+    for await (const token of tokens(built.value)) {
+      if (token.kind !== 'whitespace' && token.kind !== 'comment') {
+        syntax.push(token.kind === 'keyword' ? token.value.toUpperCase() : token.value)
+      }
+    }
+    expect(syntax.slice(0, 3)).toEqual(['CONSTRUCT', 'WHERE', '{'])
   })
 
   it('serializes UNION as disjunctions rather than one conjunction', () => {
-    const query = select('*').union(
+    const built = select('*').union(
       triple('?s', 'schema:name', '?name'),
       triple('?s', 'schema:sku', '?sku'),
     ).build()
-    expect(
-      query.value.includes(
-        '{\n    ?s schema:name ?name .\n  }\n  UNION\n  {\n    ?s schema:sku ?sku .\n  }',
-      ),
-    ).toBe(true)
+    expect(query(`${PREFIX} ${built.value}`)).toEqual(
+      query(`${PREFIX} SELECT * WHERE { { ?s schema:name ?name } UNION { ?s schema:sku ?sku } }`),
+    )
   })
 
   it('accepts RDF namespace functions and named nodes directly', () => {
     const schema = namespace('https://schema.org/')
     const graph = namedNode('urn:graph:products')
-    const query = select('*')
+    const built = select('*')
       .prefix('schema', schema)
       .from(graph)
       .where(triple('?product', schema('name'), '?name'))
       .build()
 
-    expect(query.value.includes('PREFIX schema: <https://schema.org/>')).toBe(true)
-    expect(query.value.includes('FROM <urn:graph:products>')).toBe(true)
-    expect(query.value.includes('?product <https://schema.org/name> ?name .')).toBe(true)
+    expect(query(built.value)).toEqual(
+      query(`${PREFIX} SELECT * FROM <urn:graph:products> WHERE {
+        ?product <https://schema.org/name> ?name
+      }`),
+    )
+  })
+
+  it('accepts harmless formatting and BGP order while rejecting changed or duplicate triples', () => {
+    const expected = query(`SELECT ?name WHERE {
+      ?thing <https://schema.org/name> ?name .
+      ?thing <https://schema.org/sku> ?sku .
+    }`)
+    expect(query(`select   ?name
+      where { # Formatting, keyword case and conjunction order preserve semantics.
+        ?thing <https://schema.org/sku> ?sku .
+        ?thing <https://schema.org/name> ?name .
+      }`)).toEqual(expected)
+    expect(query(`SELECT ?name WHERE {
+      ?thing <https://schema.org/title> ?name .
+      ?thing <https://schema.org/sku> ?sku .
+    }`)).not.toEqual(expected)
+    expect(query(`SELECT ?name WHERE {
+      ?thing <https://schema.org/name> ?name .
+      ?thing <https://schema.org/name> ?name .
+    }`)).not.toEqual(expected)
   })
 
   it('rejects non-IRI terms from dataset graph clauses', () => {
@@ -66,24 +131,28 @@ describe('@okikio/sparql query builder', () => {
   })
 
   it('accepts RDF named nodes in DESCRIBE and keeps full queries distinct from patterns', () => {
-    const query = describeQuery([namedNode('urn:product:1')]).build()
-    expect(query.value).toBe('DESCRIBE <urn:product:1>')
-    expect(query[SPARQL_QUERY_BRAND]).toBe(true)
+    const built = describeQuery([namedNode('urn:product:1')]).build()
+    expect(query(built.value)).toEqual(query('DESCRIBE <urn:product:1>'))
+    expect(built[SPARQL_QUERY_BRAND]).toBe(true)
 
     const pattern = subquery(select('*').where(triple('?s', '?p', '?o')))
     expect(pattern[SPARQL_PATTERN_BRAND]).toBe(true)
   })
 
   it('rejects duplicate SELECT result variables before serialization', () => {
-    expect(() => select(['name', '?name']).build()).toThrow('duplicate result variable')
-    expect(() => select(['?1value', '$1value']).build()).toThrow('duplicate result variable')
+    expect(() => select(['name', '?name']).build()).toThrow(TypeError)
+    expect(() => select(['?1value', '$1value']).build()).toThrow(TypeError)
+    expect(() => select(['name', '?other']).build()).not.toThrow()
+    expect(() => select(['?1value', '$2value']).build()).not.toThrow()
   })
 
   it('keeps FILTER expressions separate from graph patterns', () => {
-    const query = select(['name'])
+    const built = select(['name'])
       .where(triple('?product', 'schema:name', '?name'))
       .filter(v('name').neq(''))
       .build()
-    expect(query.value.includes('FILTER(?name != "")')).toBe(true)
+    expect(query(`${PREFIX} ${built.value}`)).toEqual(
+      query(`${PREFIX} SELECT ?name WHERE { ?product schema:name ?name . FILTER(?name != "") }`),
+    )
   })
 })

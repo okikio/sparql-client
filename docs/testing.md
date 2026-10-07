@@ -1,6 +1,8 @@
 # Testing and validation
 
-The repository has one permanent test architecture and one disposable assistant fallback.
+Run `deno task verify` for the source contracts, then choose the affected real-environment lanes from
+[VALIDATION.md](../VALIDATION.md). Test definitions belong to the capability they protect; generated output and local
+investigations have separate lifetimes.
 
 ## Permanent tests
 
@@ -60,37 +62,77 @@ deno task bench
 deno task bench:types
 deno task bench:all
 deno task verify
+deno task integration
+deno task browser
+deno task consumer
+deno task consumer:linux
 ```
 
 `verify` runs the formatting check, lint, strict type check, core dependency firewall, documentation lint, and permanent tests.
 
+The dependency firewall parses TypeScript imports and exports rather than matching lines or comments. It rejects
+computed dynamic imports and runtime references outside the four owned core packages, including relative traversal and
+symlink escapes. Type-only references remain separate because they are erased from runtime code. Its pinned compiler
+is a development tool; it does not enter the published core packages.
+
+Distribution checks inspect Deno's resolved runtime graph for the actual public browser consumers. Ordinary strings
+that mention an optional engine cannot fail that check, while a reachable external module cannot pass merely because
+its package name changed. npm and JSR export maps must expose the same names and targets; object insertion order is
+incidental. Permanent controls challenge each boundary with valid harmless changes and prohibited runtime edges.
+
 The root npm scripts are only aliases to the Deno tasks. They do not define a second Node project lifecycle.
+
+The package task preserves generated JavaScript exports and resolves workspace dependency versions in the actual
+archives. Its tar child suppresses macOS AppleDouble files and extended-attribute headers. When changing packaging,
+inspect archive members and payloads, then run the clean installed consumers; a successful build alone cannot establish
+the contents that a user will install.
 
 ## Benchmarks
 
 Hot runtime benchmarks are package-owned `*_bench.ts` Mitata programs. `deno task bench` discovers them through `.mise/tasks/bench.ts` and runs each in an isolated Deno process.
 
-Current durable benchmark programs cover:
-
-```text
-packages/rdf/dataset_bench.ts
-packages/rdf/nquads/parse_bench.ts
-packages/rdf/turtle/parse_bench.ts
-packages/sparql/builder_bench.ts
-packages/sparql/syntax/scan_bench.ts
-packages/triplestore/store_bench.ts
-packages/vocab/compile_bench.ts
-packages/vocab/runtime_bench.ts
-bench/vocab/types.ts
-```
+The [benchmark guide](benchmarks.md) maps every permanent program to its workload and correctness oracle. Primitive
+measurements locate costs; parser ingestion, engine adapters, compiler consumers, and store recovery measure their
+different composed workflows. These questions require separate inputs and interpretations.
 
 `bench/vocab/types.ts` is intentionally outside a package because it is a cross-process TypeScript compiler benchmark. It launches isolated compiler processes and measures a different resource lifecycle from a hot in-process kernel.
 
 Every benchmark needs a correctness oracle outside the timed callback. Faster output is not accepted if it performs less work or changes semantics.
 
+Fast report-contract tests also belong to the canonical unit gate. They reject missing, failed, nonfinite or incomplete
+measurement data without running a benchmark. Fault-injection investigation transcripts remain local evidence; the
+reusable validity contract remains in source.
+
 SPARQL builder property tests use `@traqula/parser-sparql-1-2` as the independent parser oracle. Traqula is an active SPARQL 1.2 parser and runs the W3C SPARQL parser suites in its own repository. The project does not treat Traqula as specification authority: official W3C tests remain the conformance source, and known upstream parser defects become differential fixtures rather than behavior to copy. Archived SPARQL.js is not a direct project oracle.
 
-See [`benchmarks.md`](./benchmarks.md) for performance decisions that changed the architecture. See [`research/dependencies.md`](./research/dependencies.md) for comparator roles and known-defect profiles.
+See [`research/dependencies.md`](./research/dependencies.md) for comparator roles and known-defect profiles.
+
+## Review the oracle before the pass count
+
+A test should state the consumer behavior that would break if its assertion failed. Use exact bytes for persisted
+content, exact terms and graph identity for RDF, and exact lexical ranges where tooling exposes those ranges. Protocol
+signatures and deliberate canonical serialization also need exact assertions. Generated comments, private counters,
+incidental iteration order, and human-readable error wording usually do not define the consumer contract.
+
+For emitted vocabulary code, import its exports and check their values, schema results, and consumer types. For a
+dataset property, compare with an independent term/quad model rather than constructing its expected result through the
+same dataset implementation. Validate official fixture reads before entering a negative parser assertion: missing files
+must fail setup rather than pass as malformed syntax.
+
+Use [Node test lifecycle hooks](https://nodejs.org/api/test.html) or `try/finally` to register cleanup as soon as a resource
+is acquired. Test-scoped mocks restore their patched methods automatically; a global tracker requires explicit reset.
+Injected protocol doubles remain useful when they make bytes, retries, cancellation, and ownership observable across
+runtimes. Await the source's explicit pull/open signal before aborting pending work; a microtask or short sleep does not
+prove that the operation reached the intended state.
+
+[Standard-library expectations](https://jsr.io/@std/expect/doc) include `rejects`, `resolves`, partial object matching,
+and asymmetric matchers. Select the assertion that expresses the contract. Partial matching is appropriate for a
+structured error's stable fields; it must not weaken a test that promises the complete result set. Framework features
+are useful when they make an invariant clearer, not because every test must use every feature.
+
+Challenge an oracle with a deliberately wrong result or broken fixture when a false pass is plausible. Keep that
+investigation local; retain the useful invariant in the permanent test. Passing proves only the asserted behavior for
+the executed scenario.
 
 ## Required test categories
 
@@ -190,8 +232,16 @@ integration/             real engine and Testcontainers tests
 support.json             machine-readable public support claims
 .mise/tasks/support.ts   claim-to-report verification
 .mise/tasks/distribution.ts  optional-dependency/tree-shaking audit
+integration/browser/     real Window/Worker and optional sibling OPFS consumers
+integration/storage/     source and installed cross-repository persistence consumers
+integration/consumer.ts  installed package behavior fixture
 ```
 
-`deno task conformance` is strict: a skipped official case is a release failure, not a quiet success. `deno task support` additionally requires at least one passing case for every standards profile advertised in `support.json`.
+These are reusable inputs to canonical tasks, including slower release lanes that are intentionally outside the normal
+unit gate. Keep them visible in Git. Downloaded corpora, generated configurations, consumer installations, browser
+artifacts, timings, and dated plans/results belong under ignored `.tmp/`; assistant-only support belongs under ignored
+`.agents/`. Do not ignore a permanent test to make the working tree quieter.
+
+`deno task conformance` is strict: a skipped official case is a release failure, not a quiet success. `deno task support` validates the report schema, current implementation/evidence identity, pinned suite revisions, complete status records and totals, and requires passing cases for every profile advertised in `support.json`. Reusable malformed/stale-evidence controls run in the canonical unit suite; actual disposable Git cache controls run through `integration/cache_test.ts`.
 
 See `conformance/source.ts` for immutable suite revisions and `docs/conformance.md` for the complete evidence flow.

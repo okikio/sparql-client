@@ -35,7 +35,16 @@ const options = {
 
 const compileFixture = () => compile([{ id: 'benchmark', quads }], options)
 const oracle = await compileFixture()
-if (!oracle.source.includes('export const Class499 =')) {
+if (
+  oracle.manifest.symbols.filter((value) => value.kind === 'class').length !== CLASS_COUNT ||
+  oracle.manifest.symbols.filter((value) => value.kind === 'property').length !== PROPERTY_COUNT ||
+  !oracle.source.includes('export const Class499: NamedNode =') ||
+  !oracle.source.includes('export const property249: NamedNode =') ||
+  !oracle.source.includes('export interface Class249PropertiesType') ||
+  !oracle.source.includes('readonly property249?: ValueType<string>') ||
+  !oracle.source.includes('export type Class499Type =') ||
+  !oracle.source.includes('export const Class499Schema: VocabularySchema<unknown, Class499Type>')
+) {
   throw new Error('Vocabulary compiler benchmark oracle failed.')
 }
 

@@ -4,6 +4,66 @@ import { strlit, triple, update } from '../mod.ts'
 import { create, QueryError } from './mod.ts'
 
 describe('@okikio/sparql/http', () => {
+  it('keeps graph-response blank identity local to each RDF document', async () => {
+    const client = create({
+      endpoint: 'http://example.test/',
+      fetch: () =>
+        Promise.resolve(
+          new Response('_:node <urn:test:p> _:node .', {
+            headers: { 'content-type': 'application/n-triples' },
+          }),
+        ),
+    })
+    const first = [], second = []
+    for await (const value of await client.queryQuads('CONSTRUCT {} WHERE {}')) first.push(value)
+    for await (const value of await client.queryQuads('CONSTRUCT {} WHERE {}')) second.push(value)
+    expect(first[0]?.subject.equals(first[0].object)).toBe(true)
+    expect(first[0]?.subject.equals(second[0]!.subject)).toBe(false)
+  })
+
+  it('rejects unsafe byte limits and deadlines before contacting the endpoint', async () => {
+    for (const maxResponseBytes of [0, -1, 1.5, Infinity, NaN]) {
+      expect(() => create({ endpoint: 'http://example.test/', maxResponseBytes })).toThrow(
+        RangeError,
+      )
+    }
+    let fetched = false
+    const client = create({
+      endpoint: 'http://example.test/',
+      fetch: () => {
+        fetched = true
+        return Promise.resolve(new Response(null, { status: 204 }))
+      },
+    })
+    for (const timeoutMs of [-1, 1.5, Infinity, NaN, 2_147_483_648]) {
+      expect(() => create({ endpoint: 'http://example.test/', timeoutMs })).toThrow(RangeError)
+      await expect(client.update('INSERT DATA {}', { timeoutMs })).rejects.toThrow(RangeError)
+    }
+    const controller = new AbortController()
+    controller.abort(new Error('stopped before mutation'))
+    await expect(client.update('INSERT DATA {}', { signal: controller.signal })).rejects
+      .toMatchObject({ kind: 'abort' })
+    expect(fetched).toBe(false)
+  })
+
+  it('normalizes a failed response stream as a network failure', async () => {
+    const client = create({
+      endpoint: 'http://example.test/',
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new TypeError('socket closed'))
+              },
+            }),
+            { headers: { 'content-type': 'application/sparql-results+json' } },
+          ),
+        ),
+    })
+    await expect(client.queryBoolean('ASK {}')).rejects.toMatchObject({ kind: 'network' })
+  })
+
   it('keeps SELECT bindings as RDF terms', async () => {
     const client = create({
       endpoint: 'https://example.com/sparql',
@@ -21,7 +81,12 @@ describe('@okikio/sparql/http', () => {
     })
     const rows = []
     for await (const row of await client.queryBindings('SELECT ?name WHERE {}')) rows.push(row)
-    expect(rows[0]?.get('name')?.termType).toBe('Literal')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.get('name')).toMatchObject({
+      termType: 'Literal',
+      value: 'Alice',
+      language: 'en',
+    })
   })
 
   it('parses graph result media types without converting RDF terms to bindings', async () => {
@@ -129,11 +194,17 @@ describe('@okikio/sparql/http', () => {
 
   it('cancels a response body whose read is already pending', async () => {
     let cancelled = false
+    let entered!: () => void
+    const reading = new Promise<void>((resolve) => entered = resolve)
     const body = new ReadableStream<Uint8Array>({
+      pull() {
+        entered()
+        return new Promise<void>(() => {})
+      },
       cancel() {
         cancelled = true
       },
-    })
+    }, { highWaterMark: 0 })
     const client = create({
       endpoint: 'https://example.com/sparql',
       // deno-lint-ignore require-await -- Test double intentionally implements an asynchronous runtime contract.
@@ -142,7 +213,7 @@ describe('@okikio/sparql/http', () => {
     })
     const controller = new AbortController()
     const pending = client.queryBoolean('ASK {}', { signal: controller.signal })
-    await Promise.resolve()
+    await reading
     controller.abort(new Error('stop-http'))
     try {
       await pending

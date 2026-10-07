@@ -114,7 +114,9 @@ The repository task owns file I/O:
 deno task vocab --input ontology.ttl --out generated --name example --namespace https://example.com/ --prefix ex
 ```
 
-`.mise/tasks/vocab.ts` selects the parser from the input extension, opens files, invokes `compile()`, and writes the source and manifest. It is deliberately a thin executable wrapper around the library API. Its direct file formats are Turtle, TriG, N-Triples, and N-Quads. Other RDF formats use their `@okikio/rdf/*` parser first and call `compile()` with the resulting quad source.
+`.mise/tasks/vocab.ts` selects the parser from the input extension, reads the input files, invokes `compile()`, and writes `mod.ts` and `manifest.json` under `--out`. Repeat `--input` to combine sources; `--format` explicitly selects Turtle, TriG, N-Triples or N-Quads when the extension does not identify one. Other RDF formats use their public parser first and call `compile()` with the resulting quad source.
+
+The task materializes file text and generated output. It has no `--check` or dry-run mode: `--out` is a write target, and existing output files are replaced. Use an isolated output directory to review generated changes before updating a shipped vocabulary. Library callers can inspect `result.source` and `result.manifest` without writing files.
 
 Do not move ontology interpretation or emission rules back into `.mise/tasks/`.
 
@@ -195,9 +197,26 @@ The repository provides a pinned regeneration task:
 deno task vocab:schema
 ```
 
-`.mise/tasks/schema.ts` downloads the authoritative Schema.org 30.0 N-Quads release, verifies the expected source identity before generation, then emits the module and provenance manifest.
+`.mise/tasks/schema.ts` selects Schema.org 30.0 from immutable upstream commit `420231f6bfac8372fc564abb121fae57ccb36a0c`. It verifies the N-Quads source's byte length and Git blob SHA, records its SHA-256 in the generated manifest, then emits `mod.ts` and `manifest.json`. Schema.org HTTP/HTTPS domain/range aliases are compiler inspection policy; the generated range model remains the structural subset described in [Standard Schema](./standard-schema.md#range-validation).
 
-The execution host used for this implementation could not retrieve that full release. Complete Schema.org generation remains a release gate.
+Running the command above replaces the shipped `packages/vocab/schema` files. The task has no check-only mode. First produce reviewable output separately:
+
+```sh
+deno task vocab:schema --out .tmp/schema-release
+deno check .tmp/schema-release/mod.ts
+```
+
+Then inspect the source identity, diagnostics, symbols and declarations; compare or deliberately replace the shipped output, run the vocabulary tests and clean installed-package consumers, and retain the generation evidence. A task definition or a generated module that merely type-checks does not establish complete upstream vocabulary coverage.
+
+The compiler models classes, properties and referenced datatypes. It does not emit every named ontology instance as a term. Schema.org enumeration instances such as `Monday` and `ActiveActionStatus` therefore need a separate supported emission policy before advertising complete term coverage. In the pinned ontology, `Text` and `Boolean` are modeled as classes; replacing the bootstrap output changes their generated types and schemas rather than simply adding exports. An IRI with both class and property roles receives distinct TypeScript bindings so neither declaration is dropped.
+
+### Schema.org provenance
+
+The present shipped manifest explicitly identifies a bootstrap slice rather than Schema.org 30.0. Its source is the repository fixture [`fixtures/vocab/schema-bootstrap.json`](../fixtures/vocab/schema-bootstrap.json): four classes, six properties and four datatype aliases, with bootstrap descriptions and structural range definitions. It has no upstream release hash and must not be represented as a verbatim Schema.org release or complete source-term generator output. The fixture and generated module were introduced together in repository commit `1842332f82f2bcdfbc21400be1ae52d51d85e0fc`.
+
+The [Schema.org terms](https://schema.org/docs/terms.html) license upstream schemas under CC BY-SA 3.0. A regenerated module that includes upstream descriptions needs its source identity and applicable attribution/license notices; this repository's MIT license does not replace those upstream terms. Do not ascribe the temporary pinned full-ontology generation's identity to the shipped bootstrap fixture.
+
+Publication that advertises the complete Schema.org release requires actual regeneration, term-role and instance coverage review, and validation of that shipped source. A limited preview can instead describe its bootstrap exports explicitly. Complete source-term generation would still not add OWL reasoning, SHACL validation or full RDF datatype validation to the generated schemas.
 
 ## Standard Schema generation
 

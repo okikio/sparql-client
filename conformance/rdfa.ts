@@ -40,7 +40,22 @@ export async function runRdfa(): Promise<CaseType[]> {
       const dir = `${sourceDir('rdfa')}/test-suite/test-cases/rdfa1.1/${host}`
       const input = `${dir}/${test.num}${extension}`
       const assertion = `${dir}/${test.num}.sparql`
-      if (!await exists(input) || !await exists(assertion)) continue
+      // A damaged checkout must not silently shrink the claimed official corpus.
+      if (!await exists(input) || !await exists(assertion)) {
+        output.push({
+          suite: 'rdfa',
+          revision: spec.revision,
+          profile: `RDFa 1.1 ${host}`,
+          id: `${test.num}:${host}`,
+          kind: 'RDFa processor test',
+          input,
+          expected: assertion,
+          status: 'fail',
+          reason: 'Declared RDFa input or ASK fixture is missing.',
+          durationMs: 0,
+        })
+        continue
+      }
       output.push(await runCase(test, host, contentType, input, assertion, spec.revision))
     }
   }
@@ -66,13 +81,18 @@ async function runCase(
     expected: assertion,
   }
   try {
+    const base = `http://rdfa.info/test-suite/test-cases/rdfa1.1/${host}/${test.num}${
+      input.slice(input.lastIndexOf('.'))
+    }`
     const actual = await collect(parseRdfa(await Deno.readTextFile(input), {
-      base: test.input ??
-        `http://rdfa.info/test-suite/test-cases/${test.num}${input.slice(input.lastIndexOf('.'))}`,
+      base,
       contentType,
     }))
     const store = new Store()
-    store.load(writeNQuads(actual), { format: 'application/n-quads' })
+    // The official relative-prefix cases resolve serialized relative IRIs against
+    // the retrieval IRI, independently of an HTML base element. Default-graph
+    // N-Quads statements are also Turtle statements, whose loader supports this.
+    store.load(writeNQuads(actual), { format: 'text/turtle', base_iri: base })
     const result = store.query(await Deno.readTextFile(assertion))
     if (typeof result !== 'boolean') {
       return {

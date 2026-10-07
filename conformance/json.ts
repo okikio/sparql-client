@@ -12,10 +12,14 @@ export function matchJson(
   ordered: boolean,
   map: BlankMapType = { forward: new Map(), reverse: new Map() },
   key?: string,
+  literal = false,
 ): boolean {
   if (typeof actual === 'string' && typeof expected === 'string') {
-    if (key === '@language') return actual.toLowerCase() === expected.toLowerCase()
-    if (actual.startsWith('_:') && expected.startsWith('_:')) return blank(actual, expected, map)
+    if (!literal && key === '@language') return actual.toLowerCase() === expected.toLowerCase()
+    if (
+      !literal && (key === '@id' || key === '@type') && actual.startsWith('_:') &&
+      expected.startsWith('_:')
+    ) return blank(actual, expected, map)
     return actual === expected
   }
   if (
@@ -26,8 +30,10 @@ export function matchJson(
     if (!Array.isArray(actual) || !Array.isArray(expected) || actual.length !== expected.length) {
       return false
     }
-    if (ordered || key === '@list') {
-      return actual.every((value, index) => matchJson(value, expected[index], ordered, map, key))
+    if (ordered || literal || key === '@list') {
+      return actual.every((value, index) =>
+        matchJson(value, expected[index], ordered, map, key, literal)
+      )
     }
     return unordered(actual, expected, ordered, map, key)
   }
@@ -35,8 +41,69 @@ export function matchJson(
   const right = expected as Record<string, unknown>
   const leftKeys = Object.keys(left).sort()
   const rightKeys = Object.keys(right).sort()
+  if (
+    !literal &&
+    (leftKeys.some((name) => name.startsWith('_:')) ||
+      rightKeys.some((name) => name.startsWith('_:')))
+  ) {
+    const leftBlank = leftKeys.filter((name) => name.startsWith('_:')),
+      rightBlank = rightKeys.filter((name) => name.startsWith('_:'))
+    const leftNamed = leftKeys.filter((name) => !name.startsWith('_:')),
+      rightNamed = rightKeys.filter((name) => !name.startsWith('_:'))
+    if (leftBlank.length !== rightBlank.length || leftNamed.join('\0') !== rightNamed.join('\0')) {
+      return false
+    }
+    if (
+      !leftNamed.every((name) =>
+        matchJson(
+          left[name],
+          right[name],
+          ordered,
+          map,
+          name,
+          name === '@context' || (name === '@value' && left['@type'] === '@json'),
+        )
+      )
+    ) return false
+    return fitKeys(0, leftBlank, rightBlank, left, right, ordered, map, new Set())
+  }
   if (leftKeys.join('\0') !== rightKeys.join('\0')) return false
-  return leftKeys.every((name) => matchJson(left[name], right[name], ordered, map, name))
+  return leftKeys.every((name) =>
+    matchJson(
+      left[name],
+      right[name],
+      ordered,
+      map,
+      name,
+      literal || name === '@context' || (name === '@value' && left['@type'] === '@json'),
+    )
+  )
+}
+
+/** Matches generalized blank property names using the same node bijection as references. */
+function fitKeys(
+  index: number,
+  leftKeys: readonly string[],
+  rightKeys: readonly string[],
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+  ordered: boolean,
+  map: BlankMapType,
+  used: Set<number>,
+): boolean {
+  if (index === leftKeys.length) return true
+  for (let target = 0; target < rightKeys.length; target++) {
+    if (used.has(target)) continue
+    const next = clone(map), a = leftKeys[index]!, b = rightKeys[target]!
+    if (!blank(a, b, next) || !matchJson(left[a], right[b], ordered, next, a)) continue
+    used.add(target)
+    if (fitKeys(index + 1, leftKeys, rightKeys, left, right, ordered, next, used)) {
+      copy(next, map)
+      return true
+    }
+    used.delete(target)
+  }
+  return false
 }
 
 function unordered(

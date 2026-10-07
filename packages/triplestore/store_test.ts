@@ -9,6 +9,40 @@ const first = quad(namedNode('https://example.com/a'), predicate, literal('one')
 const second = quad(namedNode('https://example.com/b'), predicate, literal('two'))
 
 describe('@okikio/triplestore', () => {
+  it('cancels a stalled import and admits the next mutation on the same store', async () => {
+    const fs = new MemoryFileSystem()
+    const store = await open(fs, { path: '/db' })
+    const controller = new AbortController()
+    let returned = 0
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const source: AsyncIterable<typeof first> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            entered()
+            return new Promise<IteratorResult<typeof first>>(() => {})
+          },
+          return() {
+            returned++
+            return Promise.resolve({ done: true as const, value: undefined })
+          },
+        }
+      },
+    }
+    const pending = store.import(source, { signal: controller.signal })
+    await started
+    controller.abort(new Error('stop stalled store import'))
+    await expect(pending).rejects.toThrow('stop stalled store import')
+    expect(returned).toBe(1)
+    expect(store.generation).toBe(0)
+    await store.add(first)
+    expect(store.generation).toBe(1)
+    expect(store.has(first)).toBe(true)
+    await store.close()
+  })
   it('recovers the newest complete committed generation after an interrupted commit publication', async () => {
     const fs = new MemoryFileSystem()
     const store = await open(fs, { path: '/db' })

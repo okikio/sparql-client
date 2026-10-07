@@ -260,3 +260,7 @@ infra/qlever/output
 
 # Local release evidence and downloaded standards suites
 .tmp/
+
+# Local Playwright artifacts; durable evidence lives in .tmp/reports.
+test-results/
+playwright-report/

@@ -1,5 +1,7 @@
 /** Runs all claimed standards profiles and emits machine-readable release evidence. @module */
 
+import { checkCache } from '../../conformance/cache.ts'
+import { identity } from '../../conformance/identity.ts'
 import { runRdf } from '../../conformance/rdf.ts'
 import { runRdfc } from '../../conformance/rdfc.ts'
 import { runJsonLd } from '../../conformance/jsonld.ts'
@@ -7,8 +9,10 @@ import { runFraming } from '../../conformance/framing.ts'
 import { runRdfa } from '../../conformance/rdfa.ts'
 import { runMicrodata } from '../../conformance/microdata.ts'
 import { type CaseType, report } from '../../conformance/result.ts'
-import { source, type SourceIdType } from '../../conformance/source.ts'
+import { source, sourceDir, type SourceIdType, sources } from '../../conformance/source.ts'
 
+for (const item of sources) await checkCache(sourceDir(item.id), item.revision)
+const inputs = await identity()
 const cases = [
   ...await suite('rdf', 'rdf', runRdf),
   ...await suite('canon', 'rdfc', runRdfc),
@@ -17,7 +21,11 @@ const cases = [
   ...await suite('rdfa', 'rdfa', runRdfa),
   ...await suite('microdata', 'microdata', runMicrodata),
 ]
-const value = report(cases)
+if (inputs !== await identity()) {
+  throw new Error('Source inputs changed during conformance; rerun before accepting evidence.')
+}
+for (const item of sources) await checkCache(sourceDir(item.id), item.revision)
+const value = report(cases, inputs)
 await Deno.mkdir('.tmp/reports', { recursive: true })
 await Deno.writeTextFile('.tmp/reports/conformance.json', `${JSON.stringify(value, null, 2)}\n`)
 console.log(

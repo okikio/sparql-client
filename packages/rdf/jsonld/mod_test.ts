@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { namedNode, quad, RDF } from '../mod.ts'
+import { blankNode, literal, namedNode, quad, RDF, XSD } from '../mod.ts'
 import {
   compact,
   createDocumentLoader,
@@ -21,6 +21,300 @@ function htmlLoad(source: string, documentUrl = 'https://example.test/page') {
 }
 
 describe('@okikio/rdf/jsonld', () => {
+  it('frames graph-local identities without replacing one graph with another', async () => {
+    const input = {
+      '@id': 'urn:owner',
+      'urn:proof': { '@graph': { '@id': 'urn:shared', 'urn:p': 'inside' } },
+      'urn:subject': { '@id': 'urn:shared', 'urn:p': 'outside' },
+    }
+    expect(
+      await frame(input, {
+        '@context': { '@vocab': 'urn:', proof: { '@container': '@graph' } },
+        '@graph': { '@id': 'urn:owner' },
+      }),
+    ).toEqual({
+      '@context': { '@vocab': 'urn:', proof: { '@container': '@graph' } },
+      '@id': 'urn:owner',
+      proof: { '@id': 'urn:shared', p: 'inside' },
+      subject: { '@id': 'urn:shared', p: 'outside' },
+    })
+  })
+
+  it('frames included resources before their ordinary references and honors the context base', async () => {
+    const context = {
+      '@base': 'https://example.test/',
+      '@vocab': 'urn:',
+      author: { '@type': '@id' },
+      included: { '@id': '@included', '@container': '@set' },
+    }
+    const input = {
+      '@id': 'https://example.test/article',
+      '@type': 'urn:Article',
+      'urn:author': {
+        '@id': 'https://example.test/person',
+        '@type': 'urn:Person',
+        'urn:name': 'Ada',
+      },
+    }
+    expect(
+      await frame(input, {
+        '@context': context,
+        '@type': 'Article',
+        included: { '@type': 'Person' },
+      }, { base: 'https://fallback.test/' }),
+    ).toEqual({
+      '@context': context,
+      '@id': 'article',
+      '@type': 'Article',
+      author: 'person',
+      included: [{ '@id': 'person', '@type': 'Person', name: 'Ada' }],
+    })
+  })
+
+  it('filters framed list references and keeps default markers out of JSON output', async () => {
+    const context = { '@vocab': 'urn:', empty: { '@container': '@set' } }
+    const input = {
+      '@id': 'urn:owner',
+      'urn:list': { '@list': [{ '@id': 'urn:keep' }, { '@id': 'urn:discard' }] },
+    }
+    expect(
+      await frame(input, {
+        '@context': context,
+        '@id': 'urn:owner',
+        list: { '@list': [{ '@id': 'urn:keep' }] },
+        missing: {},
+        empty: { '@default': ['@null'] },
+      }),
+    ).toEqual({
+      '@context': context,
+      '@id': 'urn:owner',
+      list: { '@list': [{ '@id': 'urn:keep' }] },
+      missing: null,
+      empty: [],
+    })
+  })
+
+  it('rejects malformed directional RDF mappings through the public Promise', async () => {
+    await expect(
+      fromRdf([
+        quad(
+          namedNode('urn:s'),
+          namedNode('urn:p'),
+          literal('value', namedNode('https://www.w3.org/ns/i18n#en_sideways')),
+        ),
+      ], { rdfDirection: 'i18n-datatype' }),
+    ).rejects.toMatchObject({ code: 'invalid base direction' })
+  })
+
+  it('keeps blank identities local to each independently converted document', async () => {
+    const input = {
+      '@id': '_:source',
+      'urn:p': { '@id': '_:source' },
+      'urn:list': { '@list': ['item'] },
+      'urn:direction': { '@value': 'value', '@direction': 'ltr' },
+    }
+    const first = await toRdf(input, { rdfDirection: 'compound-literal' })
+    const second = await toRdf(input, { rdfDirection: 'compound-literal' })
+    const firstIds = new Set(
+      first.flatMap((value) => [value.subject, value.object, value.graph]).filter((term) =>
+        term.termType === 'BlankNode'
+      ).map((term) => term.value),
+    )
+    const secondIds = new Set(
+      second.flatMap((value) => [value.subject, value.object, value.graph]).filter((term) =>
+        term.termType === 'BlankNode'
+      ).map((term) => term.value),
+    )
+    expect(firstIds.size).toBe(3)
+    expect([...secondIds].some((id) => firstIds.has(id))).toBe(false)
+    for (const values of [first, second]) {
+      const relation = values.find((value) => value.predicate.value === 'urn:p')!
+      expect(relation.subject.equals(relation.object)).toBe(true)
+    }
+    const supplied = blankNode('caller-owned')
+    expect(await fromRdf([quad(supplied, namedNode('urn:p'), literal('value'))])).toEqual([{
+      '@id': '_:caller-owned',
+      'urn:p': [{ '@value': 'value' }],
+    }])
+  })
+  it('returns a distinct generalized RDF predicate only through the explicit option', async () => {
+    const input = { '@id': '_:subject', '_:subject': { '@id': 'urn:object' } }
+    expect(await toRdf(input)).toEqual([])
+    const values = await toRdf(input, { produceGeneralizedRdf: true })
+    expect(values).toHaveLength(1)
+    expect(values[0]!.predicate.termType).toBe('BlankNode')
+    expect(values[0]!.subject.equals(values[0]!.predicate)).toBe(true)
+    expect(Object.isFrozen(values[0])).toBe(true)
+  })
+
+  it('uses canonical numeric and JSON literal spellings in RDF output', async () => {
+    const values = await toRdf({
+      '@id': 'urn:s',
+      'urn:double': 5.3,
+      'urn:json': { '@value': { z: [2, 1], a: { '10': 'ten', '1': 'one' } }, '@type': '@json' },
+    })
+    expect(values.find((value) => value.predicate.value === 'urn:double')!.object.value).toBe(
+      '5.3E0',
+    )
+    expect(values.find((value) => value.predicate.value === 'urn:json')!.object.value).toBe(
+      '{"a":{"1":"one","10":"ten"},"z":[2,1]}',
+    )
+    expect(await toRdf({ '@id': 'urn:invalid subject', 'urn:p': 'discard' })).toEqual([])
+    expect(
+      await toRdf({
+        '@id': 'urn:s',
+        'urn:invalid property': 'discard',
+        'urn:p': { '@id': 'relative' },
+      }, { base: '' }),
+    ).toEqual([])
+  })
+
+  it('preserves malformed RDF collection cells and reconstructs nested empty lists', async () => {
+    const cell = blankNode('cell'),
+      source = [
+        quad(namedNode('urn:s'), namedNode('urn:p'), cell),
+        quad(cell, namedNode(RDF.first), literal('item')),
+        quad(cell, namedNode(RDF.rest), namedNode(RDF.nil)),
+        quad(cell, namedNode('urn:extra'), literal('keep')),
+      ]
+    const value = await fromRdf(source)
+    expect(value).toHaveLength(2)
+    expect(value).toEqual(expect.arrayContaining([{
+      '@id': '_:cell',
+      [RDF.first]: [{ '@value': 'item' }],
+      [RDF.rest]: [{ '@list': [] }],
+      'urn:extra': [{ '@value': 'keep' }],
+    }, { '@id': 'urn:s', 'urn:p': [{ '@id': '_:cell' }] }]))
+    const nested = await fromRdf([
+      quad(namedNode('urn:s'), namedNode('urn:p'), cell),
+      quad(cell, namedNode(RDF.first), namedNode(RDF.nil)),
+      quad(cell, namedNode(RDF.rest), namedNode(RDF.nil)),
+    ])
+    expect(nested).toEqual([{ '@id': 'urn:s', 'urn:p': [{ '@list': [{ '@list': [] }] }] }])
+  })
+
+  it('selects compaction terms without losing language, index, or reverse meaning', async () => {
+    const context = {
+      typed: { '@id': 'urn:p', '@type': 'urn:type' },
+      plain: 'urn:p',
+      back: { '@reverse': 'urn:back' },
+    }
+    expect(
+      await compact({
+        '@id': 'urn:s',
+        'urn:p': [{ '@value': 'value', '@type': 'urn:other', '@index': 'source' }],
+        '@reverse': { 'urn:back': [{ '@id': 'urn:o' }] },
+      }, context),
+    ).toEqual({
+      '@context': context,
+      '@id': 'urn:s',
+      plain: { '@value': 'value', '@type': 'urn:other', '@index': 'source' },
+      back: { '@id': 'urn:o' },
+    })
+  })
+
+  it('resolves RDF IRIs without changing Unicode, host case, or encoded dot identity', async () => {
+    expect(
+      await expand({ '@id': '../%2E/é', 'urn:p': 'value' }, {
+        base: 'https://EXAMPLE.test/path/document',
+      }),
+    ).toEqual([{ '@id': 'https://EXAMPLE.test/%2E/é', 'urn:p': [{ '@value': 'value' }] }])
+  })
+  it('retains explicit empty properties and removes the default graph wrapper', async () => {
+    expect(await expand({ '@graph': [{ 'urn:p': [] }] })).toEqual([{ 'urn:p': [] }])
+    expect(await flatten({ '@id': 'urn:s', 'urn:p': [] })).toEqual([{
+      '@id': 'urn:s',
+      'urn:p': [],
+    }])
+    expect(await expand([{ '@value': 'orphan', '@language': 'en' }, { '@language': 'en' }]))
+      .toEqual([])
+  })
+
+  it('preserves nested anonymous node relationships and list item ownership in RDF', async () => {
+    const values = await toRdf({
+      '@id': 'urn:s',
+      'urn:p': { 'urn:q': 'nested' },
+      'urn:list': { '@list': [{ '@id': 'urn:item' }] },
+    })
+    const relation = values.find((value) =>
+      value.subject.value === 'urn:s' && value.predicate.value === 'urn:p'
+    )!
+    expect(relation.object.termType).toBe('BlankNode')
+    expect(
+      values.some((value) =>
+        value.subject.equals(relation.object) && value.predicate.value === 'urn:q' &&
+        value.object.value === 'nested'
+      ),
+    ).toBe(true)
+    expect(
+      values.filter((value) =>
+        value.subject.value === 'urn:s' && value.predicate.value === 'urn:list'
+      ),
+    ).toHaveLength(1)
+    expect(
+      values.some((value) =>
+        value.predicate.value === RDF.first && value.object.value === 'urn:item'
+      ),
+    ).toBe(true)
+  })
+
+  it('preserves scalar node identifiers and native values during RDF conversion', async () => {
+    expect(
+      await fromRdf([
+        quad(namedNode('urn:s'), namedNode('urn:p'), literal('42', namedNode(XSD.integer))),
+      ], { useNativeTypes: true }),
+    ).toEqual([{ '@id': 'urn:s', 'urn:p': [{ '@value': 42 }] }])
+    await expect(
+      fromRdf([
+        quad(
+          namedNode('urn:s'),
+          namedNode('urn:p'),
+          literal('{broken', namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON')),
+        ),
+      ]),
+    ).rejects.toMatchObject({ code: 'invalid JSON literal' })
+  })
+
+  it('rejects invalid value objects while retaining JSON null literals', async () => {
+    for (
+      const value of [{ '@value': 'x', 'urn:p': 'extra' }, { '@value': true, '@language': 'en' }, {
+        '@value': {},
+      }, { '@value': 'x', '@type': 'urn:bad type' }]
+    ) {
+      await expect(expand({ 'urn:p': value })).rejects.toBeInstanceOf(JsonLdError)
+    }
+    expect(await expand({ 'urn:p': { '@value': null, '@type': '@json' } })).toEqual([{
+      'urn:p': [{ '@value': null, '@type': '@json' }],
+    }])
+  })
+
+  it('expands graph maps and @none aliases without adding false identifiers', async () => {
+    const context = { graph: { '@id': 'urn:p', '@container': ['@graph', '@id'] }, none: '@none' }
+    expect(await expand({ '@context': context, graph: { none: { 'urn:q': 'value' } } })).toEqual([{
+      'urn:p': [{ '@graph': [{ 'urn:q': [{ '@value': 'value' }] }] }],
+    }])
+  })
+
+  it('validates context containers, prefix mappings, and custom indexes', async () => {
+    for (
+      const definition of [
+        { '@id': 'urn:p', '@container': ['@list', '@set'] },
+        { '@id': 'urn:p', '@prefix': 'yes' },
+        { '@id': 'urn:p', '@index': 'urn:index' },
+        { '@id': 'urn:p', surprise: true },
+      ]
+    ) {
+      await expect(expand({ '@context': { p: definition }, p: 'x' })).rejects.toBeInstanceOf(
+        JsonLdError,
+      )
+    }
+    await expect(expand({ '@context': { '@id': 'urn:id' } })).rejects.toMatchObject({
+      code: 'keyword redefinition',
+    })
+    await expect(
+      flatten([{ '@id': 'urn:s', '@index': 'one' }, { '@id': 'urn:s', '@index': 'two' }]),
+    ).rejects.toMatchObject({ code: 'conflicting indexes' })
+  })
   it('keeps remote loading disabled unless the caller explicitly enables or supplies it', async () => {
     await expect(createDocumentLoader()('https://example.test/context')).rejects.toThrow('disabled')
   })
@@ -156,7 +450,12 @@ describe('@okikio/rdf/jsonld', () => {
       },
     })
     const reverseNode = reverse[0] as Record<string, unknown>
-    expect(reverseNode['@reverse']).toBeDefined()
+    expect(reverseNode['@reverse']).toEqual({
+      'http://xmlns.com/foaf/0.1/knows': [{
+        '@id': 'http://example.com/people/dave',
+        'http://xmlns.com/foaf/0.1/name': [{ '@value': 'Dave' }],
+      }],
+    })
   })
 
   it('compacts, flattens, and frames native expanded data', async () => {
@@ -173,15 +472,19 @@ describe('@okikio/rdf/jsonld', () => {
       name: 'https://schema.org/name',
       knows: { '@id': 'https://schema.org/knows', '@type': '@id' },
     })
-    expect(compacted).toBeDefined()
+    expect(compacted).toEqual(input)
     const flat = await flatten(input)
-    expect(Array.isArray(flat)).toBe(true)
+    expect(flat).toEqual([{
+      '@id': 'https://example.test/a',
+      'https://schema.org/name': [{ '@value': 'A' }],
+      'https://schema.org/knows': [{ '@id': 'https://example.test/b' }],
+    }])
     const framed = await frame(input, {
-      '@context': { name: 'https://schema.org/name' },
-      '@type': {},
+      '@context': input['@context'],
+      '@id': 'https://example.test/a',
       name: {},
     })
-    expect(framed).toBeDefined()
+    expect(framed).toEqual(input)
   })
 
   it('converts RDF collections in both directions without an N-Quads intermediary', async () => {
@@ -191,10 +494,19 @@ describe('@okikio/rdf/jsonld', () => {
       items: ['a', 'b'],
     }
     const values = await toRdf(input)
-    expect(values.some((value) => value.predicate.value === RDF.first)).toBe(true)
+    expect(values).toHaveLength(5)
+    expect(
+      values.filter((value) => value.predicate.value === RDF.first).map((value) =>
+        value.object.value
+      ),
+    )
+      .toEqual(['a', 'b'])
     const output = await fromRdf(values)
-    expect(JSON.stringify(output)).toContain('@list')
-    expect(await serialize(values)).toMatch(/@list/u)
+    expect(output).toEqual([{
+      '@id': 'https://example.test/s',
+      'https://example.test/items': [{ '@list': [{ '@value': 'a' }, { '@value': 'b' }] }],
+    }])
+    expect(JSON.parse(await serialize(values))).toEqual(output)
   })
 
   it('extracts raw application/ld+json scripts and honors a document fragment target', async () => {
@@ -387,7 +699,7 @@ describe('@okikio/rdf/jsonld', () => {
     }
   })
 
-  it('resolves HTML document base separately from an explicit base override', async () => {
+  it('resolves HTML base elements against the document fallback base', async () => {
     const body = [
       '<html><head><base href="http://a.example.com/base">',
       '<script type="application/ld+json">',
@@ -403,7 +715,7 @@ describe('@okikio/rdf/jsonld', () => {
       loadDocument,
     })
     expect((explicitBase[0] as Record<string, unknown>)['@id']).toBe(
-      'http://override.example/doc',
+      'http://a.example.com/base',
     )
   })
 

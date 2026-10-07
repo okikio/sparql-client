@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { blankNode, literal, namedNode, quad, RDF, XSD } from '../mod.ts'
+import { blankNode, literal, namedNode, type Quad, quad, RDF, XSD } from '../mod.ts'
 import { parse } from '../turtle/mod.ts'
-import { inspect } from './mod.ts'
+import { getPath, inspect } from './mod.ts'
+import { ShapeIndex } from './index.ts'
 
 const SH = 'http://www.w3.org/ns/shacl#'
 
@@ -11,6 +12,139 @@ function getShape(graph: Awaited<ReturnType<typeof inspect>>, suffix: string) {
 }
 
 describe('@okikio/rdf/shape', () => {
+  it('validates bounds supplied directly to the public path operation', () => {
+    const index = new ShapeIndex()
+    const value = namedNode('urn:p')
+    for (const name of ['maxDepth', 'maxListItems'] as const) {
+      for (const bound of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+        expect(() =>
+          getPath(index, value, { maxDepth: 1, maxListItems: 1, diagnostics: [], [name]: bound })
+        )
+          .toThrow(RangeError)
+      }
+    }
+    expect(getPath(index, value, { maxDepth: 1, maxListItems: 1, diagnostics: [] }))
+      .toEqual({ kind: 'predicate', iri: 'urn:p' })
+  })
+  it('rejects invalid resource bounds before acquiring a shapes source', async () => {
+    let acquired = 0
+    const source = {
+      [Symbol.iterator]() {
+        acquired++
+        return [][Symbol.iterator]()
+      },
+    }
+    for (const name of ['maxQuads', 'maxListItems', 'maxPathDepth'] as const) {
+      for (const value of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+        await expect(inspect(source, { [name]: value })).rejects.toBeInstanceOf(RangeError)
+      }
+      expect((await inspect([], { [name]: 1 })).shapes).toHaveLength(0)
+    }
+    expect(acquired).toBe(0)
+  })
+
+  it('cancels a pending shapes read and closes its iterator once', { timeout: 2_000 }, async () => {
+    const controller = new AbortController()
+    const started = Promise.withResolvers<void>()
+    let returned = 0
+    const source: AsyncIterable<Quad> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            started.resolve()
+            return new Promise<IteratorResult<Quad>>(() => {})
+          },
+          return() {
+            returned++
+            return Promise.resolve({ done: true as const, value: undefined })
+          },
+        }
+      },
+    }
+    const reason = new Error('cancel borrowed shapes source')
+    const pending = inspect(source, { signal: controller.signal })
+    await started.promise
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
+    expect(returned).toBe(1)
+  })
+
+  it('does not acquire a pre-aborted shapes source', async () => {
+    let acquired = 0
+    const reason = new Error('cancel before shapes acquisition')
+    const source = {
+      [Symbol.iterator]() {
+        acquired++
+        return [][Symbol.iterator]()
+      },
+    }
+    await expect(inspect(source, { signal: AbortSignal.abort(reason) })).rejects.toBe(reason)
+    expect(acquired).toBe(0)
+  })
+
+  it('admits the quad boundary and returns upstream on the first extra quad', async () => {
+    const value = quad(namedNode('urn:Shape'), namedNode(RDF.type), namedNode(`${SH}NodeShape`))
+    expect((await inspect([value], { maxQuads: 1 })).shapes).toHaveLength(1)
+    let returned = 0
+    let pulled = 0
+    const source = {
+      [Symbol.iterator]() {
+        return {
+          next() {
+            pulled++
+            return { done: false as const, value }
+          },
+          return() {
+            returned++
+            return { done: true as const, value: undefined }
+          },
+        }
+      },
+    }
+    await expect(inspect(source, { maxQuads: 1 })).rejects.toBeInstanceOf(RangeError)
+    expect(pulled).toBe(2)
+    expect(returned).toBe(1)
+  })
+
+  it('bounds list traversal without inventing an incomplete membership constraint', async () => {
+    const source = `
+      @prefix sh: <http://www.w3.org/ns/shacl#> .
+      <urn:Shape> a sh:NodeShape ; sh:in ( <urn:a> <urn:b> ) .
+    `
+    const admitted = await inspect(parse(source), { maxListItems: 2 })
+    expect(admitted.diagnostics).toHaveLength(0)
+    expect(admitted.shapes[0]?.constraints).toContainEqual({
+      kind: 'in',
+      values: [{ kind: 'iri', value: 'urn:a' }, { kind: 'iri', value: 'urn:b' }],
+    })
+    const bounded = await inspect(parse(source), { maxListItems: 1 })
+    expect(bounded.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'invalid-list',
+      predicate: `${SH}in`,
+    }))
+    expect(bounded.shapes[0]?.constraints.some((value) => value.kind === 'in')).toBe(false)
+    expect(bounded.shapes[0]?.assertions.some((value) => value.predicate === `${SH}in`)).toBe(true)
+  })
+
+  it('retains an over-depth path as unknown instead of truncating its semantics', async () => {
+    const source = `
+      @prefix sh: <http://www.w3.org/ns/shacl#> .
+      <urn:Shape> a sh:PropertyShape ; sh:path [ sh:inversePath [ sh:inversePath <urn:p> ] ] .
+    `
+    const admitted = await inspect(parse(source), { maxPathDepth: 2 })
+    expect(admitted.diagnostics).toHaveLength(0)
+    expect(admitted.shapes[0]?.path).toEqual({
+      kind: 'inverse',
+      path: { kind: 'inverse', path: { kind: 'predicate', iri: 'urn:p' } },
+    })
+    const bounded = await inspect(parse(source), { maxPathDepth: 1 })
+    expect(bounded.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'invalid-path',
+      predicate: `${SH}path`,
+    }))
+    expect(bounded.shapes[0]?.path).toMatchObject({ kind: 'inverse', path: { kind: 'unknown' } })
+  })
+
   it('inspects SHACL 1.2 Core paths, constraints, metadata, and extension assertions', async () => {
     const source = `
       @prefix sh: <http://www.w3.org/ns/shacl#> .

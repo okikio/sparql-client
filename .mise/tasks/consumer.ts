@@ -1,11 +1,12 @@
 /** Installs packed workspace artifacts into a clean project and imports every public entry point in Node, Deno, and Bun. @module */
 
 import * as workspace from './workspace.ts'
+import { optional } from './files.ts'
 
 const PACK = '.tmp/packages'
 const ROOT = '.tmp/consumer'
 if (!(await exists(PACK))) await run(Deno.execPath(), ['task', 'package'])
-await Deno.remove(ROOT, { recursive: true }).catch(() => undefined)
+await optional(() => Deno.remove(ROOT, { recursive: true }))
 await Deno.mkdir(ROOT, { recursive: true })
 
 const tarballs: string[] = []
@@ -24,13 +25,36 @@ await run('npm', [
   '--no-audit',
   '--no-fund',
   '--no-package-lock',
+  '@types/node@24.10.1',
   ...tarballs,
 ], ROOT)
 await Deno.writeTextFile(`${ROOT}/smoke.ts`, await smoke())
+await Deno.copyFile('integration/consumer.ts', `${ROOT}/behavior.ts`)
+await run(
+  Deno.execPath(),
+  ['check', '--no-config', '--node-modules-dir=manual', 'behavior.ts'],
+  ROOT,
+)
 
 await run('node', ['smoke.ts'], ROOT)
-await run(Deno.execPath(), ['run', '--node-modules-dir=manual', 'smoke.ts'], ROOT)
+await run('node', ['behavior.ts'], ROOT)
+await run(Deno.execPath(), [
+  'run',
+  '--no-config',
+  '--allow-read=node_modules',
+  '--node-modules-dir=manual',
+  'smoke.ts',
+], ROOT)
+await run(Deno.execPath(), [
+  'run',
+  '--no-config',
+  '--allow-read=node_modules',
+  '--allow-net=127.0.0.1',
+  '--node-modules-dir=manual',
+  'behavior.ts',
+], ROOT)
 await run('bun', ['run', 'smoke.ts'], ROOT)
+await run('bun', ['run', 'behavior.ts'], ROOT)
 console.log('Clean consumer imports passed in Node, Deno, and Bun.')
 
 async function smoke(): Promise<string> {
@@ -59,14 +83,15 @@ async function smoke(): Promise<string> {
     '@okikio/oxigraph': ['create'],
     '@okikio/comunica': ['create'],
   }
-  return `const specs = ${JSON.stringify(specs, null, 2)}\nconst required = ${
+  return `import { realpathSync } from 'node:fs'\nimport { sep } from 'node:path'\nimport { fileURLToPath } from 'node:url'\nconst installed = realpathSync(new URL('./node_modules/', import.meta.url)) + sep\nconst specs = ${
+    JSON.stringify(specs, null, 2)
+  }\nconst required = ${
     JSON.stringify(required, null, 2)
-  }\nfor (const spec of specs) {\n  const mod = await import(spec)\n  if (Object.keys(mod).length === 0) throw new Error(\`Public entry point exported nothing: \${spec}\`)\n}\nfor (const [spec, names] of Object.entries(required)) {\n  const mod = await import(spec)\n  for (const name of names) if (!(name in mod)) throw new Error(\`Missing \${spec} export: \${name}\`)\n}\nconsole.log(\`Imported \${specs.length} public entry points.\`)\n`
+  }\nfor (const spec of specs) {\n  const path = realpathSync(fileURLToPath(import.meta.resolve(spec)))\n  if (!path.startsWith(installed)) throw new Error(\`Public entry resolves outside installed artifacts: \${spec}: \${path}\`)\n  const mod = await import(spec)\n  if (Object.keys(mod).length === 0 && spec !== '@okikio/vocab/standard') throw new Error(\`Public entry point exported nothing: \${spec}\`)\n}\nfor (const [spec, names] of Object.entries(required)) {\n  const mod = await import(spec)\n  for (const name of names) if (!(name in mod)) throw new Error(\`Missing \${spec} export: \${name}\`)\n}\nconsole.log(\`Imported \${specs.length} installed public entry points.\`)\n`
 }
 
-
 async function exists(path: string): Promise<boolean> {
-  return await Deno.stat(path).then(() => true, () => false)
+  return (await optional(() => Deno.stat(path))) !== undefined
 }
 
 async function run(command: string, args: string[], cwd?: string): Promise<void> {

@@ -75,8 +75,9 @@ const RESERVED = new Set([
  * Creates a byte-stable identifier plan for one vocabulary model.
  *
  * Canonical local names win when they are valid and unique. Invalid or colliding
- * names receive a deterministic vocabulary-qualified fallback. The fallback is
- * intentionally exceptional; ordinary generated APIs retain vocabulary-native
+ * names receive a deterministic vocabulary-qualified fallback. A resource can
+ * have several ontology roles; each role claims its own binding. The fallback
+ * is intentionally exceptional; ordinary generated APIs retain vocabulary-native
  * names such as `Product` and `name`.
  */
 export function plan(model: VocabularyModelType, options: NameOptionsType): NamePlanType {
@@ -128,25 +129,26 @@ function claim(
   used: Map<string, string>,
   kind: 'Class' | 'Property' | 'Datatype',
 ): string {
+  const identity = `${kind}:${iri}`
   const base = isIdentifier(candidate) && !RESERVED.has(candidate)
     ? candidate
     : `${safePrefix(prefix)}${pascal(candidate || localName(iri))}`
   const owner = used.get(base)
-  if (!owner || owner === iri) {
-    used.set(base, iri)
+  if (!owner || owner === identity) {
+    used.set(base, identity)
     return base
   }
 
   const qualified = `${safePrefix(prefix)}${pascal(base)}${kind}`
   const qualifiedOwner = used.get(qualified)
-  if (!qualifiedOwner || qualifiedOwner === iri) {
-    used.set(qualified, iri)
+  if (!qualifiedOwner || qualifiedOwner === identity) {
+    used.set(qualified, identity)
     return qualified
   }
 
   // Stable short IRI digest avoids source-order-dependent numeric suffixes.
   const fallback = `${qualified}${hash(iri)}`
-  used.set(fallback, iri)
+  used.set(fallback, identity)
   return fallback
 }
 

@@ -2,7 +2,7 @@
 
 import { bench, do_not_optimize, group } from 'mitata'
 import jsonld from 'jsonld'
-import * as rdfCanonize from 'rdf-canonize'
+import rdfCanonize from 'rdf-canonize'
 import { RdfXmlParser } from 'rdfxml-streaming-parser'
 import { RdfaParser } from 'rdfa-streaming-parser'
 import { MicrodataRdfParser } from 'microdata-rdf-streaming-parser'
@@ -38,14 +38,14 @@ for (const count of scales) {
   const canonicalInput = canonicalFixture(count)
   const canonicalQuads = await collectNQuads(canonicalInput)
   const expectedCanonical = await canon.canonicalize(canonicalQuads)
-  const externalCanonical = await rdfCanonize.canonize(canonicalInput, {
-    algorithm: 'RDFC-1.0',
-    inputFormat: 'application/n-quads',
+  const canonicalOptions = {
+    algorithm: 'RDFC-1.0' as const,
     format: 'application/n-quads',
     messageDigestAlgorithm: 'sha256',
     maxWorkFactor: 8,
     rejectURDNA2015: true,
-  })
+  }
+  const externalCanonical = await rdfCanonize.canonize(canonicalQuads, canonicalOptions)
   if (externalCanonical !== expectedCanonical) {
     throw new Error(
       `rdf-canonize oracle differs for ${count.toLocaleString()} blank-node subjects.`,
@@ -59,11 +59,7 @@ for (const count of scales) {
     ).gc('inner')
     bench('rdf-canonize', async () =>
       do_not_optimize(
-        await rdfCanonize.canonize(canonicalInput, {
-          algorithm: 'RDFC-1.0',
-          inputFormat: 'application/n-quads',
-          format: 'application/n-quads',
-        }),
+        await rdfCanonize.canonize(canonicalQuads, canonicalOptions),
       )).gc('inner')
   })
 

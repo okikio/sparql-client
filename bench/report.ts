@@ -4,6 +4,6 @@ import { run } from 'mitata'
 
 /** Runs registered benchmarks and emits JSON when `BENCH_FORMAT=json`. */
 export async function report(): Promise<void> {
-  if (Deno.env.get('BENCH_FORMAT') === 'json') await run({ format: 'json' })
-  else await run()
+  if (Deno.env.get('BENCH_FORMAT') === 'json') await run({ format: 'json', throw: true })
+  else await run({ throw: true })
 }
