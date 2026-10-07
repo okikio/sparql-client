@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.2.1
+
+2026-10-07
+
+### Construct and inspect SHACL paths through public imports
+
+`@okikio/rdf/shape` now exports `ShapeIndex`, the constructor required by its
+existing `getPath` operation. Previously, a public-package caller could import
+`getPath` but could not construct its index without reaching into an unexported
+module. Use the public entry point for both operations; no private import or type
+cast is needed.
+
+The following complete example decodes the sequence `urn:name / ^urn:label` from
+a small materialized shapes graph:
+
+```ts
+import { blankNode, namedNode, quad, RDF } from '@okikio/rdf'
+import type { DiagnosticType } from '@okikio/rdf/shape'
+import { getPath, ShapeIndex } from '@okikio/rdf/shape'
+
+const head = blankNode()
+const tail = blankNode()
+const inverse = blankNode()
+const index = new ShapeIndex()
+for (
+  const value of [
+    quad(head, namedNode(RDF.first), namedNode('urn:name')),
+    quad(head, namedNode(RDF.rest), tail),
+    quad(tail, namedNode(RDF.first), inverse),
+    quad(tail, namedNode(RDF.rest), namedNode(RDF.nil)),
+    quad(inverse, namedNode('http://www.w3.org/ns/shacl#inversePath'), namedNode('urn:label')),
+  ]
+) index.add(value)
+
+const diagnostics: DiagnosticType[] = []
+const path = getPath(index, head, { maxDepth: 4, maxListItems: 2, diagnostics })
+console.log(path)
+// { kind: 'sequence', items: [
+//   { kind: 'predicate', iri: 'urn:name' },
+//   { kind: 'inverse', path: { kind: 'predicate', iri: 'urn:label' } },
+// ] }
+console.log(diagnostics.length) // 0
+```
+
+The caller owns the mutable index. It retains added RDF objects without copying
+or disposal; do not mutate those objects or readonly lookup results. Add each
+quad once, since duplicate additions remain duplicates. Subject/predicate lookups
+combine every supplied graph, so select one shapes graph or an intentional union
+before populating the index.
+
+`maxDepth` and `maxListItems` must be positive safe integers. They bound path
+traversal, not index construction: bound the supplied quad collection yourself,
+or use `shape.inspect` for bounded whole-graph ingestion. Malformed, cyclic,
+unsupported, or over-limit paths retain unknown records with structured
+diagnostics. Read the diagnostics before relying on a compound path. This API
+inspects SHACL structure; it does not evaluate paths, validate a data graph, or
+perform entailment. Existing `shape.inspect` callers require no changes.
+
 ## 0.2.0
 
 2026-10-06
