@@ -1,15 +1,15 @@
 /** Proves exact public registry releases from owned fresh consumers and caches. @module */
-import { join, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 
-type RegistryType = 'npm' | 'jsr'
+type RegistryType = 'npm' | 'jsr' | 'jsr-npm'
 interface PackageType {
   name: string
   version: string
   keys: string[]
 }
 const target = Deno.args[0] ?? 'both'
-if (Deno.args.length > 1 || !['npm', 'jsr', 'both'].includes(target)) {
-  throw new TypeError('Usage: release-consumer.ts npm|jsr|both')
+if (Deno.args.length > 1 || !['npm', 'jsr', 'jsr-npm', 'both'].includes(target)) {
+  throw new TypeError('Usage: release-consumer.ts npm|jsr|jsr-npm|both')
 }
 const packages = await members()
 const evidence = resolve(
@@ -17,9 +17,18 @@ const evidence = resolve(
   `${new Date().toISOString().replace(/[:.]/gu, '-')}-${crypto.randomUUID()}`,
 )
 await Deno.mkdir(evidence, { recursive: true })
+const tools = await runtimes()
+await Deno.writeTextFile(join(evidence, 'tools.json'), `${JSON.stringify(tools, null, 2)}\n`)
 const results: Array<{ registry: RegistryType; status: 'pass' | 'fail'; error?: string }> = []
 const failures: unknown[] = []
-for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as RegistryType[]) {
+for (
+  const registry
+    of (target === 'both'
+      ? ['npm', 'jsr', 'jsr-npm']
+      : target === 'jsr'
+      ? ['jsr', 'jsr-npm']
+      : [target]) as RegistryType[]
+) {
   let temporary: string | undefined
   const errors: unknown[] = []
   try {
@@ -29,35 +38,58 @@ for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as Regist
       npm_config_cache: join(temporary, 'npm-cache'),
     }
     await Deno.writeTextFile(join(temporary, 'package.json'), '{"private":true,"type":"module"}\n')
+    // Generated compatibility packages keep their own @jsr identities. Only that scope
+    // uses npm.jsr.io; engine and compiler dependencies still come from npmjs.org.
+    await Deno.writeTextFile(join(temporary, '.npmrc'), '@jsr:registry=https://npm.jsr.io\n')
     const archives: string[] = []
     for (const pkg of packages) {
-      const metadata = await json(
-        registry === 'npm'
-          ? `https://registry.npmjs.org/${encodeURIComponent(pkg.name)}/${pkg.version}`
-          : `https://jsr.io/${pkg.name}/${pkg.version}_meta.json`,
-      )
-      if (registry === 'npm' && (metadata.name !== pkg.name || metadata.version !== pkg.version)) {
-        throw new Error(`npm identity differs for ${pkg.name}@${pkg.version}`)
-      }
-      const keys = Object.keys(record(metadata.exports, 'Registry exports')).sort()
-      if (JSON.stringify(keys) !== JSON.stringify(pkg.keys)) {
-        throw new Error(
-          `${registry} exported subpaths differ for ${pkg.name}@${pkg.version}: expected ${pkg.keys}, received ${keys}`,
+      const name = installed(pkg.name, registry)
+      let metadata: Record<string, unknown>
+      if (registry === 'jsr-npm') {
+        const packument = await json(`https://npm.jsr.io/${encodeURIComponent(name)}`)
+        if (packument.name !== name) throw new Error(`JSR npm package identity differs for ${name}`)
+        metadata = record(
+          record(packument.versions, 'JSR npm versions')[pkg.version],
+          `JSR npm exact version ${pkg.version}`,
         )
+        await Deno.writeTextFile(
+          join(evidence, `jsr-npm-${pkg.name.replace(/[@/]/gu, '-')}-packument.json`),
+          `${JSON.stringify(packument, null, 2)}\n`,
+        )
+      } else {
+        metadata = await json(
+          registry === 'npm'
+            ? `https://registry.npmjs.org/${encodeURIComponent(name)}/${pkg.version}`
+            : `https://jsr.io/${pkg.name}/${pkg.version}_meta.json`,
+        )
+      }
+      if (registry !== 'jsr' && (metadata.name !== name || metadata.version !== pkg.version)) {
+        throw new Error(`${registry} identity differs for ${name}@${pkg.version}`)
+      }
+      // The compatibility packument has no exports field. Its actual installed
+      // package.json is checked below by every runtime against the source export map.
+      if (registry !== 'jsr-npm') {
+        const keys = Object.keys(record(metadata.exports, 'Registry exports')).sort()
+        if (JSON.stringify(keys) !== JSON.stringify(pkg.keys)) {
+          throw new Error(
+            `${registry} exported subpaths differ for ${pkg.name}@${pkg.version}: expected ${pkg.keys}, received ${keys}`,
+          )
+        }
       }
       await Deno.writeTextFile(
         join(evidence, `${registry}-${pkg.name.replace(/[@/]/gu, '-')}.json`),
         `${JSON.stringify(metadata, null, 2)}\n`,
       )
-      if (registry === 'npm') {
-        const dist = record(metadata.dist, 'npm dist')
-        const url = new URL(string(dist.tarball, 'npm tarball'))
-        if (url.protocol !== 'https:' || url.hostname !== 'registry.npmjs.org') {
-          throw new Error('npm tarball must come from the public npm registry')
+      if (registry !== 'jsr') {
+        const dist = record(metadata.dist, `${registry} dist`)
+        const url = new URL(string(dist.tarball, `${registry} tarball`))
+        const host = registry === 'npm' ? 'registry.npmjs.org' : 'npm.jsr.io'
+        if (url.protocol !== 'https:' || url.hostname !== host) {
+          throw new Error(`${registry} tarball must come from its public registry ${host}`)
         }
-        const integrity = string(dist.integrity, 'npm integrity')
+        const integrity = string(dist.integrity, `${registry} integrity`)
         if (!/^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(integrity)) {
-          throw new Error('npm archive must declare one SHA-512 integrity digest')
+          throw new Error(`${registry} archive must declare one SHA-512 integrity digest`)
         }
         const bytes = await download(url.href, 64 * 1024 * 1024)
         const digest = new Uint8Array(await crypto.subtle.digest('SHA-512', bytes))
@@ -65,26 +97,33 @@ for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as Regist
           btoa([...digest].map((value) => String.fromCharCode(value)).join(''))
         }`
         if (actual !== integrity) {
-          throw new Error(`npm archive integrity differs for ${pkg.name}@${pkg.version}`)
+          throw new Error(`${registry} archive integrity differs for ${name}@${pkg.version}`)
         }
         const archive = join(temporary, `${pkg.name.replace(/[@/]/gu, '-')}.tgz`)
         await Deno.writeFile(archive, bytes)
         archives.push(archive)
       } else {
-        const version = await json(
-          `https://jsr.io/api/scopes/${
-            pkg.name.slice(1).replace('/', '/packages/')
-          }/versions/${pkg.version}`,
-        )
-        if (version.version !== pkg.version) {
-          throw new Error(`JSR version identity differs for ${pkg.name}@${pkg.version}`)
+        // Registry package metadata, rather than the management API, proves presence.
+        const published = await json(`https://jsr.io/${pkg.name}/meta.json`)
+        const [scope, name] = pkg.name.slice(1).split('/')
+        if (published.scope !== scope || published.name !== name) {
+          throw new Error(`JSR package identity differs for ${pkg.name}`)
         }
+        record(
+          record(published.versions, 'JSR published versions')[pkg.version],
+          `JSR exact version ${pkg.version}`,
+        )
+        await Deno.writeTextFile(
+          join(evidence, `jsr-${pkg.name.replace(/[@/]/gu, '-')}-package.json`),
+          `${JSON.stringify(published, null, 2)}\n`,
+        )
       }
     }
-    if (registry === 'npm') {
+    if (registry !== 'jsr') {
       await run(
-        'npm',
+        tools.node.path,
         [
+          tools.npm.path,
           'install',
           '--ignore-scripts',
           '--no-audit',
@@ -99,7 +138,7 @@ for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as Regist
         ],
         temporary,
         env,
-        join(evidence, 'npm-install.log'),
+        join(evidence, `${registry}-install.log`),
       )
     }
     await Deno.writeTextFile(join(temporary, 'consumer.mjs'), consumer(registry))
@@ -108,7 +147,7 @@ for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as Regist
     await Deno.writeTextFile(join(evidence, `${registry}-types.ts`), typed(registry))
     // Type and runtime lanes are independent; retain every failure before owned cleanup.
     try {
-      if (registry === 'npm') {
+      if (registry !== 'jsr') {
         await Deno.writeTextFile(
           join(temporary, 'tsconfig.json'),
           JSON.stringify({
@@ -127,14 +166,14 @@ for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as Regist
             files: ['types.ts'],
           }),
         )
-        await Deno.writeTextFile(join(temporary, 'typecheck.mjs'), typecheck())
-        await Deno.writeTextFile(join(evidence, 'npm-typecheck.mjs'), typecheck())
+        await Deno.writeTextFile(join(temporary, 'typecheck.mjs'), typecheck(registry))
+        await Deno.writeTextFile(join(evidence, `${registry}-typecheck.mjs`), typecheck(registry))
         await run(
-          'node',
+          tools.node.path,
           ['typecheck.mjs'],
           temporary,
           env,
-          join(evidence, 'npm-types.log'),
+          join(evidence, `${registry}-types.log`),
         )
       } else {
         await Deno.writeTextFile(
@@ -164,15 +203,19 @@ for (const registry of (target === 'both' ? ['npm', 'jsr'] : [target]) as Regist
     } catch (error) {
       errors.push(error)
     }
-    const runtimes = registry === 'npm' ? ['node', 'deno', 'bun'] : ['deno']
+    const runtimes = registry !== 'jsr' ? ['node', 'deno', 'bun'] : ['deno']
     for (const runtime of runtimes) {
-      const command = runtime === 'deno' ? Deno.execPath() : runtime
+      const command = runtime === 'deno'
+        ? tools.deno.path
+        : runtime === 'node'
+        ? tools.node.path
+        : tools.bun.path
       const args = runtime === 'deno'
         ? [
           'run',
           '--no-config',
           '--lock=deno.lock',
-          '--node-modules-dir=' + (registry === 'npm' ? 'manual' : 'auto'),
+          '--node-modules-dir=' + (registry !== 'jsr' ? 'manual' : 'auto'),
           '--allow-read',
           '--allow-write',
           '--allow-env',
@@ -223,11 +266,13 @@ try {
       JSON.stringify(
         {
           packages,
+          tools,
           results,
           evidence,
           scope: {
             npm: 'Node, Deno and Bun installed archive consumers',
             jsr: 'Deno exact JSR source consumer',
+            'jsr-npm': 'Node, Deno and Bun generated @jsr archive consumers',
           },
         },
         null,
@@ -293,35 +338,49 @@ async function members(): Promise<PackageType[]> {
   return values
 }
 
-/** Generates one portable behavior fixture; every package reference has an exact registry identity. */
+/** Maps only declared package roots; public subpath suffixes retain their meaning. */
+function installed(name: string, registry: RegistryType): string {
+  return registry === 'jsr-npm' ? '@jsr/' + name.slice(1).replace('/', '__') : name
+}
+
+/** Generates one portable behavior fixture with explicit registry root mapping. */
 function consumer(registry: RegistryType): string {
   return `import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
-import { sep } from 'node:path'
+import { isAbsolute,relative,sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 const packages = ${JSON.stringify(packages)}
 const registry = ${JSON.stringify(registry)}
 const versions = new Map(packages.map(p => [p.name, p.version]))
+const installed = name => registry === 'jsr-npm' ? '@jsr/' + name.slice(1).replace('/', '__') : name
 function spec(name) {
   const parts = name.split('/'), root = parts.slice(0, 2).join('/')
   assert.ok(versions.has(root), 'Undeclared public package: ' + name)
-  return registry === 'npm' ? name : 'jsr:' + root + '@' + versions.get(root) + (parts.length > 2 ? '/' + parts.slice(2).join('/') : '')
+  const suffix = parts.length > 2 ? '/' + parts.slice(2).join('/') : ''
+  return registry !== 'jsr' ? installed(root) + suffix : 'jsr:' + root + '@' + versions.get(root) + suffix
 }
 async function load(name) { return await import(spec(name)) }
+function contains(root,file) {
+  const result = relative(realpathSync(root),realpathSync(file))
+  return result !== '' && result !== '..' && !result.startsWith('..' + sep) && !isAbsolute(result)
+}
 let entries = 0
+const installedPackages = []
 for (const pkg of packages) {
-  if (registry === 'npm') {
-    const installed = JSON.parse(await readFile('node_modules/' + pkg.name + '/package.json', 'utf8'))
-    assert.equal(installed.name, pkg.name); assert.equal(installed.version, pkg.version)
-    assert.deepEqual(Object.keys(installed.exports).sort(),pkg.keys)
+  if (registry !== 'jsr') {
+    const metadata = JSON.parse(await readFile('node_modules/' + installed(pkg.name) + '/package.json', 'utf8'))
+    assert.equal(metadata.name, installed(pkg.name)); assert.equal(metadata.version, pkg.version)
+    assert.deepEqual(Object.keys(metadata.exports).sort(),pkg.keys)
+    if (registry === 'jsr-npm') assert.ok(Number.isSafeInteger(metadata._jsr_revision) && metadata._jsr_revision > 0,'Generated JSR package must identify its compatibility revision')
+    installedPackages.push({name:metadata.name,version:metadata.version,revision:metadata._jsr_revision,exports:pkg.keys})
   }
   for (const key of pkg.keys) {
     const name = pkg.name + (key === '.' ? '' : '/' + key.slice(2))
     const resolved = import.meta.resolve(spec(name))
-    if (registry === 'npm') {
-      const root = realpathSync('node_modules/' + pkg.name) + sep
-      assert.ok(realpathSync(fileURLToPath(resolved)).startsWith(root), name + ' resolves outside installed package: ' + resolved)
+    if (registry !== 'jsr') {
+      const root = fileURLToPath(new URL('./node_modules/' + installed(pkg.name) + '/',import.meta.url))
+      assert.ok(contains(root,fileURLToPath(resolved)), name + ' resolves outside installed package: ' + resolved)
     } else {
       // Deno preserves the exact jsr: specifier here before module loading.
       assert.ok(resolved === spec(name) || resolved.startsWith('https://jsr.io/' + pkg.name + '/' + pkg.version + '/'), name + ' resolves outside exact JSR release: ' + resolved)
@@ -440,7 +499,7 @@ if (versions.has('@okikio/opfs')) {
     await client.update('INSERT DATA { <urn:s> <urn:p> "restored" }')
     assert.equal(await client.queryBoolean('ASK { <urn:s> <urn:p> "restored" }'),true)
   }
-  const ox = await import(registry === 'npm' ? 'oxigraph' : 'npm:oxigraph@0.5.9')
+  const ox = await import(registry !== 'jsr' ? 'oxigraph' : 'npm:oxigraph@0.5.9')
   const nativeStore = new ox.Store(), wrappers = [], engineErrors = []
   try {
     nativeStore.load('<urn:s> <urn:p> "engine" .',{format:'application/n-triples'})
@@ -452,22 +511,22 @@ if (versions.has('@okikio/opfs')) {
   for(const term of wrappers) try { term.free() } catch(error) { engineErrors.push(error) }
   try { nativeStore.free() } catch(error) { engineErrors.push(error) }
   if(engineErrors.length) throw new AggregateError(engineErrors,'Oxigraph and owned Wasm cleanup failed')
-  const { QueryEngine } = await import(registry === 'npm' ? '@comunica/query-sparql-rdfjs' : 'npm:@comunica/query-sparql-rdfjs@5.3.0')
-  const { Store: RdfStore } = await import(registry === 'npm' ? 'n3' : 'npm:n3@2.1.1')
+  const { QueryEngine } = await import(registry !== 'jsr' ? '@comunica/query-sparql-rdfjs' : 'npm:@comunica/query-sparql-rdfjs@5.3.0')
+  const { Store: RdfStore } = await import(registry !== 'jsr' ? 'n3' : 'npm:n3@2.1.1')
   const source = new RdfStore([rdf.quad(value.subject,value.predicate,rdf.literal('engine'))]), engine = new QueryEngine()
   const adapter = (await load('@okikio/comunica')).create(engine,{context:()=>({sources:[source]})})
   assert.equal(adapter.engine,engine); await engineWorkflow(adapter)
   assert.equal(source.size,1); assert.ok(source.has(rdf.quad(value.subject,value.predicate,rdf.literal('restored'))))
 }
-console.log(JSON.stringify({registry, packages, entries, behavior:'pass'}))
+console.log(JSON.stringify({registry, packages, installedPackages, entries, behavior:'pass'}))
 `
 }
 
 /** Statically imports every entry and assigns representative public API types in strict consumers. */
 function typed(registry: RegistryType): string {
   const spec = (pkg: PackageType, key: string): string =>
-    registry === 'npm'
-      ? pkg.name + (key === '.' ? '' : '/' + key.slice(2))
+    registry !== 'jsr'
+      ? installed(pkg.name, registry) + (key === '.' ? '' : '/' + key.slice(2))
       : `jsr:${pkg.name}@${pkg.version}${key === '.' ? '' : '/' + key.slice(2)}`
   const entries = packages.flatMap((pkg) => pkg.keys.map((key) => spec(pkg, key)))
   const header = entries.map((name, index) =>
@@ -524,11 +583,12 @@ void rows; void opened; void validated; void invalidQuad; void invalidProduct
 }
 
 /** Uses the pinned compiler's public diagnostics and actual declaration graph. */
-function typecheck(): string {
+function typecheck(registry: RegistryType): string {
   return `import assert from 'node:assert/strict'
 import ts from 'typescript'
 import { realpathSync } from 'node:fs'
-import { resolve,sep } from 'node:path'
+import { isAbsolute,relative,resolve,sep } from 'node:path'
+function contains(root,file) {const result=relative(root,file);return result!=='' && result!=='..' && !result.startsWith('..'+sep) && !isAbsolute(result)}
 const config = ts.getParsedCommandLineOfConfigFile('tsconfig.json',{}, {
   ...ts.sys,
   onUnRecoverableConfigFileDiagnostic(diagnostic) { throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText,'\\n')) }
@@ -542,11 +602,13 @@ if(diagnostics.length) {
 } else {
   const sources = program.getSourceFiles().map(file=>realpathSync(file.fileName))
   if(${packages.some((pkg) => pkg.name === '@okikio/opfs')}) {
-    const foreign = realpathSync('node_modules/drizzle-orm') + sep
-    assert.equal(sources.filter(file=>file.startsWith(foreign)).length,0,'Public OPFS types must not reach upstream Drizzle dialect declarations')
-    const resolved = ts.resolveModuleName('@okikio/opfs/driver/drizzle',resolve('types.ts'),config.options,ts.sys,undefined,undefined,ts.ModuleKind.ESNext).resolvedModule
+    const foreign = realpathSync('node_modules/drizzle-orm')
+    assert.equal(sources.filter(file=>contains(foreign,file)).length,0,'Public OPFS types must not reach upstream Drizzle dialect declarations')
+    const resolved = ts.resolveModuleName(${
+    JSON.stringify(installed('@okikio/opfs', registry) + '/driver/drizzle')
+  },resolve('types.ts'),config.options,ts.sys,undefined,undefined,ts.ModuleKind.ESNext).resolvedModule
     assert.ok(resolved,'Public Drizzle driver must resolve under the consumer compiler options')
-    assert.ok(sources.includes(realpathSync(resolved.resolvedFileName)),'All-entry fixture must include actual resolved Drizzle declarations')
+    assert.ok(sources.some(file=>relative(file,realpathSync(resolved.resolvedFileName))===''),'All-entry fixture must include actual resolved Drizzle declarations')
   }
   console.log(JSON.stringify({compiler:ts.version,strict:program.getCompilerOptions().strict,skipLibCheck:program.getCompilerOptions().skipLibCheck,sourceFiles:sources.length,drizzlePublicGraphIsolated:${
     packages.some((pkg) => pkg.name === '@okikio/opfs')
@@ -602,6 +664,77 @@ async function download(url: string, cap: number): Promise<Uint8Array<ArrayBuffe
   }
   return bytes
 }
+interface ToolType {
+  path: string
+  version: string
+}
+/** Resolves tool identities while repository runtime configuration still applies.
+ * Fresh consumers then use these absolute executables instead of cwd-sensitive shims.
+ */
+async function runtimes(): Promise<
+  { node: ToolType; bun: ToolType; deno: ToolType; npm: ToolType }
+> {
+  const cwd = Deno.cwd()
+  const probe = async (command: string, code: string): Promise<ToolType> => {
+    const value = record(
+      JSON.parse(
+        await run(command, ['--eval', code], cwd, {}, join(evidence, `tool-${command}.log`)),
+      ),
+      `${command} tool identity`,
+    )
+    const path = string(value.path, `${command} executable`)
+    const version = string(value.version, `${command} version`)
+    if (!isAbsolute(path) || !(await Deno.stat(path)).isFile) {
+      throw new Error(`${command} must resolve to an absolute executable file`)
+    }
+    return { path: await Deno.realPath(path), version }
+  }
+  const node = await probe(
+    'node',
+    'console.log(JSON.stringify({path:process.execPath,version:process.version}))',
+  )
+  const bun = await probe(
+    'bun',
+    'console.log(JSON.stringify({path:process.execPath,version:Bun.version}))',
+  )
+  const directory = join(evidence, 'tool-probe')
+  await Deno.mkdir(directory)
+  await Deno.writeTextFile(
+    join(directory, 'package.json'),
+    JSON.stringify({ private: true, scripts: { probe: 'node probe.cjs' } }),
+  )
+  await Deno.writeTextFile(
+    join(directory, 'probe.cjs'),
+    'console.log(JSON.stringify({path:process.env.npm_execpath}))\n',
+  )
+  const selected = record(
+    JSON.parse(
+      await run(
+        'npm',
+        ['--prefix', directory, 'run', '--silent', 'probe'],
+        cwd,
+        {},
+        join(evidence, 'tool-npm-path.log'),
+      ),
+    ),
+    'npm tool identity',
+  )
+  const path = string(selected.path, 'npm CLI script')
+  if (!isAbsolute(path) || !(await Deno.stat(path)).isFile) {
+    throw new Error('npm must resolve to an absolute CLI script file')
+  }
+  const npm = {
+    path: await Deno.realPath(path),
+    version:
+      (await run(node.path, [path, '--version'], cwd, {}, join(evidence, 'tool-npm-version.log')))
+        .trim(),
+  }
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u.test(npm.version)) {
+    throw new Error('npm CLI version must be an explicit semantic version')
+  }
+  return { node, bun, deno: { path: Deno.execPath(), version: Deno.version.deno }, npm }
+}
+
 /** Runs one bounded child with captured output; cache paths belong only to this consumer. */
 async function run(
   command: string,
@@ -609,7 +742,7 @@ async function run(
   cwd: string,
   env: Record<string, string>,
   log: string,
-): Promise<void> {
+): Promise<string> {
   const child = new Deno.Command(command, {
     args,
     cwd,
@@ -641,6 +774,7 @@ async function run(
     timer = setTimeout(() => reject(new Error('Consumer command exceeded 180 seconds')), 180_000)
   })
   const errors: unknown[] = []
+  let output = ''
   try {
     await Promise.race([completion, deadline])
     if (!status?.success) throw new Error(`Consumer command exited ${status?.code}`)
@@ -682,6 +816,7 @@ async function run(
     const text = buffers.map((parts) =>
       new TextDecoder().decode(Uint8Array.from(parts.flatMap((part) => [...part])))
     )
+    output = text[0] ?? ''
     try {
       await Deno.writeTextFile(
         log,
@@ -694,6 +829,7 @@ async function run(
     }
   }
   if (errors.length) throw new AggregateError(errors, `${command} failed; raw output ${log}`)
+  return output
 }
 /** Retains nested primary/cleanup failures in a human-readable receipt. */
 function describe(value: unknown): string {
