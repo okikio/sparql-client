@@ -44,6 +44,8 @@ The shipped `@okikio/vocab/schema` remains a 14-term bootstrap: four classes, si
 
 New vocabulary manifests derive their default generator label from the package's declared name and version. `@okikio/vocab@0.2.0` therefore records `@okikio/vocab/0.2.0`, rather than the previous hard-coded `0.1.0` label. This makes a saved artifact's producer identity useful when diagnosing or reproducing generation.
 
+JSR's npm compatibility distribution installs a transport name such as `@jsr/okikio__vocab`. Generated manifests retain the canonical producer name `@okikio/vocab` on that route, with the version taken from the installed package metadata. Moving between direct npm and JSR compatibility packages therefore does not change the producer's identity.
+
 An explicit generator override retains its supplied value. Existing manifests are historical records and are not rewritten: the shipped Schema.org bootstrap still identifies the generator that originally produced it. The label names a producer version; it is not a cryptographic attestation of the input corpus or output bytes.
 
 ### Use generated RDF terms and open-world validation together
