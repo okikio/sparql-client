@@ -32,7 +32,19 @@ export interface PathOptionsType {
   readonly predicate?: string
 }
 
-/** Parses one RDF term as a SHACL Core property path. */
+/**
+ * Inspects one RDF term as a SHACL Core property path in a caller-owned index.
+ *
+ * Populate `ShapeIndex` from the public `/shape` entry point before calling this
+ * function. The index is read without mutation. `maxDepth` and `maxListItems`
+ * must be positive safe integers; invalid bounds throw `RangeError` before
+ * lookup. They limit traversal, not ingestion or the index's stored quad count.
+ *
+ * Cyclic, malformed, unsupported, or over-limit paths retain unknown records
+ * and append structured diagnostics to the caller's `diagnostics` array.
+ * Inspect those diagnostics before relying on a compound path. This operation
+ * decodes the shapes graph; it does not evaluate the path or validate data.
+ */
 export function getPath(
   index: ShapeIndex,
   value: ObjectTermType,

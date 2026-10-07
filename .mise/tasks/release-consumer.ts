@@ -429,6 +429,10 @@ if (versions.has('@okikio/opfs')) {
   const rdf = await load('@okikio/rdf'), nquads = await load('@okikio/rdf/nquads'), turtle = await load('@okikio/rdf/turtle')
   const value = rdf.quad(rdf.namedNode('urn:s'), rdf.namedNode('urn:p'), rdf.literal('quote " 雪', 'ja'))
   const dataset = rdf.dataset([value, value]); assert.equal(dataset.size, 1)
+  const {ShapeIndex,getPath}=await load('@okikio/rdf/shape')
+  const shapeIndex=new ShapeIndex(),inverse=rdf.blankNode()
+  shapeIndex.add(rdf.quad(inverse,rdf.namedNode('http://www.w3.org/ns/shacl#inversePath'),rdf.namedNode('urn:label')))
+  assert.deepEqual(getPath(shapeIndex,inverse,{maxDepth:2,maxListItems:1,diagnostics:[]}),{kind:'inverse',path:{kind:'predicate',iri:'urn:label'}})
   assert.equal([...dataset.match(value.subject)].length, 1)
   const parsed = []
   for await (const q of nquads.parse([nquads.write(dataset)])) parsed.push(q)
@@ -567,11 +571,18 @@ void bytes; void text; void closed; void invalidRange; void pathData; void sizeD
   }
   return `${header}
 import { namedNode, literal, quad, type Quad } from ${owned('@okikio/rdf')}
+import type { PathType } from ${owned('@okikio/rdf/shape')}
+import { ShapeIndex, getPath } from ${owned('@okikio/rdf/shape')}
 import { select, triple, type BindingType, type Queryable } from ${owned('@okikio/sparql')}
 import { create } from ${owned('@okikio/sparql/http')}
 import { Store, type FileSystemType } from ${owned('@okikio/triplestore')}
 import { ProductSchema, type ProductType } from ${owned('@okikio/vocab/schema')}
 const value: Quad = quad(namedNode('urn:s'),namedNode('urn:p'),literal('value'))
+const shapeIndex = new ShapeIndex()
+shapeIndex.add(value)
+const inspectedPath: PathType = getPath(shapeIndex,namedNode('urn:p'),{maxDepth:2,maxListItems:1,diagnostics:[]})
+// @ts-expect-error Traversal bounds accept numeric safe-integer limits, not text.
+const invalidPath = getPath(shapeIndex,namedNode('urn:p'),{maxDepth:'2',maxListItems:1,diagnostics:[]})
 const client: Queryable = create({endpoint:'https://endpoint.invalid/'})
 const rows: Promise<AsyncIterable<BindingType>> = client.queryBindings(select(['?value']).where(triple(value.subject,value.predicate,'?value')))
 declare const fs: FileSystemType
@@ -583,6 +594,7 @@ const invalidQuad = quad('urn:s',value.predicate,value.object)
 // @ts-expect-error A Product node keeps its class discriminator.
 const invalidProduct: ProductType = {'@type':'Other'}
 void rows; void opened; void validated; void invalidQuad; void invalidProduct
+void inspectedPath; void invalidPath
 `
 }
 

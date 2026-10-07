@@ -2,8 +2,8 @@ import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { blankNode, literal, namedNode, type Quad, quad, RDF, XSD } from '../mod.ts'
 import { parse } from '../turtle/mod.ts'
-import { getPath, inspect } from './mod.ts'
-import { ShapeIndex } from './index.ts'
+import { getPath, inspect, ShapeIndex } from './mod.ts'
+import type { DiagnosticType } from './mod.ts'
 
 const SH = 'http://www.w3.org/ns/shacl#'
 
@@ -12,6 +12,57 @@ function getShape(graph: Awaited<ReturnType<typeof inspect>>, suffix: string) {
 }
 
 describe('@okikio/rdf/shape', () => {
+  it('constructs a direct compound path and diagnoses a cycle through the public API', () => {
+    const index = new ShapeIndex()
+    const head = blankNode()
+    const tail = blankNode()
+    const inverse = blankNode()
+    for (
+      const value of [
+        quad(head, namedNode(RDF.first), namedNode('urn:name')),
+        quad(head, namedNode(RDF.rest), tail),
+        quad(tail, namedNode(RDF.first), inverse),
+        quad(tail, namedNode(RDF.rest), namedNode(RDF.nil)),
+        quad(inverse, namedNode(`${SH}inversePath`), namedNode('urn:label')),
+      ]
+    ) index.add(value)
+    const options = { maxDepth: 4, maxListItems: 2, diagnostics: [] }
+    const expected = {
+      kind: 'sequence',
+      items: [
+        { kind: 'predicate', iri: 'urn:name' },
+        { kind: 'inverse', path: { kind: 'predicate', iri: 'urn:label' } },
+      ],
+    }
+    expect(getPath(index, head, options)).toEqual(expected)
+    expect(options.diagnostics).toHaveLength(0)
+
+    // A different predicate must change the semantic result, independently of
+    // blank-label spelling and RDF statement ingestion order.
+    const changed = new ShapeIndex()
+    for (const value of index.subjects()) {
+      for (const statement of index.quads(value)) {
+        changed.add(
+          statement.object.equals(namedNode('urn:label'))
+            ? quad(statement.subject, statement.predicate, namedNode('urn:wrong'))
+            : statement,
+        )
+      }
+    }
+    expect(getPath(changed, head, { ...options, diagnostics: [] })).not.toEqual(expected)
+
+    const cycle = blankNode()
+    index.add(quad(cycle, namedNode(`${SH}inversePath`), cycle))
+    const diagnostics: DiagnosticType[] = []
+    const result = getPath(index, cycle, { ...options, diagnostics })
+    expect(result).toEqual({
+      kind: 'inverse',
+      path: { kind: 'unknown', value: { kind: 'blank', value: cycle.value } },
+    })
+    expect(diagnostics.map((value) => value.code)).toEqual(['path-cycle'])
+    // Adding another node affects only subsequent reads; the earlier path is stable.
+    expect(getPath(index, head, { ...options, diagnostics: [] })).toEqual(expected)
+  })
   it('validates bounds supplied directly to the public path operation', () => {
     const index = new ShapeIndex()
     const value = namedNode('urn:p')

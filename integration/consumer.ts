@@ -11,6 +11,7 @@ import * as turtle from '@okikio/rdf/turtle'
 import { parse as parseRdfa } from '@okikio/rdf/rdfa'
 import * as canon from '@okikio/rdf/canon'
 import * as jsonld from '@okikio/rdf/jsonld'
+import { getPath, ShapeIndex } from '@okikio/rdf/shape'
 import * as sparql from '@okikio/sparql'
 import * as http from '@okikio/sparql/http'
 import * as graphStore from '@okikio/sparql/graph-store'
@@ -26,6 +27,7 @@ const resolutions = Object.fromEntries([
   '@okikio/rdf/rdfa',
   '@okikio/rdf/canon',
   '@okikio/rdf/jsonld',
+  '@okikio/rdf/shape',
   '@okikio/sparql',
   '@okikio/sparql/http',
   '@okikio/sparql/graph-store',
@@ -55,6 +57,21 @@ const value = rdf.quad(
 const dataset = rdf.dataset([value, value])
 assert.equal(dataset.size, 1)
 assert.deepEqual([...dataset.match(value.subject)], [value])
+// Direct path construction must use exported constructors in the installed
+// package, rather than reaching into an unexported source module.
+const shapeIndex = new ShapeIndex()
+const inverse = rdf.blankNode()
+shapeIndex.add(
+  rdf.quad(
+    inverse,
+    rdf.namedNode('http://www.w3.org/ns/shacl#inversePath'),
+    rdf.namedNode('urn:label'),
+  ),
+)
+assert.deepEqual(getPath(shapeIndex, inverse, { maxDepth: 2, maxListItems: 1, diagnostics: [] }), {
+  kind: 'inverse',
+  path: { kind: 'predicate', iri: 'urn:label' },
+})
 const roundTrip = []
 for await (const item of nquads.parse([nquads.write(dataset)])) roundTrip.push(item)
 assert.ok(rdf.equals(roundTrip[0]!, value))
