@@ -5,25 +5,48 @@
   "tasks": {
     "fmt": "deno fmt packages conformance integration bench examples .mise/tasks docs README.md VALIDATION.md deno.json support.json",
     "lint": "deno lint packages conformance integration bench examples .mise/tasks",
-    "check": "deno check packages/*/mod.ts packages/**/*.ts conformance/**/*.ts integration/**/*.ts bench/**/*.ts examples/**/*.ts .mise/tasks/**/*.ts",
-    "test": "deno test packages conformance --allow-read --allow-write",
+    "check": "deno run --allow-read --allow-run .mise/tasks/check.ts",
+    "test": "deno test --no-check packages conformance --allow-read --allow-write --allow-env=READABLE_STREAM,TSC_WATCHFILE,TSC_NONPOLLING_WATCHER,TSC_WATCHDIRECTORY,NODE_INSPECTOR_IPC,VSCODE_INSPECTOR_OPTIONS,NODE_ENV,TSC_WATCH_POLLINGINTERVAL_LOW,TSC_WATCH_POLLINGINTERVAL_MEDIUM,TSC_WATCH_POLLINGINTERVAL_HIGH,TSC_WATCH_POLLINGCHUNKSIZE_LOW,TSC_WATCH_POLLINGCHUNKSIZE_MEDIUM,TSC_WATCH_POLLINGCHUNKSIZE_HIGH,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_LOW,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_MEDIUM,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_HIGH && deno task test:tooling",
     "integration": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/integration.ts",
+    "test:upstream": "deno test --no-check --allow-read --allow-write --allow-sys=osRelease --allow-env=READABLE_STREAM,YARGS_MIN_NODE_VERSION,_,NODE_ENV,SHELL,FORCE_COLOR,CI,TRAVIS,CIRCLECI,APPVEYOR,GITLAB_CI,CI_NAME,TEAMCITY_VERSION,TERM_PROGRAM,TERM_PROGRAM_VERSION,TERM,COLORTERM conformance/upstream_test.ts integration/upstream",
     "conformance:sync": "deno run --allow-read --allow-write --allow-net --allow-run .mise/tasks/conformance-sync.ts",
     "conformance": "deno task conformance:sync && deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/conformance.ts",
-    "bench": "deno run --allow-read=packages,bench --allow-run .mise/tasks/bench.ts",
-    "bench:report": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/bench-report.ts",
+    "bench": "deno run --allow-read=packages,bench --allow-env --allow-run .mise/tasks/bench.ts",
+    "bench:check": "deno task bench --check",
+    "bench:upstream": "deno run --v8-flags=--expose-gc --allow-read --allow-env bench/upstream/store_bench.ts",
+    "bench:upstream:check": "BENCH_PREFLIGHT_ONLY=1 deno task bench:upstream",
+    "bench:report": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys .mise/tasks/bench-report.ts",
     "package": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/package.ts",
     "consumer": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/consumer.ts",
+    "consumer:linux": "deno run --allow-read --allow-write --allow-run .mise/tasks/consumer-linux.ts",
     "vocab": "deno run --allow-read --allow-write .mise/tasks/vocab.ts",
     "vocab:schema": "deno run --allow-net=raw.githubusercontent.com --allow-write .mise/tasks/schema.ts",
-    "bench:types": "deno run --allow-read --allow-write --allow-env --allow-run bench/vocab/types.ts",
+    "bench:types": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys=cpus,osRelease,systemMemoryInfo bench/vocab/types.ts",
     "bench:all": "deno task bench && deno task bench:types",
-    "verify": "deno task fmt --check && deno task lint && deno task check && deno task deps && deno task docs && deno task test",
+    "verify": "deno task fmt --check && deno task lint && deno task check && deno task deps && deno task docs && deno task test && deno task check:release && deno task test:release",
     "release-check": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run .mise/tasks/release-check.ts",
-    "support": "deno run --allow-read .mise/tasks/support.ts",
+    "support": "deno run --allow-read --allow-run=git --allow-env=READABLE_STREAM .mise/tasks/support.ts",
     "distribution": "deno run --allow-read --allow-write --allow-run .mise/tasks/distribution.ts",
-    "deps": "deno run --allow-read .mise/tasks/deps.ts",
-    "docs": "deno run --allow-read --allow-run .mise/tasks/docs.ts"
+    "deps": "deno run --allow-read --allow-env=TSC_WATCHFILE,TSC_NONPOLLING_WATCHER,TSC_WATCHDIRECTORY,NODE_INSPECTOR_IPC,VSCODE_INSPECTOR_OPTIONS,NODE_ENV,TSC_WATCH_POLLINGINTERVAL_LOW,TSC_WATCH_POLLINGINTERVAL_MEDIUM,TSC_WATCH_POLLINGINTERVAL_HIGH,TSC_WATCH_POLLINGCHUNKSIZE_LOW,TSC_WATCH_POLLINGCHUNKSIZE_MEDIUM,TSC_WATCH_POLLINGCHUNKSIZE_HIGH,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_LOW,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_MEDIUM,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_HIGH .mise/tasks/deps.ts",
+    "docs": "deno run --allow-read --allow-run .mise/tasks/docs.ts",
+    "browser": "deno run -A npm:@playwright/test@1.62.1 test --config integration/browser/playwright.config.ts",
+    "integration:storage": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/storage.ts",
+    "consumer:storage": "deno run --allow-read --allow-write --allow-env --allow-run .mise/tasks/storage-consumer.ts",
+    "bench:storage": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys .mise/tasks/storage-cold.ts",
+    "bumpy": "deno run -A npm:@varlock/bumpy@1.18.1",
+    "release:plan": "deno run -A .mise/tasks/release.ts plan",
+    "release:version": "deno run -A .mise/tasks/release.ts version",
+    "release:prepare": "deno run -A .mise/tasks/release.ts prepare",
+    "release:publish": "deno run -A .mise/tasks/release.ts publish",
+    "release:registry": "deno run -A .mise/tasks/release.ts registry",
+    "release:upload": "deno run -A .mise/tasks/release.ts upload",
+    "check:release": "deno check .mise/tasks/release.ts .bumpy/format.ts .mise/tasks/release-consumer.ts .mise/tasks/release_test.ts",
+    "release:notes:check": "deno fmt --check .bumpy packages/*/CHANGELOG.md",
+    "release:npm": "npm publish",
+    "test:tooling": "deno test --no-check --allow-read --allow-write --allow-run .mise/tasks/artifacts_test.ts .mise/tasks/schema_test.ts .mise/tasks/sources_test.ts && deno test --no-check --allow-run --allow-env .mise/tasks/bench-command_test.ts",
+    "test:release": "deno test --no-check -A .mise/tasks/release_test.ts",
+    "release:consumer": "deno run -A .mise/tasks/release-consumer.ts",
+    "browser:install": "deno run -A npm:@playwright/test@1.62.1 install --with-deps chromium firefox webkit"
   },
   "compilerOptions": {
     "strict": true,
@@ -37,6 +60,7 @@
     ]
   },
   "fmt": {
+    "exclude": ["conformance/upstream/**", "bench/upstream/sources/**"],
     "useTabs": false,
     "lineWidth": 100,
     "indentWidth": 2,
@@ -45,6 +69,7 @@
     "proseWrap": "preserve"
   },
   "lint": {
+    "exclude": ["conformance/upstream/**", "bench/upstream/sources/**"],
     "rules": {
       "tags": [
         "recommended"
@@ -67,7 +92,10 @@
     "rdf-canonize": "npm:rdf-canonize@^5.0.0",
     "rdfxml-streaming-parser": "npm:rdfxml-streaming-parser@^3",
     "rdfa-streaming-parser": "npm:rdfa-streaming-parser@^3",
-    "microdata-rdf-streaming-parser": "npm:microdata-rdf-streaming-parser@^3"
+    "microdata-rdf-streaming-parser": "npm:microdata-rdf-streaming-parser@^3",
+    "@playwright/test": "npm:@playwright/test@1.62.1",
+    "vite": "npm:vite@8.2.1",
+    "typescript": "npm:typescript@5.9.3"
   },
   "allowScripts": {
     "allow": [],
