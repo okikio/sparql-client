@@ -1,23 +1,56 @@
 /** Verifies an owned packed-consumer copy around its actual lane-native behavior. @module */
 import { createHash } from 'node:crypto'
-import { chmod, lstat, readdir, readFile, readlink, realpath } from 'node:fs/promises'
-import { dirname, join, relative, sep } from 'node:path'
+import { chmod, lchown, lstat, readdir, readFile, readlink, realpath } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { argv } from 'node:process'
 
-const root = dirname(fileURLToPath(import.meta.url))
-const manifestPath = join(root, 'admission.json')
-const bytes = await readFile(manifestPath)
-const manifest = JSON.parse(bytes.toString('utf8'))
-const failures = []
+/** Reads only a regular independent receipt from the already acquired private root. */
+async function receipt(root) {
+  const info = await lstat(root)
+  const file = await lstat(join(root, 'admission.json'))
+  if (!info.isDirectory() || info.isSymbolicLink() || !file.isFile() || file.nlink !== 1) {
+    throw new Error('Copied root and receipt must be physical independent entries.')
+  }
+  const bytes = await readFile(join(root, 'admission.json'))
+  const manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+  if (manifest.version !== 1 || !Array.isArray(manifest.entries)) {
+    throw new Error('Copied manifest has no supported entry inventory.')
+  }
+  const entries = new Map()
+  for (const entry of manifest.entries) {
+    if (
+      typeof entry.path !== 'string' || !entry.path || entry.path.includes('\\') ||
+      entry.path.split('/').some((part) => !part || part === '.' || part === '..') ||
+      isAbsolute(entry.path) || entries.has(entry.path) ||
+      !['directory', 'file', 'link'].includes(entry.kind) || entry.uid !== 0 || entry.gid !== 0 ||
+      entry.mode !==
+        (entry.kind === 'directory' ? 0o555 : entry.kind === 'link' ? 0o777 : entry.mode) ||
+      (entry.kind === 'file' && entry.mode !== 0o444 && entry.mode !== 0o555)
+    ) {
+      throw new Error('Copied manifest contains an invalid path, kind, owner or mode.')
+    }
+    entries.set(entry.path, entry)
+  }
+  for (const entry of manifest.entries) {
+    const parent = dirname(entry.path)
+    if (parent !== '.' && entries.get(parent)?.kind !== 'directory') {
+      throw new Error('Copied manifest parent is not an admitted physical directory.')
+    }
+  }
+  return { bytes, manifest, entries }
+}
 
 /** Exact membership detects missing or extra files as well as byte, kind, link and permission changes. */
-async function verify(protectedMode = true) {
+async function verify(root, admitted, protectedMode = true, owner = { uid: 0, gid: 0 }) {
   const info = await lstat(root)
-  const receipt = await lstat(manifestPath)
+  const receiptInfo = await lstat(join(root, 'admission.json'))
   if (
-    info.uid !== 0 || receipt.uid !== 0 || (protectedMode && ((info.mode & 0o022) !== 0 ||
-      (receipt.mode & 0o777) !== 0o444))
+    !info.isDirectory() || info.isSymbolicLink() || !receiptInfo.isFile() ||
+    receiptInfo.nlink !== 1 ||
+    info.uid !== owner.uid || info.gid !== owner.gid ||
+    receiptInfo.uid !== owner.uid || receiptInfo.gid !== owner.gid ||
+    (protectedMode && ((info.mode & 0o777) !== 0o555 || (receiptInfo.mode & 0o777) !== 0o444))
   ) {
     throw new Error('Copied root or receipt lacks readonly ordinary-user protection.')
   }
@@ -32,7 +65,9 @@ async function verify(protectedMode = true) {
       : info.isSymbolicLink()
       ? 'link'
       : 'special'
-    if (kind === 'special' || info.uid !== 0) throw new Error(`Unowned copied entry: ${path}`)
+    if (kind === 'special' || info.uid !== owner.uid || info.gid !== owner.gid) {
+      throw new Error(`Unowned copied entry: ${path}`)
+    }
     if (kind === 'file' && info.nlink !== 1) throw new Error(`Aliased copied file: ${path}`)
     const entry = { path, kind, mode: info.mode & 0o777, uid: info.uid, gid: info.gid }
     if (kind === 'file') {
@@ -41,7 +76,7 @@ async function verify(protectedMode = true) {
     } else if (kind === 'link') {
       entry.target = await readlink(absolute)
       const target = relative(root, await realpath(absolute))
-      if (target === '..' || target.startsWith(`..${sep}`) || target.startsWith(sep)) {
+      if (target === '..' || target.startsWith(`..${sep}`) || isAbsolute(target)) {
         throw new Error(`Escaped copied link: ${path}`)
       }
       entry.resolved = target.split(sep).join('/')
@@ -56,52 +91,138 @@ async function verify(protectedMode = true) {
   }
   actual.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
   const comparable = (entries) =>
-    protectedMode ? entries : entries.map(({ mode: _mode, ...entry }) => entry)
-  if (JSON.stringify(comparable(actual)) !== JSON.stringify(comparable(manifest.entries))) {
+    entries.map((entry) => ({
+      path: entry.path,
+      kind: entry.kind,
+      ...(protectedMode ? { mode: entry.mode } : {}),
+      uid: entry.uid,
+      gid: entry.gid,
+      ...(entry.kind === 'file' ? { bytes: entry.bytes, sha256: entry.sha256 } : {}),
+      ...(entry.kind === 'link' ? { target: entry.target, resolved: entry.resolved } : {}),
+    })).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+  const expected = admitted.manifest.entries.map((entry) => ({
+    ...entry,
+    uid: owner.uid,
+    gid: owner.gid,
+  }))
+  if (JSON.stringify(comparable(actual)) !== JSON.stringify(comparable(expected))) {
     throw new Error('Copied consumer membership, bytes, modes or links differ from admission.')
   }
-  if (!(await readFile(manifestPath)).equals(bytes)) {
+  if (!(await readFile(join(root, 'admission.json'))).equals(admitted.bytes)) {
     throw new Error('Copy admission receipt changed.')
   }
 }
 
-try {
-  const status = await readFile('/proc/self/status', 'utf8')
-  const admitting = argv.includes('--admit')
-  for (const field of ['Uid', 'Gid']) {
-    const values = status.match(new RegExp(`^${field}:\\s+(.*)$`, 'm'))?.[1]?.trim().split(/\s+/u)
-    if (values?.length !== 4 || values.some((value) => value !== (admitting ? '0' : '1000'))) {
-      throw new Error('Consumer must run as the ordinary copied-payload user.')
+/**
+ * Acquires each physical entry before descending, then checks the complete identity and sets final modes.
+ *
+ * Production always uses UID/GID zero. owner is a private test authority for real caller-owned fixtures;
+ * it has no CLI/environment override and confers no permission to alter a borrowed input tree.
+ * No recursive chown or DAC override is needed for a copied 0700 directory. An independent regular
+ * file is checked before lchown, and aliases are never followed for ownership or permission changes.
+ */
+export async function admit(root, owner = { uid: 0, gid: 0 }) {
+  if (![owner.uid, owner.gid].every((value) => Number.isSafeInteger(value) && value >= 0)) {
+    throw new TypeError('Private copied ownership must use exact nonnegative IDs.')
+  }
+  const admitted = await receipt(root)
+  const seen = new Set()
+  async function acquire(path) {
+    const absolute = path ? join(root, path) : root
+    const info = await lstat(absolute)
+    const kind = info.isDirectory()
+      ? 'directory'
+      : info.isFile()
+      ? 'file'
+      : info.isSymbolicLink()
+      ? 'link'
+      : 'special'
+    const expected = path ? admitted.entries.get(path) : { kind: 'directory' }
+    if (!expected || kind !== expected.kind || kind === 'special') {
+      throw new Error(`Copied physical kind or membership differs before ownership: ${path}`)
+    }
+    // A hardlink would grant ownership mutation to another name, so reject before lchown.
+    if (kind === 'file' && info.nlink !== 1) throw new Error(`Aliased copied file: ${path}`)
+    if (kind === 'link') {
+      if (await readlink(absolute) !== expected.target) {
+        throw new Error(`Copied alias changed: ${path}`)
+      }
+      // Canonical resolution happens after directory acquisition; parent link paths are never descended.
+    }
+    await lchown(absolute, owner.uid, owner.gid)
+    if (path) seen.add(path)
+    if (kind === 'directory') {
+      // Only this newly acquired private directory becomes traversable; final admission is still 0555.
+      await chmod(absolute, 0o700)
+      for (const name of (await readdir(absolute)).sort()) {
+        if (!path && name === 'admission.json') continue
+        await acquire(path ? `${path}/${name}` : name)
+      }
+    } else if (kind === 'file') {
+      // Copied Windows files may be 0600; ownership must precede any content read.
+      await chmod(absolute, 0o400)
     }
   }
-  for (const field of admitting ? [] : ['CapEff', 'CapPrm', 'CapAmb']) {
-    if (!new RegExp(`^${field}:\\s*0+$`, 'm').test(status)) {
-      throw new Error(`Ordinary consumer retains ${field} capabilities.`)
-    }
+  const manifestInfo = await lstat(join(root, 'admission.json'))
+  if (!manifestInfo.isFile() || manifestInfo.nlink !== 1) {
+    throw new Error('Private manifest cannot grant hardlink ownership.')
   }
-  if (admitting) {
-    await verify(false)
-    for (const entry of [...manifest.entries].reverse()) {
-      if (entry.kind !== 'link') await chmod(join(root, entry.path), entry.mode)
-    }
-    await chmod(manifestPath, 0o444)
-    await chmod(root, 0o555)
+  await lchown(join(root, 'admission.json'), owner.uid, owner.gid)
+  await acquire('')
+  if (seen.size !== admitted.entries.size) throw new Error('Copied membership is incomplete.')
+  await verify(root, admitted, false, owner)
+  // Parents are kept traversable while children take their final immutable modes.
+  for (const entry of [...admitted.manifest.entries].reverse()) {
+    if (entry.kind !== 'link') await chmod(join(root, entry.path), entry.mode)
   }
-  await verify()
-  console.log(
-    `Copied consumer admission passed: ${manifest.entries.length} entries, ${manifest.archives.length} archives.`,
-  )
-  if (!admitting) await import('./consumer/behavior.ts')
-} catch (error) {
-  failures.push(error)
-} finally {
+  await chmod(join(root, 'admission.json'), 0o444)
+  await chmod(root, 0o555)
+  await verify(root, admitted, true, owner)
+}
+
+/** Lane-native CLI keeps root admission and ordinary consumer authority distinct. Importing does not run it. */
+async function main() {
+  const root = dirname(fileURLToPath(import.meta.url))
+  const failures = []
+  let admitted
   try {
-    await verify()
+    const status = await readFile('/proc/self/status', 'utf8')
+    const admitting = argv.includes('--admit')
+    for (const field of ['Uid', 'Gid']) {
+      const values = status.match(new RegExp(`^${field}:\\s+(.*)$`, 'm'))?.[1]?.trim().split(/\s+/u)
+      if (values?.length !== 4 || values.some((value) => value !== (admitting ? '0' : '1000'))) {
+        throw new Error('Consumer must run under its declared copied-payload authority.')
+      }
+    }
+    for (const field of admitting ? [] : ['CapEff', 'CapPrm', 'CapAmb']) {
+      if (!new RegExp(`^${field}:\\s*0+$`, 'm').test(status)) {
+        throw new Error(`Ordinary consumer retains ${field} capabilities.`)
+      }
+    }
+    admitted = await receipt(root)
+    if (admitting) await admit(root)
+    await verify(root, admitted)
+    console.log(
+      `Copied consumer admission passed: ${admitted.manifest.entries.length} entries, ${admitted.manifest.archives.length} archives.`,
+    )
+    if (!admitting) await import('./consumer/behavior.ts')
   } catch (error) {
     failures.push(error)
+  } finally {
+    if (admitted) {
+      try {
+        await verify(root, admitted)
+      } catch (error) {
+        failures.push(error)
+      }
+    }
   }
+  if (failures.length) {
+    throw new AggregateError(failures, 'Copied consumer behavior or identity failed.')
+  }
+  console.log('Copied consumer identity remained unchanged after behavior.')
 }
-if (failures.length) {
-  throw new AggregateError(failures, 'Copied consumer behavior or identity failed.')
+
+if (import.meta.main || (argv[1] && resolve(argv[1]) === fileURLToPath(import.meta.url))) {
+  await main()
 }
-console.log('Copied consumer identity remained unchanged after behavior.')

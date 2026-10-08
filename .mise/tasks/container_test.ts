@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { prepare, run, tree } from './container.ts'
 import { finish } from '../../integration/releases.ts'
+import { admit } from './container-worker.mjs'
 import type { ObservationType, OutputType } from './container.ts'
 
 /** Aggregate nesting is not a contract; independent original reasons must all survive. */
@@ -595,6 +596,149 @@ describe('private packed consumer copy', () => {
       }),
   )
 
+  it(
+    'acquires restrictive private directories before descent and checks aliases and bytes independently',
+    POSIX,
+    () =>
+      finish(async (release) => {
+        const fixture = await Deno.makeTempDir({ prefix: 'consumer-worker-admission-' })
+        release.push(() => Deno.remove(fixture, { recursive: true }))
+        const root = join(fixture, 'payload'),
+          nested = join(root, 'nested'),
+          child = join(nested, 'child')
+        await Deno.mkdir(child, { recursive: true })
+        // These exact physical fixture directories are owned by this test, not borrowed installed inputs.
+        release.push(async () => {
+          for (const path of [root, nested, child]) await Deno.chmod(path, 0o700)
+        })
+        const bytes = new Uint8Array([0, 255, 128, 17])
+        await Deno.writeFile(join(child, 'data'), bytes, { mode: 0o600 })
+        await Deno.symlink('nested/child/data', join(root, 'alias'))
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+        const hash = Array.from(digest, (part) => part.toString(16).padStart(2, '0')).join('')
+        const entries = [
+          { path: 'nested', kind: 'directory', mode: 0o555, uid: 0, gid: 0 },
+          { path: 'nested/child', kind: 'directory', mode: 0o555, uid: 0, gid: 0 },
+          {
+            path: 'nested/child/data',
+            kind: 'file',
+            mode: 0o444,
+            uid: 0,
+            gid: 0,
+            bytes: bytes.length,
+            sha256: hash,
+          },
+          {
+            path: 'alias',
+            kind: 'link',
+            mode: 0o777,
+            uid: 0,
+            gid: 0,
+            target: 'nested/child/data',
+            resolved: 'nested/child/data',
+          },
+        ]
+        await Deno.writeTextFile(
+          join(root, 'admission.json'),
+          JSON.stringify({ version: 1, entries }),
+        )
+        const info = await Deno.lstat(root)
+        expect(info.uid).not.toBeNull()
+        expect(info.gid).not.toBeNull()
+        await Deno.chmod(child, 0)
+        await Deno.chmod(nested, 0)
+        await Deno.chmod(root, 0o700)
+        // The private test seam acquires caller-owned entries; production CLI always requires owner0.
+        await admit(root, { uid: info.uid!, gid: info.gid! })
+        expect(await Deno.readFile(join(root, 'alias'))).toEqual(bytes)
+        for (const path of [root, nested, child]) {
+          expect((await Deno.lstat(path)).mode! & 0o777).toBe(0o555)
+          expect((await Deno.lstat(path)).uid).toBe(info.uid)
+          expect((await Deno.lstat(path)).gid).toBe(info.gid)
+        }
+        expect((await Deno.lstat(join(child, 'data'))).mode! & 0o777).toBe(0o444)
+      }),
+  )
+
+  it(
+    'refuses copied hardlinks or escaped aliases without changing borrowed target modes or bytes',
+    POSIX,
+    () =>
+      finish(async (release) => {
+        const fixture = await Deno.makeTempDir({ prefix: 'consumer-worker-alias-' })
+        release.push(() => Deno.remove(fixture, { recursive: true }))
+        const outside = join(fixture, 'outside'), bytes = new Uint8Array([23, 0, 255])
+        await Deno.writeFile(outside, bytes, { mode: 0o640 })
+        const mode = (await Deno.lstat(outside)).mode! & 0o777
+        for (const kind of ['hardlink', 'symlink'] as const) {
+          const root = join(fixture, kind)
+          await Deno.mkdir(root)
+          release.push(() => Deno.chmod(root, 0o700))
+          if (kind === 'hardlink') await Deno.link(outside, join(root, 'alias'))
+          else await Deno.symlink('../outside', join(root, 'alias'))
+          const entries = kind === 'hardlink'
+            ? [{
+              path: 'alias',
+              kind: 'file',
+              mode: 0o444,
+              uid: 0,
+              gid: 0,
+              bytes: bytes.length,
+              sha256: 'deliberately-unadmitted-bytes',
+            }]
+            : [{
+              path: 'alias',
+              kind: 'link',
+              mode: 0o777,
+              uid: 0,
+              gid: 0,
+              target: '../outside',
+              resolved: '../outside',
+            }]
+          await Deno.writeTextFile(
+            join(root, 'admission.json'),
+            JSON.stringify({ version: 1, entries }),
+          )
+          const owner = await Deno.lstat(root)
+          await expect(admit(root, { uid: owner.uid!, gid: owner.gid! })).rejects.toBeInstanceOf(
+            Error,
+          )
+          expect((await Deno.lstat(outside)).mode! & 0o777).toBe(mode)
+          expect(await Deno.readFile(outside)).toEqual(bytes)
+        }
+      }),
+  )
+
+  it('rejects independently mismatched copied bootstrap hashes before worker dispatch and still removes the daemon', async () => {
+    const calls: string[][] = []
+    const payload = {
+      directory: '/private-copy',
+      inputs: [],
+      entries: [],
+      receipt: '/not-write-authority',
+      bootstrap: { workerSha256: 'expected-worker', receiptSha256: 'expected-receipt' },
+      record: (_event: ObservationType) => Promise.resolve(),
+      verify: () => Promise.resolve(),
+      close: () => Promise.resolve(),
+    }
+    const invoke = (_command: string, args: readonly string[]): Promise<OutputType> => {
+      calls.push([...args])
+      return Promise.resolve({
+        code: 0,
+        signal: null,
+        success: true,
+        stdout: args.includes('sha256sum') ? 'wrong-bytes' : '',
+        stderr: '',
+      })
+    }
+    await expect(run(payload, 'image', ['runtime', '../worker.mjs'], invoke)).rejects
+      .toBeInstanceOf(AggregateError)
+    expect(calls.some((args) => args.at(-1) === '--admit')).toBe(false)
+    expect(calls.some((args) => args[0] === 'wait')).toBe(false)
+    const name = calls[0]![calls[0]!.indexOf('--name') + 1]!
+    expect(calls.filter((args) => args[0] === 'rm')).toEqual([['rm', '--force', '--volumes', name]])
+  })
+
   it('does not start a failed copy and independently preserves copy and owned-removal failures', async () => {
     const copied = new Error('copy'), removal = new Error('remove')
     const calls: string[][] = []
@@ -604,6 +748,7 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/retained-copy-admission.json',
+      bootstrap: { workerSha256: 'worker', receiptSha256: 'receipt' },
       record: (event: ObservationType) => {
         observations.push(event)
         return Promise.resolve()
@@ -644,6 +789,7 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/retained-copy-admission.json',
+      bootstrap: { workerSha256: 'worker', receiptSha256: 'receipt' },
       record: (_event: ObservationType) => Promise.resolve(),
       verify: () => Promise.resolve(),
       close: () => Promise.resolve(),
@@ -656,7 +802,11 @@ describe('private packed consumer copy', () => {
         return Promise.resolve({
           code: 0,
           success: true,
-          stdout: args[0] === 'wait' ? '7\n' : '',
+          stdout: args.includes('sha256sum')
+            ? 'worker  /work/worker.mjs\nreceipt  /work/admission.json\n'
+            : args[0] === 'wait'
+            ? '7\n'
+            : '',
           stderr: '',
         })
       }
@@ -676,6 +826,7 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/not-write-authority',
+      bootstrap: { workerSha256: 'worker', receiptSha256: 'receipt' },
       verify: () => Promise.resolve(),
       close: () => Promise.resolve(),
       record: (event: ObservationType) => {

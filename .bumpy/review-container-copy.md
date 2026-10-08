@@ -39,7 +39,17 @@ unobservable replacement. Unknown host metadata stays
 unknown; these checks do not claim fd-relative protection against hostile concurrent
 path changes.
 
-A bounded root bootstrap owns only the private container copy. The consumer runs
+A bounded root bootstrap owns only the private container copy. It acquires the
+physical `/work` directory first, then separately checks/acquires its regular
+worker and receipt. Native `sha256sum` compares both with independently admitted
+host hashes before the worker loads. The selected Linux images provide `sh`,
+`stat`, `chown` and `sha256sum`. The lane-native worker acquires each physical
+directory before descent, even when copied directories are restrictive. It rejects
+hardlinks before changing ownership and never follows aliases for ownership or
+permission changes. Complete bytes and kinds are checked before final readonly
+modes. Setup retains only `CHOWN`, without a DAC override. Production ownership
+is always zero; an import-safe current-owner test seam cannot be selected by CLI
+or environment and is not root-container proof. The consumer runs
 as UID/GID 1000 and checks that it has no effective, permitted or ambient capabilities.
 Its temporary directory remains writable. The container root filesystem is not
 claimed to be read-only: Docker refuses to populate such a root through its copy API.

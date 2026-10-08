@@ -113,7 +113,16 @@ A copied nonce cannot prove an identical replacement is the original object when
 Replaced roots, parents or marker kinds reject before use or removal; refusal leaves the original copy for independent
 investigation rather than deleting a substituted path. Unknown host metadata remains unknown. These guards
 detect observed substitutions and do not promise fd-relative security against hostile concurrent path changes.
-A bounded private root bootstrap sets copied ownership;
+A bounded private root bootstrap first acquires the physical `/work` root without recursion.
+It checks the worker and receipt as independent regular files before acquiring them, then compares their
+`sha256sum` results with independently admitted host hashes before loading the worker. The selected Linux
+images must provide `sh`, `stat`, `chown` and `sha256sum`; setup failure retains its actual CLI outcome.
+The lane-native worker acquires each physical directory before descending, including restrictive copied
+directories, and never follows aliases for ownership or permission changes. Regular hardlinks reject before
+ownership changes. It verifies complete bytes/kinds/contained links before final readonly modes. Only `CHOWN`
+is retained for root setup; no DAC override is added. Production ownership is fixed to UID/GID zero.
+The import-safe worker has an explicit current-owner seam for task-owned host tests, with no CLI/environment
+owner override; that seam is not proof of root Docker admission. These checks set copied ownership;
 the actual consumer runs as UID/GID 1000 with no effective, permitted or ambient capabilities, verified through
 `/proc/self/status`. Source hardlinks are copied into independent files; contained aliases become private relative
 links. Escaped aliases, Git metadata, special files and changed complete membership fail admission. The actual
@@ -329,3 +338,5 @@ report output while testing browser capabilities. Restart the task after editing
 Vite loads fixture configuration through `--configLoader native`. Deno already understands the
 TypeScript source, so the loader must not emit a temporary module beside maintained configuration
 files. This keeps startup compatible with the readonly source used by release preparation.
+
+The installed-package jobs run the maintained tooling controls on Linux, macOS, and Windows before importing the archives. This exercises native host copy retirement, including Windows readonly attributes, on the host that supplies those filesystem semantics. A Linux skip of that Windows control is not Windows coverage.

@@ -36,6 +36,8 @@ export interface PayloadType {
   readonly inputs: readonly EntryType[]
   /** Retained exact admission receipt survives disposal of the private copied tree. */
   readonly receipt: string
+  /** Independent host-admitted bootstrap hashes, checked by native Linux sha256sum before the worker loads. */
+  readonly bootstrap: { readonly workerSha256: string; readonly receiptSha256: string }
   /** Records one completed or rejected CLI observation under this acquired report authority. */
   record(event: ObservationType): Promise<void>
   /** Rejects changes to original inputs, task authority, archive bytes, receipt or private copy. */
@@ -354,6 +356,10 @@ export async function prepare(
       inputs,
       entries,
       receipt: retained,
+      bootstrap: {
+        workerSha256: worker.sha256,
+        receiptSha256: digest(new TextEncoder().encode(admitted)),
+      },
       record: async (event) => {
         await admit(reportOwner)
         const output = event.output
@@ -707,12 +713,47 @@ export async function run(
     await checked(['cp', `${payload.directory}/.`, `${name}:/work`], 120_000)
     await payload.verify()
     await checked(['start', name], 30_000)
-    await checked(['exec', '--user', '0:0', name, 'chown', '-hR', '0:0', '/work'], 30_000)
+    // CHOWN does not bypass traversal permissions: acquire the physical root before loading its worker.
+    await checked([
+      'exec',
+      '--user',
+      '0:0',
+      name,
+      '/bin/sh',
+      '-c',
+      'test -d /work && test ! -L /work && chown -h 0:0 /work',
+    ], 30_000)
+    await checked([
+      'exec',
+      '--user',
+      '0:0',
+      name,
+      '/bin/sh',
+      '-c',
+      'for path in /work/worker.mjs /work/admission.json; do test -f "$path" && test ! -L "$path" && test "$(stat -c %h "$path")" = 1 && chown -h 0:0 "$path" || exit 1; done',
+    ], 30_000)
+    // The worker cannot serve as its own transport oracle: compare both bootstrap byte hashes first.
+    const bootstrap = await checked([
+      'exec',
+      '--user',
+      '0:0',
+      name,
+      'sha256sum',
+      '/work/worker.mjs',
+      '/work/admission.json',
+    ], 30_000)
+    const expected =
+      `${payload.bootstrap.workerSha256}  /work/worker.mjs\n${payload.bootstrap.receiptSha256}  /work/admission.json`
+    if (bootstrap.stdout.trimEnd() !== expected) {
+      throw new Error('Copied bootstrap bytes differ from independently admitted host hashes.', {
+        cause: { bootstrap, expected },
+      })
+    }
     const admission = command[0] === 'deno'
-      ? [...command.slice(0, -1), '--allow-write=/work', command.at(-1)!, '--admit']
-      : [...command, '--admit']
+      ? [...command.slice(0, -1), '--allow-write=/work', '/work/worker.mjs', '--admit']
+      : [...command.slice(0, -1), '/work/worker.mjs', '--admit']
     await checked(
-      ['exec', '--user', '0:0', '--workdir', '/work/consumer', name, ...admission],
+      ['exec', '--user', '0:0', '--workdir', '/work', name, ...admission],
       120_000,
     )
     await checked(['exec', '--user', '0:0', name, 'touch', marker], 30_000)
