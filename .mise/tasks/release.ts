@@ -1,7 +1,8 @@
 /** Uses Bumpy's release model with Deno manifests and independently resumable registry uploads. @module */
 import process from 'node:process'
+import { ceiling } from './ceiling.ts'
 import { createHash } from 'node:crypto'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   applyReleasePlan,
@@ -25,6 +26,143 @@ interface CandidateType {
   inputs?: OpfsInputsType
   packages: Array<{ name: string; version: string; archive: string; sha256: string }>
 }
+/** Raw bytes and actual process observation for one Git authority request. */
+interface GitObservationType {
+  /** The exact argument vector; no shell expands these values. */
+  readonly args: readonly string[]
+  /** The checkout whose identity was requested. */
+  readonly cwd: string
+  /** Unobserved means output acquisition failed, not that Git reported an exit. */
+  readonly state: 'exited' | 'unobserved'
+  /** Null does not stand for a successful exit. */
+  readonly code: number | null
+  /** A reported termination signal, if one exists. */
+  readonly signal: string | null
+  /** Exact bytes, or null when output acquisition did not report them. */
+  readonly stdout: readonly number[] | null
+  /** Exact bytes, or null when output acquisition did not report them. */
+  readonly stderr: readonly number[] | null
+}
+/** Diagnostic metadata never substitutes for successful Git admission. */
+class GitError extends Error {
+  /** Detached actual request/status/raw-output evidence. */
+  readonly git: GitObservationType
+  constructor(
+    message: string,
+    args: readonly string[],
+    cwd: string,
+    output?: Deno.CommandOutput,
+    cause?: unknown,
+  ) {
+    const details = output
+      ? `exit ${output.code}, signal ${output.signal ?? 'none'}`
+      : 'status unobserved'
+    const stderr = output ? new TextDecoder().decode(output.stderr) : ''
+    super(`${message} Git (${details}) in ${cwd}.${stderr ? `\n${stderr}` : ''}`, { cause })
+    this.name = 'GitError'
+    this.git = {
+      args: [...args],
+      cwd,
+      state: output ? 'exited' : 'unobserved',
+      code: output?.code ?? null,
+      signal: output?.signal ?? null,
+      stdout: output ? Array.from(output.stdout) : null,
+      stderr: output ? Array.from(output.stderr) : null,
+    }
+  }
+}
+/** Snapshot ownership admission is not a Git child-process observation. */
+class SnapshotError extends Error {
+  readonly snapshot = { stage: 'admission' } as const
+  constructor(message: string) {
+    super(message)
+    this.name = 'SnapshotError'
+  }
+}
+/** Report diagnostics distinguish root admission from confined tree capture without relying on wording. */
+class ReportError extends Error {
+  readonly report: { readonly stage: 'admission' | 'copy' }
+  constructor(stage: 'admission' | 'copy', cause: unknown) {
+    super(`Release report retention failed during ${stage}.`, { cause })
+    this.name = 'ReportError'
+    this.report = { stage }
+  }
+}
+/** Repository-selection preflight records the rejected variable name, never its potentially sensitive value. */
+class SourceSelectionError extends Error {
+  readonly selection: { readonly variable: string }
+  constructor(variable: string) {
+    super(`Release source selection does not support ${variable}.`)
+    this.name = 'SourceSelectionError'
+    this.selection = { variable }
+  }
+}
+/** Machine-readable failure trees preserve independent causes and non-Error throws. */
+interface FailureType {
+  readonly name: string
+  readonly message: string
+  readonly git?: GitObservationType
+  readonly report?: { readonly stage: 'admission' | 'copy' }
+  readonly snapshot?: { readonly stage: 'admission' }
+  readonly selection?: { readonly variable: string }
+  readonly cause?: FailureType
+  readonly errors?: readonly FailureType[]
+}
+/** Cyclic cause links are observations, not permission to discard the other failures. */
+function failure(reason: unknown, seen = new Set<unknown>()): FailureType {
+  if (!(reason instanceof Error)) return { name: 'ThrownValue', message: String(reason) }
+  if (seen.has(reason)) return { name: reason.name, message: 'Repeated error reference' }
+  seen.add(reason)
+  return {
+    name: reason.name,
+    message: reason.message,
+    ...(reason instanceof GitError ? { git: reason.git } : {}),
+    ...(reason instanceof SnapshotError ? { snapshot: reason.snapshot } : {}),
+    ...(reason instanceof ReportError ? { report: reason.report } : {}),
+    ...(reason instanceof SourceSelectionError ? { selection: reason.selection } : {}),
+    ...(Object.hasOwn(reason, 'cause') ? { cause: failure(reason.cause, seen) } : {}),
+    ...(reason instanceof AggregateError
+      ? { errors: Array.from(reason.errors as Iterable<unknown>, (value) => failure(value, seen)) }
+      : {}),
+  }
+}
+/** Captures Git's actual status and both raw outputs, without ownership exceptions or retry. */
+async function git(args: string[], cwd = ROOT): Promise<Deno.CommandOutput> {
+  let output: Deno.CommandOutput
+  try {
+    // Preserve ordinary Git ownership admission while refusing ancestor repository discovery.
+    // Explicit --git-dir selection disables discovery and is not a substitute for that trust check.
+    for (
+      const name of [
+        'GIT_DIR',
+        'GIT_WORK_TREE',
+        'GIT_COMMON_DIR',
+        'GIT_INDEX_FILE',
+        'GIT_OBJECT_DIRECTORY',
+        'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+        'GIT_NAMESPACE',
+      ]
+    ) {
+      if (Deno.env.get(name) !== undefined) {
+        throw new SourceSelectionError(name)
+      }
+    }
+    cwd = await Deno.realPath(cwd)
+    const parent = ceiling(dirname(cwd), Deno.build.os === 'windows')
+    output = await new Deno.Command('git', {
+      args,
+      cwd,
+      stdout: 'piped',
+      stderr: 'piped',
+      env: { GIT_CEILING_DIRECTORIES: parent },
+    }).output()
+  } catch (cause) {
+    throw new GitError('Cannot acquire Git authority.', args, cwd, undefined, cause)
+  }
+  if (!output.success) throw new GitError('Git authority request failed.', args, cwd, output)
+  return output
+}
+
 const ROOT = Deno.cwd()
 const STORE = '.tmp/releases'
 const config = await loadConfig(ROOT)
@@ -331,13 +469,22 @@ async function prepared(): Promise<CandidateType> {
     passed?: boolean
     source?: string
     revision?: string
+    version?: number
     steps?: GateType[]
   }
   if (
     journal.passed !== true || journal.source !== candidate.source ||
     journal.revision !== candidate.revision || !Array.isArray(journal.steps) ||
+    (journal.version !== undefined && journal.version !== 2) ||
     journal.steps.some((step) =>
+      (journal.version === 2 &&
+        (!step.execution || !step.integrity || typeof step.finished !== 'string')) ||
       step.code !== 0 || step.source !== candidate.source || step.revision !== candidate.revision ||
+      (step.execution !== undefined &&
+        (step.execution.state !== 'exited' || step.execution.success !== true)) ||
+      (step.integrity !== undefined &&
+        (step.integrity.source.state !== 'verified' ||
+          step.integrity.revision.state !== 'verified')) ||
       step.before.source !== candidate.source || step.before.revision !== candidate.revision
     )
   ) throw new Error('Prepared gate journal differs from the successful source snapshot.')
@@ -358,9 +505,11 @@ async function prepared(): Promise<CandidateType> {
 }
 /** Hashes publishable and maintained source inputs, including untracked release files.
  * Local outputs and caches remain excluded by the repository's Git ignore rules. */
-async function sourceHash(cwd = ROOT): Promise<string> {
+async function sourceHash(cwd = ROOT, admit?: (path: string) => Promise<void>): Promise<string> {
   const values: Array<[string, string]> = []
   for (const path of await sourcePaths(cwd)) {
+    // Admission errors are authority failures, not an absent file hash.
+    await admit?.(resolve(cwd, path))
     try {
       values.push([path, await hash(await Deno.readFile(resolve(cwd, path)))])
     } catch (reason) {
@@ -419,6 +568,15 @@ function quote(value: string): string {
 }
 /** Runs actual Deno/npm commands without suppressing their exit status or diagnostics. */
 async function run(file: string, args: string[], cwd = ROOT): Promise<void> {
+  // Clone and checkout acquire the same source authority as status/revision/listing.
+  // Keep their successful progress visible, and retain exact failure bytes in the journal.
+  if (file === 'git') {
+    const output = await git(args, cwd)
+    if (output.stdout.length) console.log(new TextDecoder().decode(output.stdout).trimEnd())
+    if (output.stderr.length) console.error(new TextDecoder().decode(output.stderr).trimEnd())
+    return
+  }
+
   const status = await new Deno.Command(file, {
     args,
     cwd,
@@ -468,29 +626,24 @@ async function restoreProtocols(): Promise<void> {
 
 /** Returns the immutable Git revision represented by a clean publishing checkout. */
 async function revision(cwd = ROOT): Promise<string> {
-  const result = await new Deno.Command('git', {
-    args: ['rev-parse', 'HEAD'],
-    cwd,
-    stdout: 'piped',
-    stderr: 'inherit',
-  }).output()
+  const args = ['rev-parse', 'HEAD']
+  const result = await git(args, cwd)
   const sha = new TextDecoder().decode(result.stdout).trim()
-  if (!result.success || !/^[a-f0-9]{40}$/u.test(sha)) {
-    throw new Error('Cannot identify the source revision.')
+  if (!/^[a-f0-9]{40}$/u.test(sha)) {
+    throw new GitError('Cannot identify the source revision.', args, cwd, result)
   }
   return sha
 }
-/** Preparation and upload both require committed immutable source. Planning and versioning remain edit-capable. */
+/** Distinguishes a dirty checkout from failed Git acquisition; neither permits publication. */
 async function cleanRevision(cwd = ROOT): Promise<void> {
-  const result = await new Deno.Command('git', {
-    args: ['-c', 'core.fsmonitor=false', 'status', '--porcelain'],
-    cwd,
-    stdout: 'piped',
-    stderr: 'inherit',
-  }).output()
-  if (!result.success || result.stdout.length) {
-    throw new Error(
+  const args = ['-c', 'core.fsmonitor=false', 'status', '--porcelain']
+  const result = await git(args, cwd)
+  if (result.stdout.length) {
+    throw new GitError(
       'Publication requires a clean immutable checkout. Preserve local work and publish its prepared release snapshot.',
+      args,
+      cwd,
+      result,
     )
   }
 }
@@ -574,7 +727,7 @@ interface InputsType {
 }
 
 /** Protects maintained bytes and all replacement ancestors, leaving owned outputs writable. */
-async function protectSource(root: string, frozen: Array<[string, number]>): Promise<void> {
+async function protectSource(root: string, frozen: Map<string, number>): Promise<void> {
   for (const name of ['.tmp', '.release', 'node_modules']) {
     await Deno.mkdir(resolve(root, name), { recursive: true })
   }
@@ -584,9 +737,7 @@ async function protectSource(root: string, frozen: Array<[string, number]>): Pro
     const info = await Deno.lstat(file)
     if (info.isSymlink) throw new Error(`Maintained source aliases are unsupported: ${path}`)
     if (!info.isFile) throw new Error(`Maintained source is not a file: ${path}`)
-    const mode = info.mode ?? 0o644
-    frozen.push([file, mode])
-    await Deno.chmod(file, mode & ~0o222)
+    await freeze(file, frozen)
     let parent = dirname(file)
     while (parent !== root) {
       parents.add(parent)
@@ -594,9 +745,7 @@ async function protectSource(root: string, frozen: Array<[string, number]>): Pro
     }
   }
   for (const path of [...parents].sort((left, right) => right.length - left.length)) {
-    const mode = (await Deno.lstat(path)).mode ?? 0o755
-    frozen.push([path, mode])
-    await Deno.chmod(path, mode & ~0o222)
+    await freeze(path, frozen)
   }
 }
 
@@ -765,13 +914,14 @@ async function archiveIdentity(
 /** Captures the actual storage/browser source and npm consumer archive contracts. */
 async function captureInputs(
   snapshot: string,
-  frozen: Array<[string, number]>,
+  frozen: Map<string, number>,
+  admit: (path: string, missing?: boolean) => Promise<void>,
 ): Promise<InputsType> {
   const source = await Deno.realPath(resolve(ROOT, Deno.env.get('OPFS_SOURCE') ?? '../opfs'))
-  const top = await new Deno.Command('git', { args: ['rev-parse', '--show-toplevel'], cwd: source })
-    .output()
-  if (!top.success || await Deno.realPath(new TextDecoder().decode(top.stdout).trim()) !== source) {
-    throw new Error('OPFS_SOURCE must select a complete Git checkout.')
+  const topArgs = ['rev-parse', '--show-toplevel']
+  const top = await git(topArgs, source)
+  if (await Deno.realPath(new TextDecoder().decode(top.stdout).trim()) !== source) {
+    throw new GitError('OPFS_SOURCE must select a complete Git checkout.', topArgs, source, top)
   }
   await cleanRevision(source)
   const commit = await revision(source), identity = await sourceHash(source)
@@ -804,6 +954,7 @@ async function captureInputs(
   const root = resolve(snapshot, '.tmp/release-inputs'),
     ownedSource = resolve(root, 'opfs-source'),
     ownedArchive = resolve(root, 'opfs.tgz')
+  await admit(root, true)
   await Deno.mkdir(root, { recursive: true })
   await run('git', [
     'clone',
@@ -815,7 +966,7 @@ async function captureInputs(
     ownedSource,
   ])
   await run('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', commit], ownedSource)
-  if (await revision(ownedSource) !== commit || await sourceHash(ownedSource) !== identity) {
+  if (await revision(ownedSource) !== commit || await sourceHash(ownedSource, admit) !== identity) {
     throw new Error('Captured OPFS source differs from the selected revision.')
   }
   const mappings: Array<readonly [string, string, boolean?]> = [[source, ownedSource, true]]
@@ -842,9 +993,7 @@ async function captureInputs(
   )
   await protectSource(ownedSource, frozen)
   for (const path of [ownedArchive, root]) {
-    const mode = (await Deno.lstat(path)).mode ?? 0o644
-    frozen.push([path, mode])
-    await Deno.chmod(path, mode & ~0o222)
+    await freeze(path, frozen)
   }
   const original = async (): Promise<void> => {
     await cleanRevision(source)
@@ -867,9 +1016,12 @@ async function captureInputs(
     mappings,
     original,
     verify: async () => {
+      await admit(resolve(ownedSource, '.git'))
+      await admit(ownedArchive)
       await original()
       if (
-        await revision(ownedSource) !== commit || await sourceHash(ownedSource) !== identity ||
+        await revision(ownedSource) !== commit ||
+        await sourceHash(ownedSource, admit) !== identity ||
         await hash(await Deno.readFile(ownedArchive)) !== sha
       ) throw new Error('Captured OPFS input changed during release preparation.')
     },
@@ -880,15 +1032,153 @@ async function captureInputs(
 interface GateType {
   readonly task: string
   readonly started: string
-  readonly finished: string
-  readonly code: number
-  readonly source: string
-  readonly revision: string
+  readonly finished?: string
+  readonly code: number | null
+  readonly source?: string
+  readonly revision?: string
   readonly phase: 'dependencies' | 'source'
   readonly before: { source: string; revision: string }
   readonly logs?: {
     stdout: { file: string; sha256: string }
     stderr: { file: string; sha256: string }
+  }
+  /** Execution remains independent from subsequent integrity requests. */
+  readonly execution?: {
+    readonly state: 'pending' | 'exited' | 'unobserved'
+    readonly success?: boolean
+    readonly signal?: string | null
+  }
+  /** A field is verified only after successful acquisition and exact equality. */
+  readonly integrity?: {
+    readonly source: {
+      readonly state: 'pending' | 'verified' | 'failed'
+      readonly failure?: FailureType
+    }
+    readonly revision: {
+      readonly state: 'pending' | 'verified' | 'failed'
+      readonly failure?: FailureType
+    }
+  }
+}
+
+/** Physical identity is required only for Unix preparation's permission protection. */
+interface SnapshotOwnerType {
+  readonly path: string
+  readonly identity: string
+}
+/** Device and inode identify copied objects after a private subtree is renamed. */
+function physicalIdentity(info: Deno.FileInfo): string {
+  if (
+    info.isSymlink || (!info.isFile && !info.isDirectory) || typeof info.dev !== 'number' ||
+    typeof info.ino !== 'number' ||
+    !Number.isSafeInteger(info.dev) || !Number.isSafeInteger(info.ino) || info.dev <= 0 ||
+    info.ino <= 0
+  ) {
+    throw new Error('Release protection requires physical file/directory identities.')
+  }
+  return `${info.dev}:${info.ino}:${info.isDirectory ? 'directory' : 'file'}`
+}
+/** Register the original mode before a protection syscall can fail. */
+async function freeze(path: string, frozen: Map<string, number>): Promise<void> {
+  const info = await Deno.lstat(path)
+  const identity = physicalIdentity(info)
+  if (info.mode === null) throw new Error('Release protection requires Unix permission modes.')
+  if (!frozen.has(identity)) frozen.set(identity, info.mode)
+  await Deno.chmod(path, info.mode & ~0o222)
+}
+/** Capture the newly acquired owner before cloning or other fallible setup. */
+async function snapshotOwner(directory: string): Promise<SnapshotOwnerType> {
+  const info = await Deno.lstat(directory)
+  if (!info.isDirectory || info.isSymlink) {
+    throw new Error('Release snapshot owner is not a physical directory.')
+  }
+  return { path: await Deno.realPath(directory), identity: physicalIdentity(info) }
+}
+/** Admit the originally acquired root before report reads, restoration or removal. */
+async function admitSnapshotOwner(
+  directory: string,
+  owner: SnapshotOwnerType | undefined,
+): Promise<SnapshotOwnerType> {
+  if (!owner) {
+    throw new SnapshotError(
+      'Release snapshot owner identity was not acquired; cleanup is unadmitted.',
+    )
+  }
+  const info = await Deno.lstat(directory)
+  if (
+    !info.isDirectory || info.isSymlink || physicalIdentity(info) !== owner.identity ||
+    await Deno.realPath(directory) !== owner.path
+  ) {
+    throw new SnapshotError('Release snapshot owner changed; refusing borrowed access.')
+  }
+  return owner
+}
+/**
+ * Restore only recorded physical objects still below the acquired private owner.
+ *
+ * Paths from protection are not replayed: gates can rename a protected directory
+ * or replace an ancestor with an outside alias. A no-follow walk finds renamed
+ * objects by identity and skips aliases. Unregistered output modes stay intact,
+ * so a denied output directory remains a real independent cleanup failure.
+ *
+ * Cleanup assumes settled, quiescent gates. Deno's path-based chmod/remove cannot
+ * prevent hostile concurrent same-user replacement between admission and syscall.
+ * The traversal adds one metadata visit per owned entry; no borrowed tree is read.
+ */
+async function retireSnapshot(
+  directory: string,
+  owner: SnapshotOwnerType | undefined,
+  frozen: ReadonlyMap<string, number>,
+  failures: unknown[],
+): Promise<void> {
+  try {
+    await admitSnapshotOwner(directory, owner)
+  } catch (reason) {
+    failures.push(reason)
+    return
+  }
+  const visit = async (path: string): Promise<void> => {
+    try {
+      const info = await Deno.lstat(path)
+      if (info.isSymlink) return
+      // Starting at a canonical root and never following links makes every child
+      // canonical too. Check it again before any permission mutation.
+      if (await Deno.realPath(path) !== path) {
+        throw new Error('Release cleanup encountered a changed physical path.')
+      }
+      if (info.isFile || info.isDirectory) {
+        const identity = physicalIdentity(info)
+        const mode = frozen.get(identity)
+        if (mode !== undefined) {
+          if (
+            physicalIdentity(await Deno.lstat(path)) !== identity ||
+            await Deno.realPath(path) !== path
+          ) {
+            throw new Error('Release cleanup object changed before permission restoration.')
+          }
+          await Deno.chmod(path, mode)
+        }
+      }
+      if (info.isDirectory) {
+        for await (const entry of Deno.readDir(path)) await visit(resolve(path, entry.name))
+      }
+    } catch (reason) {
+      failures.push(reason)
+    }
+  }
+  // owner is admitted above; keep the runtime check rather than asserting a type.
+  if (owner) await visit(owner.path)
+  try {
+    await admitSnapshotOwner(directory, owner)
+    await Deno.remove(directory, { recursive: true })
+    try {
+      await Deno.lstat(directory)
+      failures.push(new Error('Release snapshot survived cleanup.'))
+    } catch (reason) {
+      if (!(reason instanceof Deno.errors.NotFound)) failures.push(reason)
+    }
+  } catch (reason) {
+    failures.push(reason)
   }
 }
 
@@ -916,21 +1206,47 @@ async function prepareSnapshot(): Promise<{
       'Release preparation does not support Unix UID 0. Run release:prepare as an ordinary account; root bypasses immutable-source permissions.',
     )
   }
-  await cleanRevision()
-  const commit = await revision()
-  const source = await sourceHash()
+  let commit: string, source: string
+  try {
+    await cleanRevision()
+    commit = await revision()
+    source = await sourceHash()
+  } catch (reason) {
+    try {
+      await Deno.mkdir(STORE, { recursive: true })
+      await save(`${STORE}/authority-${crypto.randomUUID()}.json`, {
+        version: 2,
+        phase: 'admission',
+        passed: false,
+        failures: [reason instanceof Error ? reason.message : String(reason)],
+        diagnostics: [failure(reason)],
+      })
+    } catch (record) {
+      throw new AggregateError(
+        [reason, record],
+        'Release admission and diagnostic recording failed.',
+        { cause: reason },
+      )
+    }
+    throw reason
+  }
   const directory = await Deno.makeTempDir({ prefix: 'release-snapshot-' })
   const snapshot = resolve(directory, 'source')
   const failures: unknown[] = []
-  const frozen: Array<[string, number]> = []
+  const frozen = new Map<string, number>()
+  let owner: SnapshotOwnerType | undefined
+  let sourceOwner: SnapshotOwnerType | undefined
   const steps: GateType[] = []
   const attempt = crypto.randomUUID()
   const evidence = `${STORE}/gates-${commit}-${attempt}.json`
   const reportDirectory = `${STORE}/snapshot-${commit}-${attempt}/reports`
   let inputs: InputsType | undefined
-  let reports: { path: string; source: string; revision: string } | undefined
+  let reports:
+    | { path: string; source: string; revision: string; copyState: 'partial' | 'complete' }
+    | undefined
   let result: { candidate: CandidateType; manifests: Record<string, string> } | undefined
   try {
+    owner = await snapshotOwner(directory)
     await run('git', [
       'clone',
       '--no-hardlinks',
@@ -940,12 +1256,18 @@ async function prepareSnapshot(): Promise<{
       ROOT,
       snapshot,
     ])
+    const acquired = await admitSnapshotOwner(directory, owner)
+    sourceOwner = await snapshotOwner(snapshot)
+    if (sourceOwner.path !== resolve(acquired.path, 'source')) {
+      throw new SnapshotError('Cloned snapshot left its acquired temporary owner.')
+    }
+    await admitSnapshot()
     await run('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', commit], snapshot)
     await verify()
     const members = await discoverPackages(snapshot, await loadConfig(snapshot))
     const dependencyGraph = new DependencyGraph(members)
     const opfs = members.has('@okikio/opfs')
-    if (!opfs) inputs = await captureInputs(snapshot, frozen)
+    if (!opfs) inputs = await captureInputs(snapshot, frozen, admitSnapshotPath)
 
     const dependencies = resolve(ROOT, 'node_modules')
     let installed = false
@@ -996,43 +1318,57 @@ async function prepareSnapshot(): Promise<{
       : [...releaseTasks]
     for (const task of tasks) {
       await verify()
-      const before = { source: await sourceHash(snapshot), revision: await revision(snapshot) }
-      const started = new Date().toISOString()
-      const status = await new Deno.Command(Deno.execPath(), {
-        args: [
-          'task',
-          task,
-          ...(task === 'verify:npm:artifact'
-            ? [archivePath(members.get('@okikio/opfs')!, opfs)]
-            : []),
-        ],
-        cwd: snapshot,
-        env: { DENO_DIR: resolve(directory, 'deno-cache'), ...inputs?.env },
-        stdin: 'inherit',
-        stdout: 'inherit',
-        stderr: 'inherit',
-      }).spawn().status
-      const after = await sourceHash(snapshot)
-      steps.push({
-        task,
-        started,
-        finished: new Date().toISOString(),
-        code: status.code,
-        source: after,
-        revision: await revision(snapshot),
-        phase: 'source',
-        before,
-      })
-      await verify()
-      if (!status.success) {
-        throw new Error(`Snapshot gate '${task}' failed with exit code ${status.code}.`)
+      const before = { source: await currentSource(), revision: await currentRevision() }
+      const index = beginGate(task, 'source', before)
+      await checkpoint()
+      const errors: unknown[] = []
+      try {
+        await admitSnapshot()
+        const status = await new Deno.Command(Deno.execPath(), {
+          args: [
+            'task',
+            task,
+            ...(task === 'verify:npm:artifact'
+              ? [archivePath(members.get('@okikio/opfs')!, opfs)]
+              : []),
+          ],
+          cwd: snapshot,
+          env: { DENO_DIR: resolve(directory, 'deno-cache'), ...inputs?.env },
+          stdin: 'inherit',
+          stdout: 'inherit',
+          stderr: 'inherit',
+        }).spawn().status
+        observeGate(index, status)
+        if (!status.success) {
+          errors.push(
+            new Error(
+              `Snapshot gate '${task}' failed with exit code ${status.code}, signal ${
+                status.signal ?? 'none'
+              }.`,
+            ),
+          )
+        }
+      } catch (reason) {
+        observeGate(index)
+        errors.push(reason)
       }
+      await finishGate(index, errors)
+      if (errors.length) {
+        throw new AggregateError(
+          errors,
+          `Snapshot gate '${task}' or integrity acquisition failed.`,
+          { cause: errors[0] },
+        )
+      }
+      await verify()
     }
     const rows: CandidateType['packages'] = []
     const manifests: Record<string, string> = {}
     for (const name of dependencyGraph.topologicalSort(members)) {
       const member = members.get(name)!
       const archive = archivePath(member, opfs)
+      await admitSnapshotPath(resolve(snapshot, archive))
+      await admitSnapshotPath(resolve(snapshot, member.dir, 'package.json'))
       rows.push({
         name,
         version: member.version,
@@ -1058,29 +1394,17 @@ async function prepareSnapshot(): Promise<{
     await Deno.mkdir(output, { recursive: true })
     for (const row of rows) {
       await verify()
+      await admitSnapshotPath(resolve(snapshot, row.archive))
       await Deno.copyFile(resolve(snapshot, row.archive), resolve(ROOT, row.archive))
     }
     // Artifact inventory is an independent packing authority; retain it when
     // this package family emits one, without copying its staging/install trees.
     const receipt = resolve(snapshot, artifactDirectory, 'artifacts.json')
     try {
+      await admitSnapshotPath(receipt)
       await Deno.copyFile(receipt, resolve(output, 'artifacts.json'))
     } catch (reason) {
       if (!(reason instanceof Deno.errors.NotFound)) throw reason
-    }
-    const reportSource = resolve(snapshot, '.tmp/reports')
-    let hasReports = false
-    try {
-      await Deno.lstat(reportSource)
-      hasReports = true
-    } catch (reason) {
-      if (!(reason instanceof Deno.errors.NotFound)) throw reason
-    }
-    if (hasReports) {
-      await verify()
-      const target = resolve(ROOT, reportDirectory)
-      await copyTree(reportSource, target, [[reportSource, target]])
-      reports = { path: reportDirectory, source, revision: commit }
     }
     for (const row of rows) {
       if (row.sha256 !== await hash(await Deno.readFile(resolve(ROOT, row.archive)))) {
@@ -1101,26 +1425,20 @@ async function prepareSnapshot(): Promise<{
   } catch (reason) {
     failures.push(reason)
   } finally {
-    // Attempt cleanup even when a gate failed. Permission restoration and tree
-    // removal failures remain separate from the primary operation failure.
+    // Failed/partial reports are diagnostic bytes, not source or publication authority.
+    // Retain them before removing their owner, even when Git identity acquisition failed.
     try {
-      for (const [path, mode] of frozen.reverse()) {
-        try {
-          await Deno.chmod(path, mode)
-        } catch (reason) {
-          failures.push(reason)
-        }
-      }
-      await Deno.remove(directory, { recursive: true })
-      try {
-        await Deno.lstat(directory)
-        failures.push(new Error('Release snapshot survived cleanup.'))
-      } catch (reason) {
-        if (!(reason instanceof Deno.errors.NotFound)) failures.push(reason)
-      }
+      await retainReports()
+    } catch (reason) {
+      failures.push(new ReportError(reports ? 'copy' : 'admission', reason))
+    }
+    try {
+      await checkpoint()
     } catch (reason) {
       failures.push(reason)
     }
+    // Restoration/removal retain each independent error and never replay stale paths.
+    await retireSnapshot(directory, owner, frozen, failures)
     if (failures.length === 0) {
       try {
         await original()
@@ -1135,8 +1453,20 @@ async function prepareSnapshot(): Promise<{
       await save(evidence, {
         revision: commit,
         source,
+        version: 2,
         steps,
-        ...(reports ? { reports } : {}),
+        diagnostics: failures.map((reason) => failure(reason)),
+        ...(reports
+          ? {
+            reports: {
+              ...reports,
+              outcome: result !== undefined && failures.length === 0 ? 'passed' : 'failed',
+              sourceIdentity: result !== undefined && failures.length === 0
+                ? 'verified'
+                : 'expected',
+            },
+          }
+          : {}),
         ...(inputs ? { inputs: inputs.receipt } : {}),
         passed: result !== undefined && failures.length === 0,
         failures: failures.map((reason) =>
@@ -1157,12 +1487,133 @@ async function prepareSnapshot(): Promise<{
   result.candidate.gates.sha256 = await hash(await Deno.readFile(evidence))
   return result
 
+  /** One attempt copies report bytes once, using the same confined alias contract as successful evidence. */
+  async function retainReports(): Promise<void> {
+    if (reports) return
+    await admitSnapshot()
+    const acquired = await admitSnapshotOwner(directory, owner)
+    let reportSource = resolve(snapshot, '.tmp/reports')
+    try {
+      const owner = await Deno.lstat(snapshot)
+      if (!owner.isDirectory || owner.isSymlink) {
+        throw new Error('Release snapshot report owner must be a physical directory.')
+      }
+      const physical = await Deno.realPath(snapshot)
+      if (physical !== resolve(acquired.path, 'source')) {
+        throw new Error('Release report snapshot left its acquired owner.')
+      }
+      const parent = resolve(snapshot, '.tmp')
+      const parentInfo = await Deno.lstat(parent)
+      if (
+        !parentInfo.isDirectory || parentInfo.isSymlink ||
+        await Deno.realPath(parent) !== resolve(physical, '.tmp')
+      ) {
+        throw new Error('Release report parent must be a physical directory inside the snapshot.')
+      }
+      const info = await Deno.lstat(reportSource)
+      if (
+        !info.isDirectory || info.isSymlink ||
+        await Deno.realPath(reportSource) !== resolve(physical, '.tmp/reports')
+      ) {
+        throw new Error('Release report root must be a physical directory.')
+      }
+      // Canonical ownership admits OS prefix aliases while keeping child alias mapping confined.
+      reportSource = resolve(physical, '.tmp/reports')
+    } catch (reason) {
+      if (reason instanceof Deno.errors.NotFound) return
+      throw reason
+    }
+    const target = resolve(ROOT, reportDirectory)
+    // Partial is recorded before copy so failure never silently relabels incomplete output as complete.
+    reports = { path: reportDirectory, source, revision: commit, copyState: 'partial' }
+    await copyTree(reportSource, target, [[reportSource, target]])
+    reports = { ...reports, copyState: 'complete' }
+  }
+
+  /** Pending and actual child observation are persisted before fallible integrity checks. */
+  function beginGate(task: string, phase: GateType['phase'], before: GateType['before']): number {
+    const index = steps.length, started = new Date().toISOString()
+    steps.push({
+      task,
+      phase,
+      before,
+      started,
+      code: null,
+      execution: { state: 'pending' },
+      integrity: { source: { state: 'pending' }, revision: { state: 'pending' } },
+    })
+    return index
+  }
+  /** Unobserved status never becomes a fabricated zero exit. */
+  function observeGate(index: number, status?: Deno.CommandStatus): void {
+    steps[index] = {
+      ...steps[index]!,
+      finished: new Date().toISOString(),
+      code: status?.code ?? null,
+      execution: status
+        ? { state: 'exited', success: status.success, signal: status.signal }
+        : { state: 'unobserved' },
+    }
+  }
+  /** In-progress checkpoints refuse publication, including after a supervisor interruption. */
+  async function checkpoint(): Promise<void> {
+    await Deno.mkdir(STORE, { recursive: true })
+    await save(evidence, {
+      version: 2,
+      revision: commit,
+      source,
+      steps,
+      passed: false,
+      diagnostics: failures.map((reason) => failure(reason)),
+      ...(reports
+        ? { reports: { ...reports, outcome: 'pending', sourceIdentity: 'expected' } }
+        : {}),
+    })
+  }
+  /** Both identity authorities are attempted; one failure cannot erase the other or the child outcome. */
+  async function finishGate(index: number, errors: unknown[]): Promise<void> {
+    try {
+      await checkpoint()
+    } catch (reason) {
+      errors.push(reason)
+    }
+    const values = await Promise.allSettled([currentSource(), currentRevision()])
+    let step = steps[index]!
+    const integrity: {
+      source: NonNullable<GateType['integrity']>['source']
+      revision: NonNullable<GateType['integrity']>['revision']
+    } = { source: { state: 'pending' }, revision: { state: 'pending' } }
+    for (
+      const [position, field, expected] of [[0, 'source', source], [1, 'revision', commit]] as const
+    ) {
+      const value = values[position]!
+      let reason: unknown
+      if (value.status === 'fulfilled') {
+        step = { ...step, [field]: value.value }
+        if (value.value === expected) {
+          integrity[field] = { state: 'verified' }
+          continue
+        }
+        reason = new Error(`Snapshot ${field} changed during release preparation.`)
+      } else reason = value.reason
+      errors.push(reason)
+      integrity[field] = { state: 'failed', failure: failure(reason) }
+    }
+    steps[index] = { ...step, integrity }
+    try {
+      await checkpoint()
+    } catch (reason) {
+      errors.push(reason)
+    }
+  }
+
   /** Installs the committed lock graph while its root entry may be replaced, before any source gate. */
   async function dependenciesPhase(): Promise<void> {
     await verify()
     await original()
-    const before = { source: await sourceHash(snapshot), revision: await revision(snapshot) }
-    const started = new Date().toISOString()
+    const before = { source: await currentSource(), revision: await currentRevision() }
+    const index = beginGate('deps:ci', 'dependencies', before)
+    await checkpoint()
     const logs = `${STORE}/snapshot-${commit}-${attempt}/dependencies`
     await Deno.mkdir(resolve(ROOT, logs), { recursive: true })
     const stdout = `${logs}/stdout.log`, stderr = `${logs}/stderr.log`
@@ -1175,6 +1626,7 @@ async function prepareSnapshot(): Promise<{
       const err = await Deno.open(resolve(ROOT, stderr), { write: true, createNew: true })
       files.push(err)
       console.log('Snapshot dependency phase: deno task deps:ci (before source protection).')
+      await admitSnapshot()
       const child = new Deno.Command(Deno.execPath(), {
         args: ['task', 'deps:ci'],
         cwd: snapshot,
@@ -1244,7 +1696,18 @@ async function prepareSnapshot(): Promise<{
       // cannot become successful dependency evidence or suppress another error.
       const outcomes = await Promise.allSettled(
         [
-          child.status,
+          child.status.then(async (value) => {
+            status = value
+            observeGate(index, value)
+            // A descendant may still hold a raw-output pipe after this CLI exits.
+            // Persist its observed status without waiting for those unrelated lifetimes.
+            try {
+              await checkpoint()
+            } catch (reason) {
+              errors.push(reason)
+            }
+            return value
+          }),
           retain(child.stdout, out),
           retain(child.stderr, err),
         ] as const,
@@ -1272,40 +1735,86 @@ async function prepareSnapshot(): Promise<{
     } catch (reason) {
       errors.push(reason)
     }
-    if (status) {
-      steps.push({
-        task: 'deps:ci',
-        phase: 'dependencies',
-        before,
-        started,
-        finished: new Date().toISOString(),
-        code: status.code,
-        source: await sourceHash(snapshot),
-        revision: await revision(snapshot),
-        ...(recorded ? { logs: recorded } : {}),
-      })
+    if (!status) observeGate(index)
+    if (recorded) steps[index] = { ...steps[index]!, logs: recorded }
+    if (!status?.success) {
+      errors.push(
+        new Error(
+          `Snapshot dependency phase 'deps:ci' failed with exit code ${
+            status?.code ?? 'unreported'
+          }, signal ${status?.signal ?? 'unobserved'}. See ${stdout} and ${stderr}.`,
+        ),
+      )
     }
-    if (errors.length === 1) throw errors[0]
-    if (errors.length > 1) {
-      throw new AggregateError(errors, 'Dependency installation and raw evidence failed.', {
-        cause: errors[0],
-      })
+    await finishGate(index, errors)
+    if (errors.length) {
+      throw new AggregateError(
+        errors,
+        'Dependency installation, raw evidence, or integrity failed.',
+        { cause: errors[0] },
+      )
     }
     await verify()
     await original()
-    if (!status?.success) {
-      throw new Error(
-        `Snapshot dependency phase 'deps:ci' failed with exit code ${
-          status?.code ?? 'unreported'
-        }. See ${stdout} and ${stderr}.`,
-      )
+  }
+
+  /** Every snapshot operation re-admits its originally acquired physical roots. */
+  async function admitSnapshot(): Promise<void> {
+    const acquired = await admitSnapshotOwner(directory, owner)
+    const captured = await admitSnapshotOwner(snapshot, sourceOwner)
+    if (captured.path !== resolve(acquired.path, 'source')) {
+      throw new SnapshotError('Snapshot source left its acquired temporary owner.')
     }
+  }
+  /**
+   * Admit a physical path before reading owned source or package output.
+   * Root identity alone is insufficient when a gate replaces a nested ancestor.
+   * Setup writes may name absent children, but their nearest existing ancestor
+   * must still have the expected canonical path below the acquired source root.
+   */
+  async function admitSnapshotPath(path: string, missing = false): Promise<void> {
+    await admitSnapshot()
+    if (!sourceOwner) throw new SnapshotError('Snapshot source owner was not acquired.')
+    const local = relative(snapshot, path)
+    if (
+      isAbsolute(local) || local === '..' ||
+      local.startsWith(`..${Deno.build.os === 'windows' ? '\\' : '/'}`) ||
+      resolve(snapshot, local) !== path
+    ) {
+      throw new SnapshotError('Snapshot path is outside its acquired source owner.')
+    }
+    const expected = resolve(sourceOwner.path, local)
+    let existing = expected
+    while (true) {
+      try {
+        const info = await Deno.lstat(existing)
+        if (info.isSymlink || await Deno.realPath(existing) !== existing) {
+          throw new SnapshotError('Snapshot path contains an unadmitted alias.')
+        }
+        return
+      } catch (reason) {
+        if (
+          !(reason instanceof Deno.errors.NotFound) || !missing || existing === sourceOwner.path
+        ) throw reason
+        existing = dirname(existing)
+      }
+    }
+  }
+  /** Independent source and revision attempts retain their own admission faults. */
+  async function currentSource(): Promise<string> {
+    await admitSnapshotPath(resolve(snapshot, '.git'))
+    return await sourceHash(snapshot, admitSnapshotPath)
+  }
+  async function currentRevision(): Promise<string> {
+    await admitSnapshotPath(resolve(snapshot, '.git'))
+    return await revision(snapshot)
   }
 
   /** Checks identity after every gate, and before copying any release output. */
   async function verify(): Promise<void> {
+    await admitSnapshot()
     await inputs?.verify()
-    if (await revision(snapshot) !== commit || await sourceHash(snapshot) !== source) {
+    if (await currentRevision() !== commit || await currentSource() !== source) {
       throw new Error('Snapshot source or revision changed during release preparation.')
     }
   }
@@ -1360,21 +1869,15 @@ async function copyTree(
 
 /** Enumerates maintained files; Git's ignore authority excludes task-owned outputs. */
 async function sourcePaths(cwd: string): Promise<string[]> {
-  const output = await new Deno.Command('git', {
-    args: [
-      '-c',
-      'core.fsmonitor=false',
-      'ls-files',
-      '-z',
-      '--cached',
-      '--others',
-      '--exclude-standard',
-    ],
-    cwd,
-    stdout: 'piped',
-    stderr: 'piped',
-  }).output()
-  if (!output.success) throw new Error('Cannot enumerate release source inputs.')
+  const output = await git([
+    '-c',
+    'core.fsmonitor=false',
+    'ls-files',
+    '-z',
+    '--cached',
+    '--others',
+    '--exclude-standard',
+  ], cwd)
   return [...new Set(new TextDecoder().decode(output.stdout).split('\0').filter(Boolean))].sort()
 }
 

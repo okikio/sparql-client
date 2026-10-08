@@ -186,3 +186,107 @@ output or looping forever. This preserves binary diagnostics and split UTF-8 byt
 Reader cancellation, lock release, and file close failures remain independent evidence failures. Successful console
 output alone cannot prove useful capture: behavioral controls compare the retained bytes through three-byte file writes
 and require write rejection or zero progress to block every source gate and prepared receipt.
+
+### Keep gate execution separate from source admission
+
+A task can finish successfully while its subsequent Git identity request fails. Preparation records those two outcomes separately. Each version2 gate journal first checkpoints a pending command with `code:null` and no completion timestamp, then records the actually reported exit code, success and signal before requesting the source hash and revision. Both identity requests are attempted independently. A failed or unknown identity blocks the prepared receipt, even when the task returned zero. A nonzero task remains visible when identity checks also fail; permission restoration and snapshot removal errors remain additional failures.
+
+Git acquisition errors retain their argument vector, checkout path, reported code and signal, and exact stdout/stderr byte arrays in `diagnostics`. Human console errors decode stderr for readability; the retained arrays preserve binary or split UTF-8 diagnostics. If Git output acquisition throws without a reported result, status and byte fields are null rather than a fabricated zero/empty success. Admission failures before an owned snapshot exists use a unique `.tmp/releases/authority-<attempt>.json` record. Snapshot attempts retain the existing `gates-<revision>-<attempt>.json` layout and successful source/code/revision fields. Historical successful journals remain readable; version2 evidence additionally requires successful execution and verified integrity observations before upload.
+
+Run preparation from the repository root, then inspect its failed-attempt evidence:
+
+```sh
+deno task release:prepare
+```
+
+```sh
+deno eval '
+for await (const entry of Deno.readDir(".tmp/releases")) {
+  if (!entry.name.startsWith("gates-") && !entry.name.startsWith("authority-")) continue;
+  const journal = JSON.parse(await Deno.readTextFile(`.tmp/releases/${entry.name}`));
+  if (journal.passed === false) console.log(JSON.stringify(journal, null, 2));
+}
+'
+```
+
+A Git ownership refusal remains a refusal. Preparation never adds `safe.directory` exceptions or falls back to a directory walk that bypasses Git's source/ignore authority. Diagnose the recorded checkout and repair its owning runner or acquire a fresh correctly owned snapshot. Readonly content mounts alone do not prove stable directory ownership on every Docker Desktop filesystem. These journals are local provenance and failure evidence, not signatures or a promise that an arbitrary supervisor interruption completes cleanup. Pending or partial evidence cannot authorize publication. Git identity requests currently collect their outputs in memory; exact failure byte arrays add diagnostic artifact space. Large dependency logs continue to use their separate streaming capture and fixed-buffer hashing route.
+
+### Admit native Git ceilings without selecting another repository
+
+A damaged snapshot must not borrow an intact ancestor repository. Git commands keep ordinary repository discovery and
+its ownership checks, but set `GIT_CEILING_DIRECTORIES` to the canonical parent of the requested checkout. An invalid or
+missing local Git repository then fails instead of selecting an original checkout above it. The authority boundary rejects
+ambient `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_INDEX_FILE`, `GIT_OBJECT_DIRECTORY`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES` and `GIT_NAMESPACE` selection overrides. The journal records only the rejected variable
+name in `selection.variable`, not its value.
+
+A parent path must fit one native ceiling entry. Unix uses `:` as the list separator and rejects a parent containing a
+colon. Git for Windows uses `;`, so a drive-letter path such as `C:\releases` remains one entry, while a parent containing
+a semicolon rejects. The pure ceiling admission applies to Git requests on either platform; it does not add Unix
+permission requirements to Windows plan or upload commands. Preparation itself still requires the documented ordinary
+Unix account. This follows [Git's discovery contract](https://git-scm.com/docs/git#Documentation/git.txt-codeGITCEILINGDIRECTORIEScode),
+its [native separator parsing](https://github.com/git/git/blob/v2.51.2/setup.c#L1368-L1374) and
+[Windows separator definition](https://github.com/git/git/blob/v2.51.2/compat/mingw.h#L36).
+No explicit `--git-dir` selection or ownership exception replaces discovery admission.
+
+### Retain failed report bytes before retiring their owner
+
+Snapshot `.tmp/reports` are copied once into the attempt's outer reports directory before cleanup on both success and
+failure. A failed gate does not need a successful fresh Git identity request to retain binary captures and JSON reports.
+The journal marks them `outcome:failed` and `sourceIdentity:expected`: source/revision name the admitted attempt inputs,
+not a newly verified failed snapshot. A copy that fails keeps `copyState:partial` and its independent diagnostic while
+cleanup continues. Only completely successful preparation labels retained reports with verified source identity.
+
+The acquired temporary root and cloned source root must retain their physical identities before any snapshot Git request,
+source read, task dispatch, package copy or report read. Replaced owners produce `SnapshotError` with
+`snapshot.stage:admission`; this is an admission failure, not an invented Git exit. Both post-task integrity attempts
+record their own refusal after the actual task result has been observed. Source files and copied package paths also reject
+nested aliases before reading. Canonical OS prefix aliases such as `/var` and `/private/var` are resolved at acquisition;
+a later gate-created alias does not acquire the outside tree.
+
+The report root and its `.tmp` parent must be physical directories under that admitted source root. A regular file or
+an outside parent/root alias rejects before capture. Child report aliases retain the existing confined copy rule.
+Serialized failures use `ReportError` with `report.stage:admission` for owner/root admission, or `report.stage:copy` for
+capture after admission. The original cause is retained separately. Consumers can inspect these stable fields without
+matching human diagnostic wording.
+
+These illustrative selected fields show why a completed failing task, refused source identity and rejected report root
+remain different observations; they are not an actual run receipt:
+
+```json
+{
+  "passed": false,
+  "steps": [{
+    "task": "consumer-check",
+    "code": 9,
+    "execution": { "state": "exited", "success": false, "signal": null },
+    "integrity": { "source": { "state": "failed" }, "revision": { "state": "failed" } }
+  }],
+  "diagnostics": [{ "name": "ReportError", "report": { "stage": "admission" } }]
+}
+```
+
+Actual journals also retain completion times, independent causes, reported Git status/raw bytes when Git was dispatched,
+and cleanup faults. Failed or partial retained reports cannot authorize a prepared receipt or publication. Retention is
+local best-effort evidence, not a promise after supervisor interruption or an indefinitely open descendant stream.
+
+### Restore only physical objects inside the acquired owner
+
+Preparation records each protected file/directory's original mode and exact device/inode identity before removing write
+permissions. Positive safe integer identities are required; absent, zero or rounded numeric identities cannot distinguish
+owned objects reliably. Cleanup walks the acquired physical temporary root without following symbolic links and restores
+only identities in that protection record. Renaming a protected subtree inside the owner keeps its identity, so its
+permissions can be restored at the new path. Replacing a frozen path with an outside alias never grants permission to
+change that target's mode or bytes. Immutable copied OPFS inputs follow this same rule.
+
+An unregistered output directory whose gate removed all permissions remains a real cleanup failure; restoration does not
+silently repair arbitrary task output. Descendant restoration errors and the attempted native removal remain independent.
+A replaced temporary root blocks both report capture and cleanup there; the tool leaves the unadmitted location alone and
+records the refusal. A supervisor must use its own previously acquired namespace to retire any safely displaced private
+root. Child-written path markers are observations, never deletion authority.
+
+The restoration scan adds metadata work per owned entry, including private caches. Gates must be settled and quiescent:
+[Deno's filesystem API](https://docs.deno.com/api/deno/file-system/) exposes path-based `chmod` and `remove`, not an atomic
+handle-based permission-and-deletion transaction. Checks cannot prevent hostile concurrent same-user replacement between
+admission and a syscall, nor promise cleanup after abrupt process termination. These limits do not relax source admission,
+Git trust checks or successful-receipt requirements.

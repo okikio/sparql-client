@@ -1,12 +1,33 @@
 import process from 'node:process'
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { join } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { ceiling } from './ceiling.ts'
+
+/** Native Git separator admission is pure and remains testable on every host. */
+describe('Git discovery ceiling', () => {
+  it('admits a Windows drive-letter path as one ceiling', () => {
+    expect(ceiling(String.raw`C:\release inputs\parent`, true)).toBe(
+      String.raw`C:\release inputs\parent`,
+    )
+  })
+  it('rejects a Windows semicolon that could select another ceiling', () => {
+    expect(() => ceiling(String.raw`C:\parent;D:\other`, true)).toThrow(RangeError)
+  })
+  it('admits one canonical Unix parent without changing it', () => {
+    expect(ceiling('/owned/release inputs', false)).toBe('/owned/release inputs')
+  })
+  it('rejects a Unix colon that could select another ceiling', () => {
+    expect(() => ceiling('/owned/parent:/other', false)).toThrow(RangeError)
+  })
+})
 
 /** These subprocess fixtures use the real pinned Bumpy and owned Git repositories, never public registry uploads. */
 interface FixtureType {
   root: string
+  snapshots: string
   env: Record<string, string>
   release(...args: string[]): Promise<Deno.CommandOutput>
 }
@@ -66,19 +87,119 @@ function success(result: Deno.CommandOutput): void {
   }
 }
 
+/** A child marker observes a path; the fixture's acquired namespace owns cleanup authority. */
+async function snapshotPath(
+  value: FixtureType,
+  observed: string,
+  removed = false,
+): Promise<string> {
+  if (!observed || !isAbsolute(observed)) {
+    throw new Error('Snapshot observation is outside the owned fixture namespace.')
+  }
+  const path = resolve(observed)
+  const ownerInfo = await Deno.lstat(value.root)
+  if (ownerInfo.isSymlink || !ownerInfo.isDirectory) {
+    throw new Error('Snapshot owner path changed kind.')
+  }
+  const owner = await Deno.realPath(value.root)
+  // Temporary roots can have an OS alias, such as /var -> /private/var on macOS.
+  // Admit its actual canonical spelling, without accepting an arbitrary link below the owner.
+  const contained = (suffix: string): boolean =>
+    Boolean(suffix) && !isAbsolute(suffix) && !suffix.split(/[\\/]/u).includes('..')
+  let suffix = relative(value.snapshots, path)
+  if (!contained(suffix)) suffix = relative(join(owner, '.tmp', 'owned-snapshots'), path)
+  if (!contained(suffix)) {
+    throw new Error('Snapshot observation is outside the owned fixture namespace.')
+  }
+  const parts = suffix.split(/[\\/]/u)
+  let canonical = owner
+  let cursor = value.root
+  for (const part of ['.tmp', 'owned-snapshots', ...parts]) {
+    cursor = join(cursor, part)
+    canonical = join(canonical, part)
+    let info: Deno.FileInfo
+    try {
+      info = await Deno.lstat(cursor)
+    } catch (reason) {
+      // Removed observations support physical absence oracles; they never authorize mutation.
+      if (removed && reason instanceof Deno.errors.NotFound) return path
+      throw reason
+    }
+    if (info.isSymlink || !info.isDirectory || await Deno.realPath(cursor) !== canonical) {
+      throw new Error('Snapshot observation is not an owned canonical directory.')
+    }
+  }
+  return path
+}
+/** Restore only acquired snapshot storage, without following links or trusting child-written markers. */
+async function retireSnapshots(root: string): Promise<void> {
+  const namespace = join(root, '.tmp', 'owned-snapshots')
+  for (const path of [root, join(root, '.tmp'), namespace]) {
+    try {
+      const info = await Deno.lstat(path)
+      if (!info.isDirectory || info.isSymlink) throw new Error('Snapshot owner path changed kind.')
+    } catch (reason) {
+      if (reason instanceof Deno.errors.NotFound) return
+      throw reason
+    }
+  }
+  const failures: unknown[] = []
+  async function restore(path: string): Promise<void> {
+    const info = await Deno.lstat(path)
+    if (info.isSymlink) return
+    await Deno.chmod(path, info.isDirectory ? 0o755 : 0o600)
+    if (info.isDirectory) {
+      for await (const entry of Deno.readDir(path)) {
+        try {
+          await restore(join(path, entry.name))
+        } catch (reason) {
+          failures.push(reason)
+        }
+      }
+    }
+  }
+  try {
+    await restore(namespace)
+  } catch (reason) {
+    failures.push(reason)
+  }
+  try {
+    await Deno.remove(namespace, { recursive: true })
+  } catch (reason) {
+    failures.push(reason)
+  }
+  try {
+    await Deno.lstat(namespace)
+    failures.push(new Error('Owned snapshot namespace survived fixture cleanup.'))
+  } catch (reason) {
+    if (!(reason instanceof Deno.errors.NotFound)) failures.push(reason)
+  }
+  if (failures.length) {
+    throw new AggregateError(failures, 'Owned snapshot fixture cleanup failed.', {
+      cause: failures[0],
+    })
+  }
+}
+
 /** Owns each temporary root immediately and retains independent fixture/cleanup failures. */
 async function fixture(
   body: (value: FixtureType) => Promise<void>,
   workspace = false,
 ): Promise<void> {
   const root = await Deno.makeTempDir({ prefix: 'opfs-release-test-' })
+  const snapshots = join(root, '.tmp', 'owned-snapshots')
   const errors: unknown[] = []
   try {
     const source = new URL('../../', import.meta.url)
     await Deno.mkdir(join(root, '.mise/tasks'), { recursive: true })
     await Deno.mkdir(join(root, '.bumpy'))
     await Deno.mkdir(join(root, '.tmp'))
+    await Deno.mkdir(snapshots)
     await Deno.mkdir(join(root, 'bin'))
+    await Deno.copyFile(
+      new URL('.mise/tasks/ceiling.ts', source),
+      join(root, '.mise/tasks/ceiling.ts'),
+    )
     await Deno.copyFile(
       new URL('.mise/tasks/release.ts', source),
       join(root, '.mise/tasks/release.ts'),
@@ -207,6 +328,9 @@ async function fixture(
       (byte) => byte.toString(16).padStart(2, '0'),
     ).join('')
     const env = {
+      TMPDIR: snapshots,
+      TMP: snapshots,
+      TEMP: snapshots,
       OPFS_SOURCE: opfs,
       OPFS_TARBALL: opfsArchive,
       OPFS_ARCHIVE_SHA256: opfsHash,
@@ -252,6 +376,7 @@ async function fixture(
     )
     await body({
       root,
+      snapshots,
       env,
       release: (...args) =>
         run(root, Deno.execPath(), [
@@ -263,6 +388,11 @@ async function fixture(
           ...args,
         ], env),
     })
+  } catch (reason) {
+    errors.push(reason)
+  }
+  try {
+    await retireSnapshots(root)
   } catch (reason) {
     errors.push(reason)
   }
@@ -640,7 +770,10 @@ describe('Deno release command', { skip: Deno.build.os === 'windows' }, () => {
       value.env.ORIGINAL_RELEASE_ROOT = value.root
       await commitFixture(value)
       const result = await value.release('prepare')
-      const snapshot = await Deno.readTextFile(join(value.root, '.tmp/failed-snapshot.txt'))
+      await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/failed-snapshot.txt')),
+      )
       const failures: unknown[] = []
       try {
         expect(result.success).toBe(false)
@@ -662,17 +795,11 @@ describe('Deno release command', { skip: Deno.build.os === 'windows' }, () => {
       } catch (reason) {
         failures.push(reason)
       } finally {
-        // The fixture deliberately removed directory access. Restore only its
-        // owned path so the test itself leaves no failed-cleanup snapshot behind.
+        // The denied snapshot is contained in parent-owned storage. Markers never authorize deletion.
         try {
-          await Deno.chmod(join(snapshot, '.tmp/blocked'), 0o755)
+          await retireSnapshots(value.root)
         } catch (reason) {
-          if (!(reason instanceof Deno.errors.NotFound)) failures.push(reason)
-        }
-        try {
-          await Deno.remove(join(snapshot, '..'), { recursive: true })
-        } catch (reason) {
-          if (!(reason instanceof Deno.errors.NotFound)) failures.push(reason)
+          failures.push(reason)
         }
       }
       if (failures.length === 1) throw failures[0]
@@ -839,7 +966,11 @@ describe('Deno release command', { skip: Deno.build.os === 'windows' }, () => {
       expect(evidence.reports.revision).toBe(candidate.revision)
       expect(await Deno.readTextFile(join(value.root, evidence.reports.path, 'clone-proof.txt')))
         .toBe('report from committed snapshot')
-      const snapshot = await Deno.readTextFile(join(value.root, '.tmp/snapshot-root.txt'))
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/snapshot-root.txt')),
+        true,
+      )
       await expect(Deno.lstat(join(snapshot, '..'))).rejects.toThrow(Deno.errors.NotFound)
       await noUploads(value)
     })
@@ -861,7 +992,11 @@ describe('Deno release command', { skip: Deno.build.os === 'windows' }, () => {
       await commitFixture(value)
       const result = await value.release('prepare')
       expect(result.success).toBe(false)
-      const snapshot = await Deno.readTextFile(join(value.root, '.tmp/failed-snapshot.txt'))
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/failed-snapshot.txt')),
+        true,
+      )
       await expect(Deno.lstat(join(snapshot, '..'))).rejects.toThrow(Deno.errors.NotFound)
       await expect(Deno.stat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
         Deno.errors.NotFound,
@@ -1143,3 +1278,836 @@ async function commitFixture(value: FixtureType): Promise<void> {
     ]),
   )
 }
+
+/** Complete gate outcomes and independent Git authority bytes are behavioral release evidence. */
+interface AuthorityEvidenceType {
+  readonly passed: boolean
+  readonly steps?: readonly {
+    readonly task: string
+    readonly code: number | null
+    readonly execution?: {
+      readonly state: string
+      readonly success?: boolean
+      readonly signal?: string | null
+    }
+    readonly integrity?: {
+      readonly source: { readonly state: string }
+      readonly revision: { readonly state: string }
+    }
+  }[]
+  readonly reports?: {
+    readonly path: string
+    readonly source: string
+    readonly revision: string
+    readonly copyState: 'partial' | 'complete'
+    readonly outcome: 'pending' | 'passed' | 'failed'
+    readonly sourceIdentity: 'expected' | 'verified'
+  }
+  readonly diagnostics?: readonly AuthorityFailureType[]
+  readonly failures?: readonly unknown[]
+}
+/** Git observations retain bytes separately from their human-readable rendering. */
+interface AuthorityFailureType {
+  readonly name: string
+  readonly message: string
+  readonly report?: { readonly stage: 'admission' | 'copy' }
+  readonly snapshot?: { readonly stage: 'admission' }
+  readonly selection?: { readonly variable: string }
+  readonly git?: {
+    readonly cwd: string
+    readonly args: readonly string[]
+    readonly state: string
+    readonly code: number | null
+    readonly signal: string | null
+    readonly stdout: readonly number[] | null
+    readonly stderr: readonly number[] | null
+  }
+  readonly cause?: AuthorityFailureType
+  readonly errors?: readonly AuthorityFailureType[]
+}
+/** Reads only this invocation's owned journal; directory traversal order is not an oracle. */
+async function authorityJournal(
+  value: FixtureType,
+  prefix: string,
+): Promise<AuthorityEvidenceType> {
+  const paths = []
+  for await (const entry of Deno.readDir(join(value.root, '.tmp/releases'))) {
+    if (entry.name.startsWith(prefix)) paths.push(entry.name)
+  }
+  expect(paths).toHaveLength(1)
+  return await read<AuthorityEvidenceType>(join(value.root, '.tmp/releases', paths[0]!))
+}
+/** Finds structured causes without depending on localized Git error wording. */
+function authorityFailures(rows: readonly AuthorityFailureType[]): AuthorityFailureType[] {
+  return rows.flatMap(
+    (row) => [
+      row,
+      ...(row.cause ? authorityFailures([row.cause]) : []),
+      ...authorityFailures(row.errors ?? []),
+    ],
+  )
+}
+
+/** Intended admission faults must reach their deliberate exit; preserve setup stdout/stderr when they do not. */
+function reportFaultExit(
+  journal: AuthorityEvidenceType,
+  task: string,
+  result: Deno.CommandOutput,
+): void {
+  try {
+    expect(journal.steps!.find((row) => row.task === task)!.code).toBe(9)
+  } catch (reason) {
+    throw new AggregateError(
+      [
+        reason,
+        new Error(
+          new TextDecoder().decode(result.stdout) + new TextDecoder().decode(result.stderr),
+        ),
+      ],
+      'Report fault setup did not reach the deliberate exit 9.',
+      { cause: reason },
+    )
+  }
+}
+
+describe('Release source authority outcomes', { skip: Deno.build.os === 'windows' }, () => {
+  it('retains outside bytes when markers or links point outside owned snapshot storage', async () => {
+    await fixture(async (value) => {
+      const outside = join(value.root, '.tmp', 'outside-owned-snapshots.txt')
+      await Deno.writeTextFile(outside, 'outside sentinel')
+      const marker = join(value.root, '.tmp', 'wrong-snapshot-marker')
+      await Deno.writeTextFile(marker, value.root)
+      await expect(snapshotPath(value, value.root)).rejects.toThrow(
+        'outside the owned fixture namespace',
+      )
+      expect(await Deno.readTextFile(marker)).toBe(value.root)
+      const owned = await Deno.makeTempDir({ dir: value.snapshots })
+      await Deno.mkdir(join(owned, 'source'))
+      await Deno.symlink(outside, join(owned, 'source', 'outside-link'))
+      await Deno.writeTextFile(join(owned, 'source', 'denied.txt'), 'owned')
+      await Deno.chmod(join(owned, 'source'), 0)
+      for (const observed of ['', value.root, join(value.snapshots, '..'), outside]) {
+        await expect(snapshotPath(value, observed)).rejects.toThrow(
+          'outside the owned fixture namespace',
+        )
+      }
+      expect(await snapshotPath(value, join(owned, 'source'))).toBe(join(owned, 'source'))
+      const absent = join(owned, 'not-created')
+      await expect(snapshotPath(value, absent)).rejects.toThrow(Deno.errors.NotFound)
+      expect(await snapshotPath(value, absent, true)).toBe(absent)
+      const nested = join(owned, 'nested', 'arbitrary', 'directory')
+      await Deno.mkdir(nested, { recursive: true })
+      expect(await snapshotPath(value, nested)).toBe(nested)
+      const physical = await Deno.realPath(nested)
+      expect(await snapshotPath(value, physical)).toBe(physical)
+      await Deno.symlink(join(value.root, '.tmp'), join(owned, 'escaped-directory'))
+      await expect(snapshotPath(value, join(owned, 'escaped-directory'))).rejects.toThrow(
+        'owned canonical directory',
+      )
+      await retireSnapshots(value.root)
+      expect(await Deno.readTextFile(outside)).toBe('outside sentinel')
+      await expect(Deno.lstat(value.snapshots)).rejects.toThrow(Deno.errors.NotFound)
+    })
+  })
+
+  it('retains real Git admission rejection before any gate or upload', async () => {
+    await fixture(async (value) => {
+      await Deno.writeTextFile(join(value.root, '.git/HEAD'), 'invalid-ref\n')
+      const expected = await run(value.root, 'git', [
+        '-c',
+        'core.fsmonitor=false',
+        'status',
+        '--porcelain',
+      ], { GIT_CEILING_DIRECTORIES: dirname(await Deno.realPath(value.root)) })
+      expect(expected.success).toBe(false)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'authority-')
+      expect(journal.passed).toBe(false)
+      const observations = authorityFailures(journal.diagnostics ?? []).filter((row) => row.git)
+      expect(observations).toHaveLength(1)
+      expect(observations[0]!.git).toEqual({
+        cwd: await Deno.realPath(value.root),
+        args: ['-c', 'core.fsmonitor=false', 'status', '--porcelain'],
+        state: 'exited',
+        code: expected.code,
+        signal: expected.signal,
+        stdout: Array.from(expected.stdout),
+        stderr: Array.from(expected.stderr),
+      })
+      await expect(Deno.stat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  for (const gitFault of [false, true]) {
+    it(`retains failed gate binary/JSON reports with Git fault ${gitFault} before snapshot cleanup`, async () => {
+      await fixture(async (value) => {
+        const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+        config.tasks['verify'] = 'deno run -A failed-reports.ts'
+        await json(join(value.root, 'deno.json'), config)
+        value.env.ORIGINAL_RELEASE_ROOT = value.root
+        await Deno.writeTextFile(
+          join(value.root, 'failed-reports.ts'),
+          `
+          await Deno.writeTextFile(Deno.env.get('ORIGINAL_RELEASE_ROOT')+'/.tmp/report-snapshot',Deno.cwd());
+          await Deno.mkdir('.tmp/reports/consumer-copy/nested',{recursive:true});
+          await Deno.writeFile('.tmp/reports/consumer-copy/nested/raw.bin',new Uint8Array([0,255,128,1,17]));
+          await Deno.writeTextFile('.tmp/reports/consumer-copy/result.json',JSON.stringify({code:9,capture:'failed',binary:'nested/raw.bin'}));
+          ${
+            gitFault
+              ? "await Deno.writeTextFile('.git/HEAD'," + JSON.stringify('invalid-ref\n') + ');'
+              : ''
+          }
+          Deno.exit(9);
+        `,
+        )
+        await commitFixture(value)
+        const result = await value.release('prepare')
+        expect(result.success).toBe(false)
+        const journal = await authorityJournal(value, 'gates-')
+        expect(journal.passed).toBe(false)
+        reportFaultExit(journal, 'verify', result)
+        expect(journal.reports).toBeDefined()
+        expect(journal.reports!.copyState).toBe('complete')
+        expect(journal.reports!.outcome).toBe('failed')
+        expect(journal.reports!.sourceIdentity).toBe('expected')
+        const target = join(value.root, journal.reports!.path, 'consumer-copy')
+        expect(await Deno.readFile(join(target, 'nested/raw.bin'))).toEqual(
+          new Uint8Array([0, 255, 128, 1, 17]),
+        )
+        expect(await read(join(target, 'result.json'))).toEqual({
+          code: 9,
+          capture: 'failed',
+          binary: 'nested/raw.bin',
+        })
+        if (gitFault) {
+          expect(authorityFailures(journal.diagnostics ?? []).filter((row) => row.git).length)
+            .toBeGreaterThanOrEqual(2)
+        }
+        const snapshot = await snapshotPath(
+          value,
+          await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+          true,
+        )
+        await expect(Deno.lstat(snapshot)).rejects.toThrow(Deno.errors.NotFound)
+        await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+          Deno.errors.NotFound,
+        )
+        await noUploads(value)
+      })
+    })
+  }
+  it('retains report-copy rejection independently from gate failure and still retires the snapshot', async () => {
+    await fixture(async (value) => {
+      const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+      config.tasks['verify'] = 'deno run -A escaped-report.ts'
+      await json(join(value.root, 'deno.json'), config)
+      value.env.ORIGINAL_RELEASE_ROOT = value.root
+      await Deno.writeTextFile(
+        join(value.root, 'escaped-report.ts'),
+        `
+        await Deno.writeTextFile(Deno.env.get('ORIGINAL_RELEASE_ROOT')+'/.tmp/report-snapshot',Deno.cwd());
+        await Deno.writeTextFile('.tmp/outside-report.txt','outside report authority');
+        await Deno.mkdir('.tmp/reports',{recursive:true});
+        await Deno.symlink('../outside-report.txt','.tmp/reports/escaped');
+        Deno.exit(9);
+      `,
+      )
+      await commitFixture(value)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      expect(journal.passed).toBe(false)
+      reportFaultExit(journal, 'verify', result)
+      expect(journal.reports!.copyState).toBe('partial')
+      expect(journal.reports!.outcome).toBe('failed')
+      expect(journal.reports!.sourceIdentity).toBe('expected')
+      expect(
+        authorityFailures(journal.diagnostics ?? []).some((row) =>
+          row.name === 'ReportError' && row.report?.stage === 'copy'
+        ),
+      ).toBe(true)
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+        true,
+      )
+      await expect(Deno.lstat(snapshot)).rejects.toThrow(Deno.errors.NotFound)
+      await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  for (const kind of ['file', 'escaped alias'] as const) {
+    it(`rejects report root ${kind} without capturing outside bytes or suppressing cleanup`, async () => {
+      await fixture(async (value) => {
+        const outside = join(value.root, '.tmp', 'outside-report-root')
+        await Deno.mkdir(outside)
+        await Deno.writeFile(join(outside, 'sentinel.bin'), new Uint8Array([2, 255, 0, 128]))
+        const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+        config.tasks['verify'] = 'deno run -A report-root-kind.ts'
+        await json(join(value.root, 'deno.json'), config)
+        value.env.ORIGINAL_RELEASE_ROOT = value.root
+        await Deno.writeTextFile(
+          join(value.root, 'report-root-kind.ts'),
+          `
+          await Deno.writeTextFile(Deno.env.get('ORIGINAL_RELEASE_ROOT')+'/.tmp/report-snapshot',Deno.cwd());
+          await Deno.mkdir('.tmp/reports',{recursive:true});
+          await Deno.remove('.tmp/reports',{recursive:true});
+          ${
+            kind === 'file'
+              ? "await Deno.writeFile('.tmp/reports',new Uint8Array([0,1,255]));"
+              : "await Deno.symlink(Deno.env.get('ORIGINAL_RELEASE_ROOT')+'/.tmp/outside-report-root','.tmp/reports');"
+          }
+          Deno.exit(9);
+        `,
+        )
+        await commitFixture(value)
+        const result = await value.release('prepare')
+        expect(result.success).toBe(false)
+        const journal = await authorityJournal(value, 'gates-')
+        expect(journal.passed).toBe(false)
+        reportFaultExit(journal, 'verify', result)
+        expect(journal.reports).toBeUndefined()
+        expect(
+          authorityFailures(journal.diagnostics ?? []).some((row) =>
+            row.name === 'ReportError' && row.report?.stage === 'admission'
+          ),
+        ).toBe(true)
+        expect(await Deno.readFile(join(outside, 'sentinel.bin'))).toEqual(
+          new Uint8Array([2, 255, 0, 128]),
+        )
+        const snapshot = await snapshotPath(
+          value,
+          await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+          true,
+        )
+        await expect(Deno.lstat(snapshot)).rejects.toThrow(Deno.errors.NotFound)
+        await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+          Deno.errors.NotFound,
+        )
+        await noUploads(value)
+      })
+    })
+  }
+  it('does not restore an outside file through a replaced protected source entry', async () => {
+    await fixture(async (value) => {
+      const outside = join(value.root, '.tmp', 'outside-permission-sentinel.bin')
+      const bytes = new Uint8Array([0, 255, 57, 128])
+      await Deno.writeFile(outside, bytes)
+      await Deno.chmod(outside, 0o400)
+      const mode = (await Deno.lstat(outside)).mode
+      const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+      config.tasks['verify'] = 'deno run -A source-alias.ts'
+      await json(join(value.root, 'deno.json'), config)
+      value.env.ORIGINAL_RELEASE_ROOT = value.root
+      await Deno.writeTextFile(
+        join(value.root, 'source-alias.ts'),
+        `
+        const original=Deno.env.get('ORIGINAL_RELEASE_ROOT');
+        await Deno.writeTextFile(original+'/.tmp/report-snapshot',Deno.cwd());
+        await Deno.chmod('.',0o755);
+        await Deno.remove('mod.js');
+        await Deno.symlink(original+'/.tmp/outside-permission-sentinel.bin','mod.js');
+        Deno.exit(9);
+      `,
+      )
+      await commitFixture(value)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      reportFaultExit(journal, 'verify', result)
+      expect(journal.passed).toBe(false)
+      expect(journal.steps!.find((row) => row.task === 'verify')!.integrity?.source.state).toBe(
+        'failed',
+      )
+      expect((await Deno.lstat(outside)).mode).toBe(mode)
+      expect(await Deno.readFile(outside)).toEqual(bytes)
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+        true,
+      )
+      await expect(Deno.lstat(snapshot)).rejects.toThrow(Deno.errors.NotFound)
+      await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  it('restores safely renamed protected descendants before removing their acquired owner', async () => {
+    await fixture(async (value) => {
+      await Deno.mkdir(join(value.root, 'protected-input'))
+      await Deno.writeTextFile(
+        join(value.root, 'protected-input', 'value.ts'),
+        'export const value = 31;\n',
+      )
+      const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+      config.tasks['verify'] = 'deno run -A source-rename.ts'
+      await json(join(value.root, 'deno.json'), config)
+      value.env.ORIGINAL_RELEASE_ROOT = value.root
+      await Deno.writeTextFile(
+        join(value.root, 'source-rename.ts'),
+        `
+        const original=Deno.env.get('ORIGINAL_RELEASE_ROOT');
+        await Deno.writeTextFile(original+'/.tmp/report-snapshot',Deno.cwd());
+        await Deno.chmod('.',0o755);
+        await Deno.rename('protected-input','displaced-input');
+        // Its directory and file remain protected after the rename. Successful
+        // owner removal below requires restoring that physical directory.
+        await Deno.writeTextFile(original+'/.tmp/renamed-modes.json',JSON.stringify({
+          directory:(await Deno.lstat('displaced-input')).mode,
+          file:(await Deno.lstat('displaced-input/value.ts')).mode
+        }));
+        Deno.exit(9);
+      `,
+      )
+      await commitFixture(value)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      reportFaultExit(journal, 'verify', result)
+      expect(journal.passed).toBe(false)
+      expect(journal.steps!.find((row) => row.task === 'verify')!.integrity?.source.state).toBe(
+        'failed',
+      )
+      const modes = await read<{ directory: number; file: number }>(
+        join(value.root, '.tmp/renamed-modes.json'),
+      )
+      expect(modes.directory & 0o222).toBe(0)
+      expect(modes.file & 0o222).toBe(0)
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+        true,
+      )
+      await expect(Deno.lstat(dirname(snapshot))).rejects.toThrow(Deno.errors.NotFound)
+      await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  it('skips a replaced snapshot root and retires its renamed physical tree without changing borrowed modes', async () => {
+    await fixture(async (value) => {
+      const outside = join(value.root, '.tmp', 'outside-snapshot-root')
+      await Deno.mkdir(outside)
+      const bytes = new Uint8Array([0, 255, 91, 128])
+      await Deno.writeFile(join(outside, 'mod.js'), bytes)
+      await Deno.chmod(outside, 0o700)
+      await Deno.chmod(join(outside, 'mod.js'), 0o400)
+      const directoryMode = (await Deno.lstat(outside)).mode
+      const fileMode = (await Deno.lstat(join(outside, 'mod.js'))).mode
+      const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+      config.tasks['verify'] = 'deno run -A snapshot-alias.ts'
+      await json(join(value.root, 'deno.json'), config)
+      value.env.ORIGINAL_RELEASE_ROOT = value.root
+      await Deno.writeTextFile(
+        join(value.root, 'snapshot-alias.ts'),
+        `
+        import { dirname, resolve } from 'node:path';
+        const original=Deno.env.get('ORIGINAL_RELEASE_ROOT');
+        const snapshot=Deno.cwd();
+        await Deno.writeTextFile(original+'/.tmp/report-snapshot',snapshot);
+        await Deno.rename(snapshot,resolve(dirname(snapshot),'displaced-source'));
+        await Deno.symlink(original+'/.tmp/outside-snapshot-root',snapshot);
+        Deno.exit(9);
+      `,
+      )
+      await commitFixture(value)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      reportFaultExit(journal, 'verify', result)
+      expect(journal.passed).toBe(false)
+      const admissions = authorityFailures(journal.diagnostics ?? [])
+      expect(admissions.filter((row) => row.snapshot?.stage === 'admission').length)
+        .toBeGreaterThanOrEqual(2)
+      expect(admissions.filter((row) => row.git)).toHaveLength(0)
+      const step = journal.steps!.find((row) => row.task === 'verify')!
+      expect(step.integrity?.source.state).toBe('failed')
+      expect(step.integrity?.revision.state).toBe('failed')
+      expect(journal.steps!.find((row) => row.task === 'verify')!.integrity?.source.state).toBe(
+        'failed',
+      )
+      expect(
+        authorityFailures(journal.diagnostics ?? []).some((row) =>
+          row.name === 'ReportError' && row.report?.stage === 'admission'
+        ),
+      ).toBe(true)
+      expect((await Deno.lstat(outside)).mode).toBe(directoryMode)
+      expect((await Deno.lstat(join(outside, 'mod.js'))).mode).toBe(fileMode)
+      expect(await Deno.readFile(join(outside, 'mod.js'))).toEqual(bytes)
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+        true,
+      )
+      await expect(Deno.lstat(dirname(snapshot))).rejects.toThrow(Deno.errors.NotFound)
+      await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  it('refuses a replaced temporary owner without reading its reports or mutating borrowed modes', async () => {
+    await fixture(async (value) => {
+      const outside = join(value.root, '.tmp', 'outside-temporary-owner')
+      await Deno.mkdir(join(outside, 'source', '.tmp', 'reports'), { recursive: true })
+      const bytes = new Uint8Array([0, 255, 101, 128])
+      await Deno.writeFile(join(outside, 'source', 'mod.js'), bytes)
+      await Deno.writeFile(join(outside, 'source', '.tmp', 'reports', 'borrowed.bin'), bytes)
+      await Deno.chmod(outside, 0o700)
+      await Deno.chmod(join(outside, 'source'), 0o700)
+      await Deno.chmod(join(outside, 'source', 'mod.js'), 0o400)
+      const mode = (await Deno.lstat(outside)).mode
+      const sourceMode = (await Deno.lstat(join(outside, 'source'))).mode
+      const fileMode = (await Deno.lstat(join(outside, 'source', 'mod.js'))).mode
+      const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+      config.tasks['verify'] = 'deno run -A temporary-owner-alias.ts'
+      await json(join(value.root, 'deno.json'), config)
+      value.env.ORIGINAL_RELEASE_ROOT = value.root
+      await Deno.writeTextFile(
+        join(value.root, 'temporary-owner-alias.ts'),
+        `
+        import { dirname, resolve } from 'node:path';
+        const original=Deno.env.get('ORIGINAL_RELEASE_ROOT');
+        const acquired=dirname(Deno.cwd());
+        await Deno.rename(acquired,resolve(dirname(acquired),'displaced-owner'));
+        await Deno.symlink(original+'/.tmp/outside-temporary-owner',acquired);
+        Deno.exit(9);
+      `,
+      )
+      await commitFixture(value)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      reportFaultExit(journal, 'verify', result)
+      expect(journal.passed).toBe(false)
+      const admissions = authorityFailures(journal.diagnostics ?? [])
+      expect(admissions.filter((row) => row.snapshot?.stage === 'admission').length)
+        .toBeGreaterThanOrEqual(2)
+      expect(admissions.filter((row) => row.git)).toHaveLength(0)
+      const step = journal.steps!.find((row) => row.task === 'verify')!
+      expect(step.integrity?.source.state).toBe('failed')
+      expect(step.integrity?.revision.state).toBe('failed')
+      expect(journal.reports).toBeUndefined()
+      expect(
+        authorityFailures(journal.diagnostics ?? []).some((row) =>
+          row.name === 'ReportError' && row.report?.stage === 'admission'
+        ),
+      ).toBe(true)
+      expect((await Deno.lstat(outside)).mode).toBe(mode)
+      expect((await Deno.lstat(join(outside, 'source'))).mode).toBe(sourceMode)
+      expect((await Deno.lstat(join(outside, 'source', 'mod.js'))).mode).toBe(fileMode)
+      expect(await Deno.readFile(join(outside, 'source', 'mod.js'))).toEqual(bytes)
+      expect(await Deno.readFile(join(outside, 'source', '.tmp', 'reports', 'borrowed.bin')))
+        .toEqual(bytes)
+      // The release tool refuses deletion at the replaced root. The parent fixture
+      // later repairs only its own pre-acquired namespace, without following links.
+      const entries = Array.from(Deno.readDirSync(value.snapshots))
+      expect(entries.some((entry) => entry.isDirectory && !entry.isSymlink)).toBe(true)
+      expect(entries.some((entry) => entry.isSymlink)).toBe(true)
+      await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  it('rejects a report parent alias before reading borrowed report bytes and still cleans its snapshot', async () => {
+    await fixture(async (value) => {
+      const outside = join(value.root, '.tmp', 'outside-report-parent')
+      await Deno.mkdir(join(outside, 'reports'), { recursive: true })
+      await Deno.writeFile(
+        join(outside, 'reports', 'sentinel.bin'),
+        new Uint8Array([2, 255, 0, 128]),
+      )
+      await Deno.chmod(outside, 0o700)
+      await Deno.chmod(join(outside, 'reports', 'sentinel.bin'), 0o640)
+      const outsideMode = (await Deno.lstat(outside)).mode
+      const sentinelMode = (await Deno.lstat(join(outside, 'reports', 'sentinel.bin'))).mode
+      const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
+      config.tasks['verify'] = 'deno run -A report-parent-alias.ts'
+      await json(join(value.root, 'deno.json'), config)
+      value.env.ORIGINAL_RELEASE_ROOT = value.root
+      await Deno.writeTextFile(
+        join(value.root, 'report-parent-alias.ts'),
+        `
+        import { relative, resolve, dirname } from 'node:path';
+        const original=Deno.env.get('ORIGINAL_RELEASE_ROOT');
+        await Deno.writeTextFile(original+'/.tmp/report-snapshot',Deno.cwd());
+        // Mirror copied-input locations only as outside mode/byte sentinels. Their
+        // observed names are never used to delete or chmod fixture resources.
+        const sentinels=[];
+        const archive=Deno.env.get('OPFS_TARBALL');
+        const source=Deno.env.get('OPFS_SOURCE');
+        for(const input of true && archive && source ? [archive,resolve(source,'mod.js')] : []) {
+          const path=relative(resolve('.tmp'),input);
+          if(!path || path==='..' || path.startsWith('../')) throw new Error('Input is not snapshot-owned');
+          const target=resolve(original,'.tmp/outside-report-parent',path);
+          await Deno.mkdir(dirname(target),{recursive:true});
+          await Deno.writeFile(target,new Uint8Array([0,255,41,128]));
+          await Deno.chmod(target,0o400);
+          sentinels.push({path,mode:(await Deno.lstat(target)).mode});
+        }
+        await Deno.writeTextFile(original+'/.tmp/outside-input-sentinels.json',JSON.stringify(sentinels));
+        // Deliberate namespace-corruption fault; source bytes remain unchanged.
+        await Deno.chmod('.',0o755);
+        await Deno.rename('.tmp','.tmp-displaced');
+        await Deno.symlink(Deno.env.get('ORIGINAL_RELEASE_ROOT')+'/.tmp/outside-report-parent','.tmp');
+        Deno.exit(9);
+      `,
+      )
+      await commitFixture(value)
+      const result = await value.release('prepare')
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      expect(journal.passed).toBe(false)
+      reportFaultExit(journal, 'verify', result)
+      expect(journal.reports).toBeUndefined()
+      expect(
+        authorityFailures(journal.diagnostics ?? []).some((row) =>
+          row.name === 'ReportError' && row.report?.stage === 'admission'
+        ),
+      ).toBe(true)
+      expect(await Deno.readFile(join(outside, 'reports', 'sentinel.bin'))).toEqual(
+        new Uint8Array([2, 255, 0, 128]),
+      )
+      expect((await Deno.lstat(outside)).mode).toBe(outsideMode)
+      expect((await Deno.lstat(join(outside, 'reports', 'sentinel.bin'))).mode).toBe(sentinelMode)
+      const sentinels = await read<Array<{ path: string; mode: number }>>(
+        join(value.root, '.tmp/outside-input-sentinels.json'),
+      )
+      for (const row of sentinels) {
+        const target = resolve(outside, row.path)
+        const local = relative(outside, target)
+        expect(
+          local !== '' && local !== '..' &&
+            !local.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) &&
+            !isAbsolute(local),
+        ).toBe(true)
+        expect((await Deno.lstat(target)).mode).toBe(row.mode)
+        expect(await Deno.readFile(target)).toEqual(new Uint8Array([0, 255, 41, 128]))
+      }
+      const snapshot = await snapshotPath(
+        value,
+        await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),
+        true,
+      )
+      await expect(Deno.lstat(snapshot)).rejects.toThrow(Deno.errors.NotFound)
+      await expect(Deno.lstat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
+      await noUploads(value)
+    })
+  })
+  for (
+    const name of [
+      'GIT_DIR',
+      'GIT_WORK_TREE',
+      'GIT_COMMON_DIR',
+      'GIT_INDEX_FILE',
+      'GIT_OBJECT_DIRECTORY',
+      'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+      'GIT_NAMESPACE',
+    ]
+  ) {
+    it(`refuses ambient ${name} as checkout source authority`, async () => {
+      await fixture(async (value) => {
+        value.env[name] = value.root
+        const result = await value.release('prepare')
+        expect(result.success).toBe(false)
+        const journal = await authorityJournal(value, 'authority-')
+        expect(journal.passed).toBe(false)
+        const observed = authorityFailures(journal.diagnostics ?? [])
+        expect(
+          observed.some((row) => row.selection?.variable === name),
+        ).toBe(true)
+        expect(observed.find((row) => row.git)?.git).toEqual({
+          cwd: await Deno.realPath(value.root),
+          args: ['-c', 'core.fsmonitor=false', 'status', '--porcelain'],
+          state: 'unobserved',
+          code: null,
+          signal: null,
+          stdout: null,
+          stderr: null,
+        })
+        expect(Array.from(Deno.readDirSync(value.snapshots))).toHaveLength(0)
+        await noUploads(value)
+      })
+    })
+  }
+  for (const task of ['verify']) {
+    for (const code of [0, 9]) {
+      it(`retains ${task} exit ${code} and both failed post-gate Git authorities`, async () => {
+        await fixture(async (value) => {
+          const config = await read<{ tasks: Record<string, string> }>(
+            join(value.root, 'deno.json'),
+          )
+          config.tasks[task] = 'deno run -A authority-fault.ts'
+          await json(join(value.root, 'deno.json'), config)
+          value.env.ORIGINAL_RELEASE_ROOT = value.root
+          await Deno.writeTextFile(
+            join(value.root, 'authority-fault.ts'),
+            `
+          const root=Deno.env.get('ORIGINAL_RELEASE_ROOT');
+          await Deno.writeTextFile(root+'/.tmp/authority-snapshot',Deno.cwd());
+          await Deno.writeTextFile('.git/HEAD',${JSON.stringify('invalid-ref\n')});
+          const ancestor=await new Deno.Command('git',{args:['rev-parse','HEAD'],stdout:'piped',stderr:'piped',env:{GIT_CEILING_DIRECTORIES:''}}).output();
+          await Deno.writeTextFile(root+'/.tmp/authority-ancestor.json',JSON.stringify({success:ancestor.success,revision:new TextDecoder().decode(ancestor.stdout).trim()}));
+          const outputs=[];
+          for(const args of [['-c','core.fsmonitor=false','ls-files','-z','--cached','--others','--exclude-standard'],['rev-parse','HEAD']]) {
+            const output=await new Deno.Command('git',{args,stdout:'piped',stderr:'piped',env:{GIT_CEILING_DIRECTORIES:(await import('node:path')).dirname(await Deno.realPath(Deno.cwd()))}}).output();
+            outputs.push({cwd:Deno.cwd(),args,state:'exited',code:output.code,signal:output.signal,stdout:Array.from(output.stdout),stderr:Array.from(output.stderr)});
+          }
+          await Deno.writeTextFile(root+'/.tmp/authority-expected.json',JSON.stringify(outputs));
+          Deno.exit(${code});
+        `,
+          )
+          await commitFixture(value)
+          const result = await value.release('prepare')
+          expect(result.success).toBe(false)
+          const journal = await authorityJournal(value, 'gates-')
+          const ancestor = await read<{ success: boolean; revision: string }>(
+            join(value.root, '.tmp/authority-ancestor.json'),
+          )
+          const parentRevision = await run(value.root, 'git', ['rev-parse', 'HEAD'])
+          expect(ancestor).toEqual({
+            success: true,
+            revision: new TextDecoder().decode(parentRevision.stdout).trim(),
+          })
+
+          expect(journal.passed).toBe(false)
+          const step = journal.steps!.find((row) => row.task === task)!
+          expect(step.code).toBe(code)
+          expect(step.execution).toEqual({ state: 'exited', success: code === 0, signal: null })
+          expect(step.integrity?.source.state).toBe('failed')
+          expect(step.integrity?.revision.state).toBe('failed')
+          const observed = authorityFailures(journal.diagnostics ?? []).filter((row) => row.git)
+            .map((row) => row.git)
+          const expected = await read<readonly NonNullable<AuthorityFailureType['git']>[]>(
+            join(value.root, '.tmp/authority-expected.json'),
+          )
+          expect(expected.every((row) => row.code !== 0 && row.stderr!.length > 0)).toBe(true)
+          for (const output of expected) expect(observed).toContainEqual(output)
+          const snapshot = await snapshotPath(
+            value,
+            await Deno.readTextFile(join(value.root, '.tmp/authority-snapshot')),
+            true,
+          )
+          await expect(Deno.stat(snapshot)).rejects.toThrow(Deno.errors.NotFound)
+          await expect(Deno.stat(join(value.root, '.tmp/releases/prepared.json'))).rejects.toThrow(
+            Deno.errors.NotFound,
+          )
+          expect(await Deno.readTextFile(join(value.root, 'mod.js'))).toBe(
+            'export const value = 7;\n',
+          )
+          await noUploads(value)
+        })
+      })
+    }
+  }
+  it('records an unobserved spawn separately from successful integrity acquisition', async () => {
+    await fixture(async (value) => {
+      await Deno.writeTextFile(
+        join(value.root, 'spawn-fault.ts'),
+        `
+        const Actual=Deno.Command;
+        Deno.Command=class extends Actual {
+          constructor(command,options){super(command,options);this.options=options;}
+          spawn(){if(this.options?.args?.[0]==='task' && this.options.args[1]==="verify") throw new Error('controlled gate spawn fault'); return super.spawn();}
+        };
+        await import('./.mise/tasks/release.ts');
+      `,
+      )
+      await commitFixture(value)
+      const result = await run(value.root, Deno.execPath(), [
+        'run',
+        '--cached-only',
+        '--no-lock',
+        '-A',
+        'spawn-fault.ts',
+        'prepare',
+      ], value.env)
+      expect(result.success).toBe(false)
+      const journal = await authorityJournal(value, 'gates-')
+      const step = journal.steps!.find((row) => row.task === 'verify')!
+      expect(step.code).toBeNull()
+      expect(step.execution).toEqual({ state: 'unobserved' })
+      expect(step.integrity).toEqual({
+        source: { state: 'verified' },
+        revision: { state: 'verified' },
+      })
+      expect(journal.passed).toBe(false)
+      expect(
+        authorityFailures(journal.diagnostics ?? []).some((row) =>
+          row.message === 'controlled gate spawn fault'
+        ),
+      ).toBe(true)
+      await noUploads(value)
+    })
+  })
+  for (const task of ['verify']) {
+    for (const code of [0, 9]) {
+      it(`retains ${task} exit ${code}, post-gate Git rejection and independent native cleanup failure`, async () => {
+        await fixture(async (value) => {
+          const config = await read<{ tasks: Record<string, string> }>(
+            join(value.root, 'deno.json'),
+          )
+          config.tasks[task] = 'deno run -A authority-cleanup-fault.ts'
+          await json(join(value.root, 'deno.json'), config)
+          value.env.ORIGINAL_RELEASE_ROOT = value.root
+          await Deno.writeTextFile(
+            join(value.root, 'authority-cleanup-fault.ts'),
+            `
+        await Deno.writeTextFile(Deno.env.get('ORIGINAL_RELEASE_ROOT')+'/.tmp/authority-snapshot',Deno.cwd());
+        await Deno.writeTextFile('.git/HEAD',${JSON.stringify('invalid-ref\n')});
+        await Deno.mkdir('.tmp/authority-blocked');
+        await Deno.writeTextFile('.tmp/authority-blocked/owned.txt','owned');
+        await Deno.chmod('.tmp/authority-blocked',0);
+        Deno.exit(${code});
+      `,
+          )
+          await commitFixture(value)
+          const result = await value.release('prepare')
+          await snapshotPath(
+            value,
+            await Deno.readTextFile(join(value.root, '.tmp/authority-snapshot')),
+          )
+          const failures: unknown[] = []
+          try {
+            expect(result.success).toBe(false)
+            const journal = await authorityJournal(value, 'gates-')
+            expect(journal.passed).toBe(false)
+            expect(journal.steps!.find((row) => row.task === task)!.code).toBe(code)
+            const observed = authorityFailures(journal.diagnostics ?? [])
+            expect(observed.filter((row) => row.git).length).toBeGreaterThanOrEqual(2)
+            expect(observed.some((row) => row.name === 'PermissionDenied')).toBe(true)
+            await noUploads(value)
+          } catch (reason) {
+            failures.push(reason)
+          } finally {
+            // Preserve assertion failures while retiring only parent-owned snapshot storage.
+            try {
+              await retireSnapshots(value.root)
+            } catch (reason) {
+              failures.push(reason)
+            }
+          }
+          if (failures.length) {
+            throw new AggregateError(
+              failures,
+              'Authority oracle and owned fixture repair failed.',
+              {
+                cause: failures[0],
+              },
+            )
+          }
+        })
+      })
+    }
+  }
+})
