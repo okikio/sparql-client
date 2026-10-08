@@ -1,6 +1,7 @@
 /** Cycle-safe lookup and transitive hierarchy operations for ontology models. @module */
 
 import type { ClassType, ModelType, PropertyType } from './model.ts'
+import { compare } from '../order.ts'
 
 /** Read-only indexes over one ontology model. */
 export class OntologyIndex {
@@ -45,7 +46,7 @@ export class OntologyIndex {
     const classes = new Set([iri, ...this.superClasses(iri)])
     return [...this.#properties.values()]
       .filter((property) => property.domains.some((domain) => classes.has(domain)))
-      .sort((left, right) => left.iri.localeCompare(right.iri))
+      .sort((left, right) => compare(left.iri, right.iri))
   }
 }
 

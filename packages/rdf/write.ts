@@ -50,24 +50,39 @@ function writeLiteral(literal: Literal): string {
  *
  * Canonical N-Triples/N-Quads uses the short `ECHAR` forms for backspace,
  * tab, newline, form feed, carriage return, quote, and backslash. Other C0
- * controls and U+007F use uppercase `\uXXXX`. U+0080 through U+009F stay
- * as native Unicode because the canonical grammar does not require escaping
- * them.
+ * controls, U+007F, and BMP noncharacters U+FFFE/U+FFFF use uppercase
+ * `\uXXXX`. U+0080 through U+009F and supplementary-plane noncharacters
+ * stay native: the canonical rules use XML 1.1's Char production, which admits
+ * those ranges. See N-Triples 1.2 section 3 and RDFC-1.0 section A.
  */
 function escapeString(value: string): string {
   let output = ''
   for (const char of value) {
     const point = char.codePointAt(0)!
     switch (char) {
-      case '\\': output += '\\\\'; break
-      case '"': output += '\"'; break
-      case '\b': output += '\\b'; break
-      case '\t': output += '\\t'; break
-      case '\n': output += '\\n'; break
-      case '\f': output += '\\f'; break
-      case '\r': output += '\\r'; break
+      case '\\':
+        output += '\\\\'
+        break
+      case '"':
+        output += '\\"'
+        break
+      case '\b':
+        output += '\\b'
+        break
+      case '\t':
+        output += '\\t'
+        break
+      case '\n':
+        output += '\\n'
+        break
+      case '\f':
+        output += '\\f'
+        break
+      case '\r':
+        output += '\\r'
+        break
       default:
-        output += point <= 0x1f || point === 0x7f
+        output += point <= 0x1f || point === 0x7f || point === 0xfffe || point === 0xffff
           ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
           : char
     }
@@ -80,7 +95,7 @@ function escapeIri(value: string): string {
   let output = ''
   for (const char of value) {
     const point = char.codePointAt(0)!
-    if (point <= 0x20 || '<>\"{}|^`\\'.includes(char)) {
+    if (point <= 0x20 || '<>"{}|^`\\'.includes(char)) {
       output += point <= 0xffff
         ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
         : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`

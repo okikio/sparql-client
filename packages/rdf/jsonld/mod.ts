@@ -1,6 +1,6 @@
 /** Native JSON-LD 1.1 expansion, compaction, flattening, framing, and RDF conversion. @module */
 import type { Quad } from '../term.ts'
-import { compactValue } from './compact.ts'
+import { compactIri, compactValue } from './compact.ts'
 import {
   type ActiveContextType,
   type ContextStateType,
@@ -11,12 +11,14 @@ import {
 } from './context.ts'
 import { expandValue } from './expand.ts'
 import { frame as applyFrame } from './frame.ts'
+import { html } from './html.ts'
 import { flatten as flattenNodes } from './node.ts'
 import { fromRdf as rdfToJson, toRdf as jsonToRdf } from './rdf.ts'
 import { createDocumentLoader, type LoaderOptionsType } from './loader.ts'
 import type {
   DocumentLoaderType,
   EmbedType,
+  GeneralizedQuadType,
   JsonLdValueType,
   ProcessingModeType,
   RdfDirectionType,
@@ -28,6 +30,7 @@ export type { DocumentCacheType, LoaderOptionsType } from './loader.ts'
 export type {
   DocumentLoaderType,
   EmbedType,
+  GeneralizedQuadType,
   JsonLdValueType,
   ProcessingModeType,
   RdfDirectionType,
@@ -63,11 +66,21 @@ export interface SerializeOptionsType extends OptionsType {
   /** Number of spaces used to indent serialized JSON-LD output. */
   readonly space?: number
 }
+/** Private operation token survives option spreads within one public call. */
+const OPERATION = Symbol('JSON-LD document admission')
+type OperationOptionsType = OptionsType & { readonly [OPERATION]?: DocumentLoaderType }
+/** Shares input, expansion, framing and compaction admission within one operation; caller options are never mutated. */
+function operation(options: OptionsType): OperationOptionsType {
+  if ((options as OperationOptionsType)[OPERATION]) return options as OperationOptionsType
+  return { ...options, [OPERATION]: createDocumentLoader(options) }
+}
+
 /** Expands JSON-LD using the package-owned JSON-LD 1.1 algorithms. */
 export async function expand(
   input: unknown,
   options: OptionsType = {},
 ): Promise<JsonLdValueType[]> {
+  options = operation(options)
   return await expandPrepared(await prepareInput(input, options), options)
 }
 
@@ -77,20 +90,48 @@ export async function compact(
   contextValue: unknown,
   options: OptionsType = {},
 ): Promise<JsonLdValueType> {
-  const prepared = await prepareInput(input, options),
-    expanded = await expandPrepared(prepared, options),
-    state = stateFor(options),
+  options = operation(options)
+  const prepared = await prepareInput(input, options)
+  let expanded: JsonLdValueType[]
+  try {
+    expanded = await expandPrepared(prepared, options)
+  } catch (error) {
+    if (error instanceof JsonLdError && error.code === 'list of lists') {
+      throw new JsonLdError(
+        'compaction to list of lists',
+        'JSON-LD 1.0 compaction cannot represent nested lists.',
+        error,
+      )
+    }
+    throw error
+  }
+  return await compactExpanded(
+    expanded,
+    contextValue,
+    options,
+    prepared.documentUrl ?? options.base,
+  )
+}
+
+/** Compacts already expanded data without discarding framing-only preserve markers. */
+async function compactExpanded(
+  expanded: JsonLdValueType,
+  contextValue: unknown,
+  options: OptionsType,
+  contextBase: string | undefined,
+  preferContextBase = false,
+): Promise<JsonLdValueType> {
+  const state = stateFor(options),
     contextJson = asJson(contextValue),
     context = contextValueOf(contextJson),
-    contextBase = prepared.documentUrl ?? options.base,
     processed = await process(
       initial(contextBase, options.processingMode ?? 'json-ld-1.1'),
       context,
       state,
       contextBase,
     ),
-    compactBase = options.base ??
-      ((options.compactToRelative ?? true) ? prepared.documentUrl : undefined),
+    compactBase = (preferContextBase ? processed.base : options.base) ??
+      ((options.compactToRelative ?? true) ? processed.base : undefined),
     active = contextBaseOf(processed, compactBase)
   const compacted = await compactValue(active, null, expanded, state, {
     ...(options.compactArrays === undefined ? {} : { compactArrays: options.compactArrays }),
@@ -105,7 +146,8 @@ export async function compact(
     return { '@context': context, ...compacted }
   }
   if (Array.isArray(compacted) && compacted.length === 0 && !includeContext) return {}
-  return includeContext ? { '@context': context, '@graph': compacted } : { '@graph': compacted }
+  const graph = compactIri(active, '@graph', undefined, true)
+  return includeContext ? { '@context': context, [graph]: compacted } : { [graph]: compacted }
 }
 /** Returns one active context with exactly the requested compaction base. */
 function contextBaseOf(
@@ -124,8 +166,19 @@ export async function flatten(
   contextValue?: unknown,
   options: OptionsType = {},
 ): Promise<JsonLdValueType> {
+  options = operation(options)
   const values = flattenNodes(await expand(input, options))
-  if (contextValue !== undefined) return compact(values, contextValue, options)
+  if (contextValue !== undefined) {
+    const compacted = await compact(values, contextValue, options)
+    if (object(compacted) && !Object.hasOwn(compacted, '@graph')) {
+      const { '@context': context, ...node } = compacted
+      return {
+        ...(context === undefined ? {} : { '@context': context }),
+        '@graph': Object.keys(node).length ? [node] : [],
+      }
+    }
+    return compacted
+  }
   return values
 }
 
@@ -135,10 +188,13 @@ export async function frame(
   frameValue: unknown,
   options: OptionsType = {},
 ): Promise<JsonLdValueType> {
+  options = operation(options)
   const frameJson = asJson(frameValue),
     expanded = await expand(input, options),
     frameExpanded = await expandFrame(frameJson, options),
     framed = applyFrame(expanded, frameExpanded, {
+      ...(options.processingMode === undefined ? {} : { processingMode: options.processingMode }),
+      ...(options.frameDefault === undefined ? {} : { frameDefault: options.frameDefault }),
       ...(options.embed === undefined ? {} : { embed: options.embed }),
       ...(options.explicit === undefined ? {} : { explicit: options.explicit }),
       ...(options.omitDefault === undefined ? {} : { omitDefault: options.omitDefault }),
@@ -147,23 +203,106 @@ export async function frame(
     })
   const context = object(frameJson) && Object.hasOwn(frameJson, '@context')
     ? frameJson['@context']
-    : undefined
-  if (context !== undefined) {
-    const compacted = await compact(framed, context, options)
+    : {}
+  {
+    if (options.processingMode !== 'json-ld-1.0') pruneBlankIds(framed)
+    const compacted = removePreserve(
+      await compactExpanded(framed, context, options, options.base, true),
+    )
+    if (!(options.omitGraph ?? options.processingMode !== 'json-ld-1.0') && object(compacted)) {
+      if (Object.hasOwn(compacted, '@graph')) return compacted
+      const { '@context': compactContext, ...node } = compacted
+      return {
+        ...(compactContext === undefined ? {} : { '@context': compactContext }),
+        '@graph': Object.keys(node).length ? [node] : [],
+      }
+    }
     if (
       options.omitGraph && object(compacted) && Array.isArray(compacted['@graph']) &&
       compacted['@graph'].length === 1
     ) return compacted['@graph'][0]!
     return compacted
   }
-  return options.omitGraph && framed.length === 1 ? framed[0]! : framed
 }
 
-/** Converts JSON-LD directly into native RDF quads. */
+/** Removes framing-only default markers before the ordinary compaction pass. */
+function removePreserve(value: JsonLdValueType): JsonLdValueType {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      const converted = removePreserve(item)
+      if (converted === null) return []
+      return object(item) && Object.hasOwn(item, '@preserve') && Array.isArray(converted)
+        ? converted
+        : [converted]
+    })
+  }
+  if (!object(value)) return value
+  if (Object.hasOwn(value, '@preserve')) {
+    const preserved = value['@preserve']!
+    return preserved === '@null'
+      ? null
+      : Array.isArray(preserved)
+      ? preserved.filter((item) => item !== '@null').map(removePreserve)
+      : removePreserve(preserved)
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, removePreserve(item)]))
+}
+
+/** Drops a blank identifier only when its framed occurrence cannot be referenced elsewhere. */
+function pruneBlankIds(value: JsonLdValueType): void {
+  const counts = new Map<string, number>()
+  const visit = (item: JsonLdValueType, remove: boolean): void => {
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child, remove)
+      return
+    }
+    if (!object(item)) return
+    const id = item['@id']
+    if (typeof id === 'string' && id.startsWith('_:')) {
+      if (remove && counts.get(id) === 1) delete item['@id']
+      else if (!remove) counts.set(id, (counts.get(id) ?? 0) + 1)
+    }
+    for (const [key, child] of Object.entries(item)) {
+      if (key === '@value') continue
+      if (!remove && key === '@type') {
+        for (const type of Array.isArray(child) ? child : [child]) {
+          if (typeof type === 'string' && type.startsWith('_:')) {
+            counts.set(type, (counts.get(type) ?? 0) + 1)
+          }
+        }
+      }
+      visit(child, remove)
+    }
+  }
+  visit(value, false)
+  visit(value, true)
+}
+
+/**
+ * Converts one JSON-LD document into native RDF statements.
+ *
+ * Blank identities are shared within the conversion and freshly allocated
+ * between conversions, so combining independently converted documents cannot
+ * merge their unrelated source blank labels. Enabling `produceGeneralizedRdf`
+ * permits blank predicates and returns `GeneralizedQuadType` statements;
+ * standard RDF datasets and writers require ordinary `Quad` statements.
+ */
+export function toRdf(
+  input: unknown,
+  options?: OptionsType & { readonly produceGeneralizedRdf?: false },
+): Promise<Quad[]>
+/** Converts JSON-LD with explicitly enabled generalized blank-node predicates. */
+export function toRdf(
+  input: unknown,
+  options: OptionsType & { readonly produceGeneralizedRdf: true },
+): Promise<GeneralizedQuadType[]>
+/** Returns the wider statement type when the generalized option is decided at runtime. */
+export function toRdf(input: unknown, options: OptionsType): Promise<GeneralizedQuadType[]>
 export async function toRdf(
   input: unknown,
   options: OptionsType = {},
-): Promise<Quad[]> {
+): Promise<GeneralizedQuadType[]> {
+  options = operation(options)
   // To RDF treats every embedded JSON-LD script as one HTML document unless
   // the caller explicitly asks for first-script behavior. This operation-level
   // default differs from the general document-loader default.
@@ -181,24 +320,38 @@ export async function toRdf(
 }
 
 /** Parses JSON-LD and emits native RDF quads. */
+export function parse(
+  input: unknown,
+  options?: OptionsType & { readonly produceGeneralizedRdf?: false },
+): AsyncGenerator<Quad>
+/** Emits generalized statements when blank-node predicates are explicitly enabled. */
+export function parse(
+  input: unknown,
+  options: OptionsType & { readonly produceGeneralizedRdf: true },
+): AsyncGenerator<GeneralizedQuadType>
+/** Emits the wider statement type when the generalized option is decided at runtime. */
+export function parse(input: unknown, options: OptionsType): AsyncGenerator<GeneralizedQuadType>
 export async function* parse(
   input: unknown,
   options: OptionsType = {},
-): AsyncGenerator<Quad> {
+): AsyncGenerator<GeneralizedQuadType> {
   for (const value of await toRdf(input, options)) yield value
 }
 
 /** Converts native RDF quads into expanded JSON-LD. */
-export function fromRdf(
+// deno-lint-ignore require-await -- Async guarantees that synchronous RDF conversion failures reject the public Promise.
+export async function fromRdf(
   source: Iterable<Quad>,
   options: OptionsType = {},
 ): Promise<JsonLdValueType> {
-  return Promise.resolve(rdfToJson(source, {
+  options = operation(options)
+  return rdfToJson(source, {
+    ...(options.processingMode === undefined ? {} : { processingMode: options.processingMode }),
     ...(options.rdfDirection === undefined ? {} : { rdfDirection: options.rdfDirection }),
     ...(options.useNativeTypes === undefined ? {} : { useNativeTypes: options.useNativeTypes }),
     ...(options.useRdfType === undefined ? {} : { useRdfType: options.useRdfType }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
-  }))
+  })
 }
 /** Serializes native RDF quads as JSON-LD JSON text. */
 export async function serialize(
@@ -225,6 +378,7 @@ async function expandPrepared(
   prepared: PreparedType,
   options: OptionsType,
 ): Promise<JsonLdValueType[]> {
+  options = operation(options)
   const state = stateFor(options)
   let context = initial(prepared.base, options.processingMode ?? 'json-ld-1.1')
   if (options.expandContext !== undefined) {
@@ -233,7 +387,7 @@ async function expandPrepared(
   if (prepared.contextUrl) {
     context = await process(context, prepared.contextUrl, state, prepared.contextUrl)
   }
-  const value = await expandValue(
+  let value = await expandValue(
     context,
     null,
     prepared.document,
@@ -244,6 +398,10 @@ async function expandPrepared(
       ...(options.maxNestDepth === undefined ? {} : { maxNestDepth: options.maxNestDepth }),
     },
   )
+  // A sole top-level @graph wrapper denotes the document's default graph.
+  if (object(value) && Object.keys(value).length === 1 && Object.hasOwn(value, '@graph')) {
+    value = value['@graph']!
+  }
   return Array.isArray(value)
     ? value.filter((item) => item !== null)
     : value === null
@@ -272,7 +430,8 @@ async function loadInput(load: DocumentLoaderType, url: string): Promise<RemoteD
   options: OptionsType,
 ): ContextStateType {
   return {
-    load: createDocumentLoader(options),
+    load: operation(options)[OPERATION]!,
+    htmlPolicy: options,
     remote: new Set(),
     cache: new Map(),
     ...(options.signal ? { signal: options.signal } : {}),
@@ -292,12 +451,18 @@ async function loadInput(load: DocumentLoaderType, url: string): Promise<RemoteD
   options: OptionsType,
 ): Promise<PreparedType> {
   if (typeof input === 'string' && /^https?:\/\//iu.test(input)) {
-    const load = createDocumentLoader(options),
+    const load = operation(options)[OPERATION]!,
       remote = await loadInput(load, input),
       base = remote.documentUrl
     if (typeof remote.document === 'string') {
-      const extracted = html(remote.document, base, options.extractAllScripts ?? false)
-      const activeBase = options.base ?? extracted.base
+      const extracted = html(
+        remote.document,
+        base,
+        options.extractAllScripts ?? false,
+        options.base ?? base,
+        { ...options, xml: remote.contentType === 'application/xhtml+xml' },
+      )
+      const activeBase = extracted.base
       return {
         document: extracted.document,
         ...(activeBase ? { base: activeBase } : {}),
@@ -329,7 +494,13 @@ async function loadInput(load: DocumentLoaderType, url: string): Promise<RemoteD
       }
     }
     if (/<script\b/iu.test(input)) {
-      const extracted = html(input, options.base, options.extractAllScripts ?? false)
+      const extracted = html(
+        input,
+        options.base,
+        options.extractAllScripts ?? false,
+        options.base,
+        options,
+      )
       return {
         document: extracted.document,
         ...(extracted.base ? { base: extracted.base } : {}),
@@ -338,146 +509,6 @@ async function loadInput(load: DocumentLoaderType, url: string): Promise<RemoteD
     return { document: input, ...(options.base ? { base: options.base } : {}) }
   }
   return { document: asJson(input), ...(options.base ? { base: options.base } : {}) }
-}
-/** JSON-LD document and document base extracted from one HTML source. */
-interface HtmlType {
-  /** Parsed JSON-LD script content selected by the HTML content algorithm. */
-  readonly document: JsonLdValueType
-  /** Document Base URL after applying the first valid HTML `base[href]`. */
-  readonly base?: string
-}
-
-/**
- * Extracts JSON-LD script content using the JSON-LD HTML content algorithm.
- *
- * The script body is raw text. HTML character references such as `&lt;` stay
- * unchanged inside JSON strings because HTML does not decode character
- * references in script data. A fragment selects exactly one script by `id`;
- * without a fragment, `extractAllScripts` selects every JSON-LD script and
- * merges array-valued script documents into the resulting document array.
- */
-function html(
-  source: string,
-  documentUrl: string | undefined,
-  all: boolean,
-): HtmlType {
-  const base = htmlBase(source, documentUrl)
-  const scripts: JsonLdValueType[] = []
-  const fragment = fragmentOf(documentUrl)
-  let offset = 0
-
-  while (true) {
-    const open = source.slice(offset).search(/<script\b/iu)
-    if (open < 0) break
-    const start = offset + open
-    const end = tagEnd(source, start + 7)
-    if (end < 0) break
-    const attrs = attributes(source.slice(start + 7, end))
-    const type = (attrs.get('type') ?? '').split(';', 1)[0]!.trim().toLowerCase()
-    const id = attrs.get('id')
-    const close = source.toLowerCase().indexOf('</script', end + 1)
-    if (close < 0) break
-    const closeEnd = source.indexOf('>', close)
-
-    if (type === 'application/ld+json' && (!fragment || id === fragment)) {
-      const value = script(source.slice(end + 1, close))
-      if (all && !fragment && Array.isArray(value)) scripts.push(...value)
-      else scripts.push(value)
-      if (fragment || !all) break
-    }
-    offset = closeEnd < 0 ? source.length : closeEnd + 1
-  }
-
-  if (scripts.length === 0) {
-    if (all && !fragment) return { document: [], ...(base ? { base } : {}) }
-    throw new JsonLdError(
-      'loading document failed',
-      fragment
-        ? `HTML document has no application/ld+json script with id '${fragment}'.`
-        : 'HTML document has no application/ld+json script.',
-    )
-  }
-  return {
-    document: all && !fragment ? scripts : scripts[0]!,
-    ...(base ? { base } : {}),
-  }
-}
-
-/** Parses one JSON-LD script body and reports the specification error code. */
-function script(source: string): JsonLdValueType {
-  try {
-    return JSON.parse(source) as JsonLdValueType
-  } catch (error) {
-    throw new JsonLdError(
-      'invalid script element',
-      'HTML JSON-LD script is not valid JSON.',
-      error,
-    )
-  }
-}
-
-/** Returns the decoded fragment identifier used to select one HTML script. */
-function fragmentOf(documentUrl: string | undefined): string {
-  if (!documentUrl) return ''
-  const raw = new URL(documentUrl).hash.slice(1)
-  if (!raw) return ''
-  try {
-    return decodeURIComponent(raw)
-  } catch {
-    return raw
-  }
-}
-
-/** Resolves the first valid HTML `base[href]` against the fetched document URL. */
-function htmlBase(source: string, documentUrl: string | undefined): string | undefined {
-  if (!documentUrl) return undefined
-  const fallback = new URL(documentUrl)
-  fallback.hash = ''
-  let offset = 0
-  while (true) {
-    const open = source.slice(offset).search(/<base\b/iu)
-    if (open < 0) return fallback.href
-    const start = offset + open
-    const end = tagEnd(source, start + 5)
-    if (end < 0) return fallback.href
-    const href = attributes(source.slice(start + 5, end)).get('href')
-    if (href !== undefined) {
-      try {
-        return new URL(href, fallback).href
-      } catch {
-        // HTML ignores an unusable base URL and continues with the fallback.
-        return fallback.href
-      }
-    }
-    offset = end + 1
-  }
-}
-
-/** Finds a start-tag end while respecting quoted attributes. */ function tagEnd(
-  text: string,
-  offset: number,
-) {
-  let quote = ''
-  for (let i = offset; i < text.length; i++) {
-    const c = text[i]!
-    if (quote) {
-      if (c === quote) quote = ''
-      continue
-    }
-    if (c === '"' || c === "'") quote = c
-    else if (c === '>') return i
-  }
-  return -1
-}
-/** Parses focused script attributes needed by JSON-LD extraction. */ function attributes(
-  value: string,
-) {
-  const map = new Map<string, string>()
-  const re = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gu
-  for (const match of value.matchAll(re)) {
-    map.set(match[1]!.toLowerCase(), match[2] ?? match[3] ?? match[4] ?? '')
-  }
-  return map
 }
 /** Unwraps a JSON-LD context document to the context value consumed by the context processor. */
 function contextValueOf(value: JsonLdValueType): JsonLdValueType {

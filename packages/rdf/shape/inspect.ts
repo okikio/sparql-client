@@ -11,6 +11,7 @@
  */
 
 import { iterate } from '../source.ts'
+import { compare } from '../order.ts'
 import { key, RDF, XSD } from '../term.ts'
 import type { Literal, ObjectTermType, Quad, SubjectTermType } from '../term.ts'
 import { ShapeIndex } from './index.ts'
@@ -139,13 +140,13 @@ const SHACL_12_PREDICATES = new Set([
 
 /** Inspector resource limits and draft-version interpretation. */
 export interface InspectOptionsType {
-  /** Core vocabulary generation to interpret. Default is the current 1.2 draft. */
+  /** Core vocabulary interpretation. Default is the implemented 1.2 draft subset. */
   readonly version?: VersionType
-  /** Maximum number of quads to materialize. Default is 1,000,000. */
+  /** Positive safe-integer maximum quads to materialize. Default is 1,000,000. */
   readonly maxQuads?: number
-  /** Maximum members followed from one SHACL list. Default is 100,000. */
+  /** Positive safe-integer maximum members followed from one SHACL list. Default is 100,000. */
   readonly maxListItems?: number
-  /** Maximum nested property-path depth. Default is 256. */
+  /** Positive safe-integer maximum nested property-path depth. Default is 256. */
   readonly maxPathDepth?: number
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
@@ -188,11 +189,13 @@ export async function inspect(
   if (version !== '1.0' && version !== '1.2') {
     throw new TypeError(`Unsupported SHACL version '${String(version)}'.`)
   }
-  const maxQuads = options.maxQuads ?? 1_000_000
+  const maxQuads = positive(options.maxQuads ?? 1_000_000, 'maxQuads')
+  const maxListItems = positive(options.maxListItems ?? 100_000, 'maxListItems')
+  const maxPathDepth = positive(options.maxPathDepth ?? 256, 'maxPathDepth')
   const index = new ShapeIndex()
   const quads: Quad[] = []
 
-  for await (const quad of iterate(source)) {
+  for await (const quad of iterate(source, options)) {
     if (options.signal?.aborted) {
       throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
     }
@@ -208,8 +211,8 @@ export async function inspect(
     version,
     index,
     diagnostics,
-    maxListItems: options.maxListItems ?? 100_000,
-    maxPathDepth: options.maxPathDepth ?? 256,
+    maxListItems,
+    maxPathDepth,
   }
   const candidates = discoverShapes(index)
   const shapes: ShapeType[] = []
@@ -230,10 +233,18 @@ export async function inspect(
     if (value) graphAssertions.push(value)
   }
 
-  shapes.sort((left, right) => idKey(left.id).localeCompare(idKey(right.id)))
+  shapes.sort((left, right) => compare(idKey(left.id), idKey(right.id)))
   graphAssertions.sort(compareAssertion)
   diagnostics.sort(compareDiagnostic)
   return { version, shapes, diagnostics, assertions: graphAssertions }
+}
+
+/** Rejects disabled or ambiguous bounds before acquiring the source iterator. */
+function positive(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive safe integer.`)
+  }
+  return value
 }
 
 /** Discovers resources with SHACL type, target, path, or constraint evidence without treating arbitrary labelled ontology resources as shapes. */
@@ -250,7 +261,7 @@ function discoverShapes(index: ShapeIndex): SubjectTermType[] {
     )
     if (explicit || hasShapePredicate) values.set(key(subject), subject)
   }
-  return [...values.values()].sort((left, right) => key(left).localeCompare(key(right)))
+  return [...values.values()].sort((left, right) => compare(key(left), key(right)))
 }
 
 /** Read shape from the supplied source while preserving caller ownership. */
@@ -1356,15 +1367,16 @@ function idKey(value: IdType): string {
 
 /** Compare assertion using deterministic semantic ordering. */
 function compareAssertion(left: AssertionType, right: AssertionType): number {
-  return `${idKey(left.subject)}\u0000${left.predicate}\u0000${JSON.stringify(left.object)}`
-    .localeCompare(
-      `${idKey(right.subject)}\u0000${right.predicate}\u0000${JSON.stringify(right.object)}`,
-    )
+  return compare(
+    `${idKey(left.subject)}\u0000${left.predicate}\u0000${JSON.stringify(left.object)}`,
+    `${idKey(right.subject)}\u0000${right.predicate}\u0000${JSON.stringify(right.object)}`,
+  )
 }
 
 /** Compare diagnostic using deterministic semantic ordering. */
 function compareDiagnostic(left: DiagnosticType, right: DiagnosticType): number {
-  return `${left.code}\u0000${left.predicate ?? ''}\u0000${left.message}`.localeCompare(
+  return compare(
+    `${left.code}\u0000${left.predicate ?? ''}\u0000${left.message}`,
     `${right.code}\u0000${right.predicate ?? ''}\u0000${right.message}`,
   )
 }

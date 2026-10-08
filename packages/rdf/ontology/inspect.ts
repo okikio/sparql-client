@@ -1,6 +1,7 @@
 /** RDFS and directly interpretable OWL ontology inspector. @module */
 
 import { iterate } from '../source.ts'
+import { compare } from '../order.ts'
 import { key, XSD } from '../term.ts'
 import type { Literal, Quad } from '../term.ts'
 import type {
@@ -103,7 +104,7 @@ export interface InspectOptionsType {
   readonly domainPredicates?: readonly string[]
   /** Additional predicates that behave like vocabulary-range declarations. */
   readonly rangePredicates?: readonly string[]
-  /** Maximum quads across all sources. Default is 5,000,000. */
+  /** Positive safe-integer maximum quads across all sources. Default is 5,000,000. */
   readonly maxQuads?: number
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
@@ -181,7 +182,7 @@ interface PendingDeprecatedType {
  * engines or future consumers can interpret richer class expressions later.
  *
  * Input sources remain caller-owned. `maxQuads` limits materialized work across
- * all sources, and `signal` can stop ingestion between quads.
+ * all sources, and `signal` can stop ingestion, including a pending source read.
  *
  * @example
  * ```ts
@@ -202,26 +203,31 @@ export async function inspect(
   sources: readonly OntologySourceType[],
   options: InspectOptionsType = {},
 ): Promise<ModelType> {
+  if (options.signal?.aborted) {
+    throw options.signal.reason
+  }
   const classes = new Map<string, MutableClassType>()
   const properties = new Map<string, MutablePropertyType>()
   const datatypes = new Set<string>()
   const assertions: AssertionType[] = []
+  const evidence: AssertionType[] = []
   const diagnostics: DiagnosticType[] = []
   const pendingText: PendingTextType[] = []
   const pendingDeprecated: PendingDeprecatedType[] = []
   const domainPredicates = new Set([RDFS_DOMAIN, ...(options.domainPredicates ?? [])])
   const rangePredicates = new Set([RDFS_RANGE, ...(options.rangePredicates ?? [])])
-  const maxQuads = options.maxQuads ?? 5_000_000
+  const maxQuads = positive(options.maxQuads ?? 5_000_000, 'maxQuads')
   let count = 0
 
   for (const source of sources) {
-    for await (const quad of iterate(source.quads)) {
+    for await (const quad of iterate(source.quads, options)) {
       if (options.signal?.aborted) {
-        throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+        throw options.signal.reason
       }
       if (++count > maxQuads) {
         throw new RangeError(`Ontology input exceeds the configured ${maxQuads} quad limit.`)
       }
+      evidence.push(toAssertion(quad, source.id))
       if (quad.subject.termType !== 'NamedNode') {
         assertions.push(toAssertion(quad, source.id))
         continue
@@ -246,10 +252,7 @@ export async function inspect(
           getProperty(properties, subject).characteristics.add(characteristic)
           continue
         }
-        if (
-          objectIri === RDFS_DATATYPE ||
-          objectIri.startsWith(`${XSD.string.slice(0, XSD.string.lastIndexOf('#') + 1)}`)
-        ) {
+        if (objectIri === RDFS_DATATYPE) {
           datatypes.add(subject)
           continue
         }
@@ -317,6 +320,7 @@ export async function inspect(
     properties: [...properties.values()].map(freezeProperty).sort(byIri),
     datatypes: [...datatypes].sort(),
     assertions: assertions.sort(compareAssertion),
+    evidence: evidence.sort(compareAssertion),
     diagnostics: diagnostics.sort(compareDiagnostic),
   }
 }
@@ -333,9 +337,11 @@ function attachText(
     const subject = entry.quad.subject
     const object = entry.quad.object
     if (subject.termType !== 'NamedNode' || object.termType !== 'Literal') continue
-    const target = classes.get(subject.value) ?? properties.get(subject.value)
-    if (target) {
-      target[entry.field].push(toText(object))
+    const targets = [classes.get(subject.value), properties.get(subject.value)].filter(
+      (target) => target !== undefined,
+    )
+    if (targets.length) {
+      for (const target of targets) target[entry.field].push(toText(object))
       continue
     }
     assertions.push(toAssertion(entry.quad, entry.sourceId))
@@ -374,9 +380,11 @@ function attachDeprecation(
       })
       continue
     }
-    const target = classes.get(subject.value) ?? properties.get(subject.value)
-    if (target) {
-      target.deprecated = deprecated
+    const targets = [classes.get(subject.value), properties.get(subject.value)].filter(
+      (target) => target !== undefined,
+    )
+    if (targets.length) {
+      for (const target of targets) target.deprecated = deprecated
       continue
     }
     assertions.push(toAssertion(entry.quad, entry.sourceId))
@@ -478,6 +486,7 @@ function toText(value: Literal): TextType {
 
 /** Reads recognized RDF boolean lexical forms without treating arbitrary strings as booleans. */
 function booleanLiteral(value: Literal): boolean | undefined {
+  if (value.datatype.value !== XSD.boolean || value.language || value.direction) return undefined
   if (value.value === 'true' || value.value === '1') return true
   if (value.value === 'false' || value.value === '0') return false
   return undefined
@@ -515,7 +524,8 @@ function stripQuads(source: OntologySourceType): SourceType {
 /** Sorts localized ontology text deterministically for byte-stable downstream generation. */
 function sortText(values: readonly TextType[]): TextType[] {
   return [...values].sort((left, right) =>
-    `${left.language ?? ''}\u0000${left.direction ?? ''}\u0000${left.value}`.localeCompare(
+    compare(
+      `${left.language ?? ''}\u0000${left.direction ?? ''}\u0000${left.value}`,
       `${right.language ?? ''}\u0000${right.direction ?? ''}\u0000${right.value}`,
     )
   )
@@ -523,15 +533,16 @@ function sortText(values: readonly TextType[]): TextType[] {
 
 /** Compare assertion using deterministic semantic ordering. */
 function compareAssertion(left: AssertionType, right: AssertionType): number {
-  return `${left.sourceId}\u0000${left.subject}\u0000${left.predicate}\u0000${left.object}`
-    .localeCompare(
-      `${right.sourceId}\u0000${right.subject}\u0000${right.predicate}\u0000${right.object}`,
-    )
+  return compare(
+    `${left.sourceId}\u0000${left.subject}\u0000${left.predicate}\u0000${left.object}\u0000${left.graph}`,
+    `${right.sourceId}\u0000${right.subject}\u0000${right.predicate}\u0000${right.object}\u0000${right.graph}`,
+  )
 }
 
 /** Compare diagnostic using deterministic semantic ordering. */
 function compareDiagnostic(left: DiagnosticType, right: DiagnosticType): number {
-  return `${left.sourceId}\u0000${left.code}\u0000${left.term ?? ''}`.localeCompare(
+  return compare(
+    `${left.sourceId}\u0000${left.code}\u0000${left.term ?? ''}`,
     `${right.sourceId}\u0000${right.code}\u0000${right.term ?? ''}`,
   )
 }
@@ -543,5 +554,13 @@ function byIri<
     readonly iri: string
   },
 >(left: T, right: T): number {
-  return left.iri.localeCompare(right.iri)
+  return compare(left.iri, right.iri)
+}
+
+/** Rejects disabled or ambiguous bounds before acquiring any source iterator. */
+function positive(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive safe integer.`)
+  }
+  return value
 }

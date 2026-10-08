@@ -23,7 +23,6 @@ export function getList(
   start: ObjectTermType,
   options: ListOptionsType,
 ): readonly ObjectTermType[] | undefined {
-  if (start.termType === 'NamedNode' && start.value === RDF_NIL) return []
   if (start.termType !== 'NamedNode' && start.termType !== 'BlankNode') {
     addInvalid(options, 'SHACL list head must be an IRI or blank node.')
     return undefined
@@ -67,6 +66,12 @@ export function getList(
     cursor = next
   }
 
+  // rdf:nil is a SHACL list terminator only when it has no first/rest values.
+  // Check both an empty head and the terminal node reached after real members.
+  if (index.get(cursor, RDF_FIRST).length > 0 || index.get(cursor, RDF_REST).length > 0) {
+    addInvalid(options, 'rdf:nil must not have rdf:first or rdf:rest values in a SHACL list.')
+    return undefined
+  }
   return values
 }
 

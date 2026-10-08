@@ -128,6 +128,8 @@ export interface ModelType {
   readonly datatypes: readonly string[]
   /** RDF assertions retained because the current semantic layer does not interpret them further. */
   readonly assertions: readonly AssertionType[]
+  /** Source/graph/term evidence for every input assertion, including normalized declarations. */
+  readonly evidence: readonly AssertionType[]
   /** Structured diagnostics retained so recoverable source information is not silently discarded. */
   readonly diagnostics: readonly DiagnosticType[]
 }

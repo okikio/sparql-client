@@ -1,5 +1,5 @@
 /** JSON-LD node-map generation and flattening. @module */
-import { compare, object } from './context.ts'
+import { compare, fail, object } from './context.ts'
 import { array, listObject, valueObject } from './expand.ts'
 import type { JsonLdValueType } from './types.ts'
 /** Expanded node object stored in a graph map. */
@@ -17,7 +17,7 @@ export class Issuer {
   readonly ids = new Map<string, string>()
   /** Next numeric suffix allocated by this issuer. */
   #next = 0
-  /** Gets or allocates a _:b identifier. */ issue(existing?: string) {
+  /** Gets or allocates a _:b identifier. */ issue(existing?: string): string {
     if (existing) {
       const found = this.ids.get(existing)
       if (found) return found
@@ -68,7 +68,7 @@ export function flatten(
   if (!object(value)) return
   if (valueObject(value)) {
     if (list) list.push(value)
-    else if (activeSubject && activeProperty) {
+    else if (activeSubject !== undefined && activeProperty !== undefined) {
       addNode(maps, graph, activeSubject, activeProperty, value)
     }
     return
@@ -84,15 +84,20 @@ export function flatten(
     } = { '@list': output }
     if (typeof value['@index'] === 'string') obj['@index'] = value['@index']
     if (list) list.push(obj)
-    else if (activeSubject && activeProperty) {
+    else if (activeSubject !== undefined && activeProperty !== undefined) {
       addNode(maps, graph, activeSubject, activeProperty, obj)
     }
     return
   }
-  let id = typeof value['@id'] === 'string' ? value['@id'] : issuer.issue()
-  if (id.startsWith('_:')) id = issuer.issue(id)
+  const sourceId = typeof value['@id'] === 'string' ? value['@id'] : undefined
+  const id = sourceId === undefined
+    ? issuer.issue()
+    : sourceId.startsWith('_:')
+    ? issuer.issue(sourceId)
+    : sourceId
   const node = getNode(maps, graph, id)
-  for (const [property, raw] of Object.entries(value).sort(([a], [b]) => compare(a, b))) {
+  for (const [sourceProperty, raw] of Object.entries(value).sort(([a], [b]) => compare(a, b))) {
+    const property = sourceProperty.startsWith('_:') ? issuer.issue(sourceProperty) : sourceProperty
     if (property === '@id') continue
     if (property === '@type') {
       for (let type of array(raw)) {
@@ -103,6 +108,9 @@ export function flatten(
       continue
     }
     if (property === '@index') {
+      if (Object.hasOwn(node, '@index') && node['@index'] !== raw) {
+        fail('conflicting indexes', 'The same node has conflicting @index values.')
+      }
       if (!Object.hasOwn(node, '@index')) node['@index'] = raw
       continue
     }
@@ -110,7 +118,9 @@ export function flatten(
       for (const [reverseProperty, items] of Object.entries(raw)) {
         for (const item of array(items)) {
           const reverseId = visit(item, maps, graph, undefined, undefined, issuer)
-          if (reverseId) addNode(maps, graph, reverseId, reverseProperty, { '@id': id })
+          if (reverseId !== undefined) {
+            addNode(maps, graph, reverseId, reverseProperty, { '@id': id })
+          }
         }
       }
       continue
@@ -127,15 +137,16 @@ export function flatten(
       node[property] = raw
       continue
     }
+    node[property] ??= []
     for (const item of array(raw)) {
       if (valueObject(item) || listObject(item)) visit(item, maps, graph, id, property, issuer)
       else {
         const objectId = visit(item, maps, graph, undefined, undefined, issuer)
-        if (objectId) add(node, property, { '@id': objectId })
+        if (objectId !== undefined) add(node, property, { '@id': objectId })
       }
     }
   }
-  if (activeSubject && activeProperty) {
+  if (!list && activeSubject !== undefined && activeProperty !== undefined) {
     addNode(maps, graph, activeSubject, activeProperty, { '@id': id })
   }
   if (list) list.push({ '@id': id })
@@ -166,7 +177,8 @@ export function flatten(
   const current = node[property]
   if (current === undefined) node[property] = [value]
   else if (
-    Array.isArray(current) && !current.some((v) => JSON.stringify(v) === JSON.stringify(value))
+    Array.isArray(current) &&
+    (listObject(value) || !current.some((v) => JSON.stringify(v) === JSON.stringify(value)))
   ) current.push(value)
 }
 /** Adds one relationship to a graph node. */ function addNode(

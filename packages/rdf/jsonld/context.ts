@@ -1,5 +1,7 @@
 /** JSON-LD 1.1 active-context processing and IRI expansion. @module */
 import type { DocumentLoaderType, JsonLdValueType, ProcessingModeType } from './types.ts'
+import { resolve as resolveReference } from '../iri.ts'
+import { html } from './html.ts'
 /** JSON-LD 1.1 keywords. */
 export const KEYWORDS = new Set([
   '@base',
@@ -39,6 +41,8 @@ export interface TermDefinitionType {
   /** Expanded IRI or keyword assigned to the term; null disables the term mapping. */
   readonly id: string | null
   /** Can prefix compact IRIs. */ readonly prefix: boolean
+  /** Can produce a compact IRI during compaction; legacy expanded definitions only expand prefixes. */ readonly compactPrefix?:
+    boolean
   /** Cannot be redefined by normal local contexts. */ readonly protected: boolean
   /** Values are reverse properties. */ readonly reverse: boolean
   /** Container mappings. */ readonly container: readonly string[]
@@ -64,6 +68,8 @@ export interface ActiveContextType {
 }
 /** Shared recursive context-processing state. */
 export interface ContextStateType {
+  /** Input size and cancellation policy for JSON-LD script extraction from HTML documents. */
+  readonly htmlPolicy?: { readonly maxBytes?: number; readonly signal?: AbortSignal }
   /** Bounded document loader used for remote JSON-LD contexts and documents. */
   readonly load: DocumentLoaderType
   /** Active remote context recursion stack. */ readonly remote: Set<string>
@@ -76,8 +82,7 @@ export interface ContextStateType {
   /** Caller cancellation. */ readonly signal?: AbortSignal
 }
 /** JSON-LD conformance error carrying the specification code. */
-export class JsonLdError
-  extends Error {
+export class JsonLdError extends Error {
   /** Stable JSON-LD specification error code exposed to callers. */
   readonly code: string
   /** Compatibility details shape. */ readonly details: {
@@ -98,7 +103,17 @@ export class JsonLdError
 /** Loads one remote context and converts loader failures to the context-processing error. */
 async function loadContext(state: ContextStateType, url: string) {
   try {
-    return await state.load(url)
+    const document = await state.load(url)
+    if (typeof document.document !== 'string') return document
+    const extracted = html(document.document, document.documentUrl, false, document.documentUrl, {
+      ...state.htmlPolicy,
+      xml: document.contentType === 'application/xhtml+xml',
+    })
+    return {
+      ...document,
+      document: extracted.document,
+      documentUrl: extracted.base ?? document.documentUrl,
+    }
   } catch (error) {
     fail('loading remote context failed', `Remote context '${url}' could not be loaded.`, error)
   }
@@ -119,13 +134,15 @@ export async function process(
   base = active.base,
   propagate = true,
   remote = false,
+  overrideProtected = false,
+  validateScoped = true,
 ): Promise<ActiveContextType> {
   abort(state.signal)
   let result = clone(active)
   for (const context of (Array.isArray(local) ? local : [local])) {
     abort(state.signal)
     if (context === null) {
-      if ([...result.terms.values()].some((v) => v.protected)) {
+      if (!overrideProtected && [...result.terms.values()].some((v) => v.protected)) {
         fail('invalid context nullification', 'A context with protected terms cannot be nullified.')
       }
       const reset = initial(active.originalBase, active.mode)
@@ -137,23 +154,42 @@ export async function process(
       if (!url) {
         fail('loading remote context failed', `Remote context '${context}' cannot be resolved.`)
       }
-      const cached = state.cache.get(url)
-      if (cached) {
-        result = await process(result, cached.context, state, cached.base, propagate, true)
-        continue
-      }
       if (state.remote.has(url)) {
+        if (!validateScoped) continue
         fail('recursive context inclusion', `Remote context recursively includes '${url}'.`)
       }
       state.remote.add(url)
       try {
+        const cached = state.cache.get(url)
+        if (cached) {
+          result = await process(
+            result,
+            cached.context,
+            state,
+            cached.base,
+            propagate,
+            true,
+            overrideProtected,
+            validateScoped,
+          )
+          continue
+        }
         const doc = await loadContext(state, url)
         if (!object(doc.document) || !Object.hasOwn(doc.document, '@context')) {
           fail('invalid remote context', `Remote context '${url}' has no @context.`)
         }
         const value = doc.document['@context']!
         state.cache.set(url, { context: value, base: doc.documentUrl })
-        result = await process(result, value, state, doc.documentUrl, propagate, true)
+        result = await process(
+          result,
+          value,
+          state,
+          doc.documentUrl,
+          propagate,
+          true,
+          overrideProtected,
+          validateScoped,
+        )
       } finally {
         state.remote.delete(url)
       }
@@ -216,8 +252,13 @@ export async function process(
       else if (typeof value !== 'string') {
         fail('invalid vocab mapping', '@vocab must be null or string.')
       } else {
-        const expanded = expandIri(result, value, { documentRelative: true, vocab: true })
-        if (!expanded) fail('invalid vocab mapping', '@vocab does not expand to an IRI.')
+        const expanded = expandIri(result, value, {
+          documentRelative: result.mode !== 'json-ld-1.0',
+          vocab: true,
+        })
+        if (!expanded || (!absolute(expanded) && !expanded.startsWith('_:'))) {
+          fail('invalid vocab mapping', '@vocab does not expand to an IRI.')
+        }
         result = { ...result, vocab: expanded }
       }
     }
@@ -237,10 +278,41 @@ export async function process(
     }
     const terms = new Map(result.terms), defined = new Map<string, boolean>()
     for (const key of Object.keys(def)) {
-      if (key.startsWith('@')) continue
-      create(key, def, terms, result, state, base, defined)
+      if (
+        [
+          '@base',
+          '@vocab',
+          '@language',
+          '@direction',
+          '@version',
+          '@import',
+          '@propagate',
+          '@protected',
+        ].includes(key)
+      ) continue
+      create(key, def, terms, result, state, base, defined, overrideProtected)
     }
     result = { ...result, terms }
+    if (validateScoped) {
+      for (const key of Object.keys(def)) {
+        const scoped = terms.get(key)
+        if (scoped?.context === undefined) continue
+        try {
+          await process(
+            result,
+            scoped.context,
+            state,
+            scoped.base ?? base,
+            true,
+            false,
+            true,
+            false,
+          )
+        } catch (error) {
+          fail('invalid scoped context', `Scoped context for '${key}' is invalid.`, error)
+        }
+      }
+    }
   }
   return result
 }
@@ -252,6 +324,7 @@ export async function process(
   state: ContextStateType,
   base: string | undefined,
   defined: Map<string, boolean>,
+  overrideProtected = false,
 ): void {
   abort(state.signal)
   if (defined.get(term) === true) return
@@ -259,33 +332,87 @@ export async function process(
     fail('cyclic IRI mapping', `Term '${term}' has a cyclic mapping.`)
   }
   defined.set(term, false)
-  if (KEYWORDS.has(term) || term === '') {
+  if (term === '@type') {
+    const value = local[term]
+    if (
+      active.mode === 'json-ld-1.0' || !object(value) || !Object.keys(value).length ||
+      Object.keys(value).some((key) => !['@container', '@protected'].includes(key)) ||
+      (Object.hasOwn(value, '@container') && value['@container'] !== '@set')
+    ) {
+      fail('keyword redefinition', 'The @type definition only permits @set and @protected.')
+    }
+  } else if (term === '') {
+    fail('invalid term definition', 'A term cannot be empty.')
+  } else if (KEYWORDS.has(term)) {
     fail('keyword redefinition', `Invalid JSON-LD term '${term}'.`)
   }
+  if (/^@[A-Za-z]+$/u.test(term) && term !== '@type') return
   let value = local[term]
   const previous = terms.get(term)
+  terms.delete(term)
   if (value === null || (object(value) && value['@id'] === null)) {
-    if (previous?.protected) {
+    if (previous?.protected && !overrideProtected) {
       fail('protected term redefinition', `Protected term '${term}' cannot be removed.`)
     }
-    terms.set(term, { id: null, prefix: false, protected: false, reverse: false, container: [] })
+    const protectedValue = object(value)
+      ? value['@protected'] ?? local['@protected'] ?? false
+      : local['@protected'] ?? false
+    if (typeof protectedValue !== 'boolean') {
+      fail('invalid @protected value', '@protected must be boolean.')
+    }
+    terms.set(term, {
+      id: null,
+      prefix: false,
+      protected: protectedValue,
+      reverse: false,
+      container: [],
+    })
     defined.set(term, true)
     return
   }
-  if (typeof value === 'string') value = { '@id': value }
+  const simple = typeof value === 'string'
+  if (simple) value = { '@id': value as string }
   if (!object(value)) {
     fail('invalid term definition', `Term '${term}' must map to string/null/object.`)
   }
   const map = value as Record<string, JsonLdValueType>
+  const allowed = [
+    '@id',
+    '@reverse',
+    '@container',
+    '@context',
+    '@direction',
+    '@index',
+    '@language',
+    '@nest',
+    '@prefix',
+    '@protected',
+    '@type',
+  ]
+  if (Object.keys(map).some((key) => !allowed.includes(key))) {
+    fail('invalid term definition', `Term '${term}' contains an unsupported definition entry.`)
+  }
+  if (
+    active.mode === 'json-ld-1.0' &&
+    ['@context', '@direction', '@index', '@nest', '@prefix', '@protected'].some((key) =>
+      Object.hasOwn(map, key)
+    )
+  ) {
+    fail('invalid term definition', `Term '${term}' uses a JSON-LD 1.1 definition entry.`)
+  }
   const protectedValue = map['@protected'] ?? local['@protected'] ?? false
   if (typeof protectedValue !== 'boolean') {
     fail('invalid @protected value', '@protected must be boolean.')
   }
   let id: string | null | undefined, reverse = false
   if (Object.hasOwn(map, '@reverse')) {
-    if (typeof map['@reverse'] !== 'string' || Object.hasOwn(map, '@id')) {
+    if (Object.hasOwn(map, '@id') || Object.hasOwn(map, '@nest')) {
       fail('invalid reverse property', `Invalid reverse mapping for '${term}'.`)
     }
+    if (typeof map['@reverse'] !== 'string') {
+      fail('invalid IRI mapping', '@reverse mapping must be a string.')
+    }
+    if (/^@[A-Za-z]+$/u.test(map['@reverse'])) return
     id = expandTerm(map['@reverse'], local, terms, active, state, base, defined)
     reverse = true
   } else if (Object.hasOwn(map, '@id')) {
@@ -293,6 +420,7 @@ export async function process(
     if (raw !== null && typeof raw !== 'string') {
       fail('invalid IRI mapping', '@id mapping must be null or string.')
     }
+    if (typeof raw === 'string' && !KEYWORDS.has(raw) && /^@[A-Za-z]+$/u.test(raw)) return
     id = raw === null
       ? null
       : raw === term
@@ -305,8 +433,22 @@ export async function process(
       const prefix = term.slice(0, colon)
       if (Object.hasOwn(local, prefix)) create(prefix, local, terms, active, state, base, defined)
       const p = terms.get(prefix)
-      id = p?.id && p.prefix ? `${p.id}${term.slice(colon + 1)}` : term
-    } else id = active.vocab ? `${active.vocab}${term}` : term
+      id = p?.id ? `${p.id}${term.slice(colon + 1)}` : term
+    } else id = term === '@type' ? '@type' : active.vocab ? `${active.vocab}${term}` : term
+  }
+  if (id !== null && !KEYWORDS.has(id) && !absolute(id) && !id.startsWith('_:')) {
+    fail('invalid IRI mapping', `Term '${term}' does not map to an absolute IRI or keyword.`)
+  }
+  if (id === '@context') fail('invalid keyword alias', '@context cannot be aliased.')
+  const colon = term.indexOf(':')
+  if (
+    active.mode !== 'json-ld-1.0' && Object.hasOwn(map, '@id') && map['@id'] !== term &&
+    ((colon > 0 && colon < term.length - 1) || term.includes('/'))
+  ) {
+    defined.set(term, true)
+    if (expandTerm(term, local, terms, active, state, base, defined) !== id) {
+      fail('invalid IRI mapping', 'A compact or relative IRI term cannot map to a different IRI.')
+    }
   }
   let type: string | undefined
   if (Object.hasOwn(map, '@type')) {
@@ -317,6 +459,40 @@ export async function process(
       : expandTerm(raw, local, terms, active, state, base, defined)
   }
   const container = containers(map['@container'], active.mode, term)
+  if (reverse && container.some((item) => item !== '@set' && item !== '@index')) {
+    fail('invalid reverse property', 'Reverse properties only permit @set and @index containers.')
+  }
+  if (
+    type && !['@id', '@vocab', '@json', '@none'].includes(type) &&
+    (!absolute(type) || type.startsWith('_:'))
+  ) {
+    fail('invalid type mapping', 'A datatype mapping must be an absolute IRI.')
+  }
+  if (active.mode === 'json-ld-1.0' && (type === '@json' || type === '@none')) {
+    fail('invalid type mapping', 'The @json and @none type mappings require JSON-LD 1.1.')
+  }
+  if (container.includes('@type')) {
+    type ??= '@id'
+    if (type !== '@id' && type !== '@vocab') {
+      fail('invalid type mapping', 'A type map requires @id or @vocab coercion.')
+    }
+  }
+  if (
+    Object.hasOwn(map, '@index') &&
+    (!container.includes('@index') || typeof map['@index'] !== 'string' ||
+      !absolute(expandTerm(map['@index'], local, terms, active, state, base, defined) ?? ''))
+  ) {
+    fail(
+      'invalid term definition',
+      'A custom @index requires an index container and an IRI mapping.',
+    )
+  }
+  if (
+    Object.hasOwn(map, '@nest') &&
+    (typeof map['@nest'] !== 'string' || (KEYWORDS.has(map['@nest']) && map['@nest'] !== '@nest'))
+  ) {
+    fail('invalid @nest value', 'A nest mapping must be a string other than a non-nest keyword.')
+  }
   let language: string | null | undefined
   if (Object.hasOwn(map, '@language')) {
     const raw = map['@language']
@@ -337,13 +513,23 @@ export async function process(
     index = typeof map['@index'] === 'string' ? map['@index'] : undefined,
     nest = typeof map['@nest'] === 'string' ? map['@nest'] : undefined
   let prefix = map['@prefix'] === true
+  if (Object.hasOwn(map, '@prefix')) {
+    if (term.includes(':') || term.includes('/') || (prefix && id !== null && KEYWORDS.has(id))) {
+      fail('invalid term definition', 'A prefix must be a simple term mapped to an IRI.')
+    }
+    if (typeof map['@prefix'] !== 'boolean') {
+      fail('invalid @prefix value', '@prefix must be boolean.')
+    }
+  }
   if (
-    !Object.hasOwn(map, '@prefix') && typeof id === 'string' && !term.includes(':') &&
-    /[/#:]$/u.test(id)
+    (simple || active.mode === 'json-ld-1.0') && !Object.hasOwn(map, '@prefix') &&
+    typeof id === 'string' && !term.includes(':') && !term.includes('/') &&
+    (/[:/?#\[\]@]$/u.test(id) || id.startsWith('_:'))
   ) prefix = true
   const next: TermDefinitionType = {
     id: id ?? null,
     prefix,
+    compactPrefix: prefix && (simple || map['@prefix'] === true),
     protected: protectedValue,
     reverse,
     container,
@@ -354,10 +540,10 @@ export async function process(
     ...(index ? { index } : {}),
     ...(nest ? { nest } : {}),
   }
-  if (previous?.protected && !same(previous, next)) {
+  if (previous?.protected && !overrideProtected && !same(previous, next)) {
     fail('protected term redefinition', `Protected term '${term}' cannot be redefined.`)
   }
-  terms.set(term, next)
+  terms.set(term, previous?.protected && !overrideProtected ? previous : next)
   defined.set(term, true)
 }
 /** Expands a term-definition IRI, creating referenced prefixes first. */ function expandTerm(
@@ -370,11 +556,16 @@ export async function process(
   defined: Map<string, boolean>,
 ): string | undefined {
   if (KEYWORDS.has(value)) return value
+  if (/^@[A-Za-z]+$/u.test(value)) return undefined
+  if (Object.hasOwn(local, value) && defined.get(value) !== true) {
+    create(value, local, terms, active, state, base, defined)
+  }
   const direct = terms.get(value)
   if (direct) return direct.id ?? undefined
   const colon = value.indexOf(':')
   if (colon > 0) {
     const prefix = value.slice(0, colon)
+    if (prefix === '_' || value.slice(colon + 1).startsWith('//')) return value
     if (Object.hasOwn(local, prefix)) create(prefix, local, terms, active, state, base, defined)
     const def = terms.get(prefix)
     if (def?.id && def.prefix) return `${def.id}${value.slice(colon + 1)}`
@@ -394,6 +585,7 @@ export function expandIri(
   } = {},
 ): string | undefined {
   if (KEYWORDS.has(value) || FRAME_KEYWORDS.has(value)) return value
+  if (/^@[A-Za-z]+$/u.test(value)) return undefined
   if (options.vocab) {
     const direct = active.terms.get(value)
     if (direct) return direct.id ?? undefined
@@ -414,14 +606,14 @@ export function expandIri(
 export function aliases(
   active: ActiveContextType,
   keyword: string,
-) {
+): string[] {
   return [...active.terms].filter(([, v]) => v.id === keyword).map(([k]) => k).sort(compare)
 }
 /** Gets a definition for one active property. */
 export function definition(
   active: ActiveContextType,
   property: string | null,
-) {
+): TermDefinitionType | undefined {
   return property === null ? undefined : active.terms.get(property)
 }
 /** Tests for non-array JSON object. */
@@ -443,24 +635,21 @@ export function abort(signal?: AbortSignal) {
   if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
 }
 /** Resolves one IRI reference. */
-export function resolve(value: string, base?: string) {
+export function resolve(value: string, base?: string): string | undefined {
   try {
-    return base ? new URL(value, base).href : new URL(value).href
+    return resolveReference(value, base)
   } catch {
     return undefined
   }
 }
 /** Tests absolute URL-like IRI. */
-export function absolute(value: string) {
-  try {
-    new URL(value)
-    return true
-  } catch {
-    return false
-  }
+export function absolute(value: string): boolean {
+  // deno-lint-ignore no-control-regex -- RDF IRIs exclude literal C0 controls and ASCII space.
+  return /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value) && !/[\u0000-\u0020<>"{}|^`\\]/u.test(value) &&
+    value.indexOf('#') === value.lastIndexOf('#')
 }
 /** Unicode code-point comparator. */
-export function compare(left: string, right: string) {
+export function compare(left: string, right: string): number {
   if (left === right) return 0
   const a = [...left], b = [...right]
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
@@ -487,6 +676,9 @@ export function compare(left: string, right: string) {
   term: string,
 ): readonly string[] {
   if (value === undefined) return []
+  if (mode === 'json-ld-1.0' && typeof value !== 'string') {
+    fail('invalid container mapping', 'JSON-LD 1.0 containers must be a single string.')
+  }
   const list = Array.isArray(value) ? value : [value]
   if (!list.every((v) => typeof v === 'string')) {
     fail('invalid container mapping', `@container for '${term}' must contain strings.`)
@@ -499,12 +691,20 @@ export function compare(left: string, right: string) {
   if (list.some((v) => !allowed.has(v as string))) {
     fail('invalid container mapping', `Invalid @container for '${term}'.`)
   }
+  const core = list.filter((item) => item !== '@set')
+  if (
+    !list.length || (list.includes('@list') && list.length !== 1) || core.length > 2 ||
+    (core.length === 2 &&
+      !(core.includes('@graph') && (core.includes('@id') || core.includes('@index'))))
+  ) {
+    fail('invalid container mapping', `Invalid @container combination for '${term}'.`)
+  }
   return [...new Set(list as string[])].sort(compare)
 }
 /** Tests protected-term structural equivalence. */ function same(
   a: TermDefinitionType,
   b: TermDefinitionType,
 ) {
-  return JSON.stringify({ ...a, container: [...a.container] }) ===
-    JSON.stringify({ ...b, container: [...b.container] })
+  return JSON.stringify({ ...a, protected: false, container: [...a.container] }) ===
+    JSON.stringify({ ...b, protected: false, container: [...b.container] })
 }

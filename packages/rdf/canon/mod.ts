@@ -1,9 +1,11 @@
 /** Native RDFC-1.0 RDF dataset canonicalization with explicit complexity controls. @module */
 import { blankNode, quad } from '../factory.ts'
 import { parse as parseNQuads } from '../nquads/mod.ts'
-import type { GraphTermType, Literal, ObjectTermType, Quad } from '../term.ts'
+import { iterate } from '../source.ts'
+import { type GraphTermType, key, type Literal, type ObjectTermType, type Quad } from '../term.ts'
 import { writeQuad } from '../write.ts'
 import type { CryptoDigestType, DegreeResultType, DigestType } from './types.ts'
+import { permutations } from './permutations.ts'
 export type { CryptoDigestType, DegreeResultType, DigestType } from './types.ts'
 /** Default maximum dataset size admitted by canonicalization when the caller does not set `maxQuads`. */
 const DEFAULT_MAX_QUADS = 1_000_000, DEFAULT_MAX_WORK_FACTOR = 8, MIN_WORK = 64
@@ -18,8 +20,7 @@ export interface OptionsType {
   /** Caller-owned cancellation signal. */ readonly signal?: AbortSignal
 }
 /** Options for hashing the final canonical bytes. */
-export interface HashOptionsType
-  extends OptionsType {
+export interface HashOptionsType extends OptionsType {
   /** Web Crypto digest used to hash the final canonical N-Quads bytes. */
   readonly digest?: CryptoDigestType
 }
@@ -293,26 +294,6 @@ export async function isomorphic(
     true,
   )
 }
-/** Lazily yields every positional permutation. */ function* permutations(
-  values: readonly string[],
-): Generator<string[]> {
-  const source = [...values], used = new Array(source.length).fill(false), current: string[] = []
-  /** Recursively fills the next permutation slot. */ function* visit(): Generator<string[]> {
-    if (current.length === source.length) {
-      yield [...current]
-      return
-    }
-    for (let i = 0; i < source.length; i++) {
-      if (used[i]) continue
-      used[i] = true
-      current.push(source[i]!)
-      yield* visit()
-      current.pop()
-      used[i] = false
-    }
-  }
-  yield* visit()
-}
 /** Rejects a candidate path once it cannot beat the selected path. */ function worse(
   path: string,
   chosen: string,
@@ -360,9 +341,16 @@ export async function isomorphic(
   signal?: AbortSignal,
 ) {
   const out: Quad[] = []
-  for await (const q of source) {
+  const seen = new Set<string>()
+  let count = 0
+  for await (const q of iterate(source, signal ? { signal } : {})) {
     abort(signal)
-    if (out.length >= max) throw new RangeError(`RDFC-1.0 input exceeds maxQuads (${max}).`)
+    if (++count > max) throw new RangeError(`RDFC-1.0 input exceeds maxQuads (${max}).`)
+    // RDFC canonicalizes an RDF dataset, which is a set even when a streaming
+    // parser emits duplicates. Count all input work before eliminating them.
+    const id = key(q)
+    if (seen.has(id)) continue
+    seen.add(id)
     out.push(q)
   }
   return out

@@ -9,6 +9,42 @@ const b = quad(namedNode('urn:b'), p, literal('two'), g)
 const c = quad(namedNode('urn:a'), namedNode('urn:q'), literal('three'), g)
 
 describe('@okikio/rdf Dataset', () => {
+  it(
+    'cancels a pending import without taking ownership of the source resource',
+    { timeout: 5_000 },
+    async () => {
+      const controller = new AbortController()
+      let returned = 0
+      let entered!: () => void
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const source: AsyncIterable<typeof a> = {
+        [Symbol.asyncIterator]() {
+          return {
+            next() {
+              entered()
+              return new Promise<IteratorResult<typeof a>>(() => {})
+            },
+            return() {
+              returned++
+              return Promise.resolve({ done: true as const, value: undefined })
+            },
+          }
+        },
+      }
+      const graph = dataset()
+      const pending = graph.import(source, { signal: controller.signal })
+      await started
+      const reason = new Error('stop stalled dataset import')
+      controller.abort(reason)
+      await expect(pending).rejects.toBe(reason)
+      expect(returned).toBe(1)
+      expect(graph.size).toBe(0)
+      await graph.import([a])
+      expect(graph.size).toBe(1)
+    },
+  )
   it('matches by semantic RDF term equality instead of object identity', () => {
     const graph = dataset([a])
     expect([...graph.matchIter({ subject: namedNode('urn:a') })]).toHaveLength(1)
@@ -22,9 +58,9 @@ describe('@okikio/rdf Dataset', () => {
 
   it('matches intersections across subject, predicate, object, and graph indexes', () => {
     const graph = dataset([a, b, c])
-    expect([...graph.matchIter({ subject: namedNode('urn:a') })]).toHaveLength(2)
-    expect([...graph.matchIter({ predicate: p, graph: g })]).toHaveLength(1)
-    expect([...graph.matchIter({ object: literal('three'), graph: g })]).toHaveLength(1)
+    expect([...graph.matchIter({ subject: namedNode('urn:a') })]).toEqual([a, c])
+    expect([...graph.matchIter({ predicate: p, graph: g })]).toEqual([b])
+    expect([...graph.matchIter({ object: literal('three'), graph: g })]).toEqual([c])
     expect([...graph.matchIter({ subject: namedNode('urn:missing') })]).toHaveLength(0)
   })
 
@@ -47,10 +83,9 @@ describe('@okikio/rdf Dataset', () => {
     expect(graph.size).toBe(2)
 
     const controller = new AbortController()
-    controller.abort(new Error('stop-import'))
-    await expect(dataset().import(values(), { signal: controller.signal })).rejects.toThrow(
-      'stop-import',
-    )
+    const reason = new Error('stop-import')
+    controller.abort(reason)
+    await expect(dataset().import(values(), { signal: controller.signal })).rejects.toBe(reason)
   })
 
   it('compares datasets semantically and builds insertion-order-independent keys', () => {

@@ -4,6 +4,8 @@ import {
   compare,
   type ContextStateType,
   definition,
+  expandIri,
+  JsonLdError,
   object,
   process,
 } from './context.ts'
@@ -24,6 +26,17 @@ export async function compactValue(
   options: CompactOptionsType = {},
 ): Promise<JsonLdValueType> {
   if (element === null || scalar(element)) return element
+  if (object(element) && Object.hasOwn(element, '@preserve')) {
+    return {
+      '@preserve': await compactValue(
+        active,
+        activeProperty,
+        element['@preserve']!,
+        state,
+        options,
+      ),
+    }
+  }
   if (Array.isArray(element)) {
     const result: JsonLdValueType[] = []
     for (const item of element) {
@@ -36,17 +49,42 @@ export async function compactValue(
       ? result[0]!
       : result
   }
+  if (object(element) && Object.hasOwn(element, '@list')) {
+    const list = array(
+      await compactValue(active, activeProperty, element['@list']!, state, options),
+    )
+    if (definition(active, activeProperty)?.container.includes('@list')) return list
+    return {
+      [compactIri(active, '@list', undefined, true, false, options)]: list,
+      ...(element['@index'] === undefined
+        ? {}
+        : { [compactIri(active, '@index', undefined, true, false, options)]: element['@index'] }),
+    }
+  }
   if (valueObject(element) || (idObject(element) && Object.keys(element).length === 1)) {
     return compactScalar(active, activeProperty, element, options)
   }
-  let context = active
+  let context = active.previous ?? active
+  const propertyScope = definition(active, activeProperty)
+  if (propertyScope?.context !== undefined) {
+    context = await process(
+      context,
+      propertyScope.context,
+      state,
+      propertyScope.base ?? context.base,
+      true,
+      false,
+      true,
+    )
+  }
+  const typeContext = context
   const node = element as Record<string, JsonLdValueType>
   for (
     const type of array(node['@type'] ?? []).filter((v): v is string => typeof v === 'string').sort(
       compare,
     )
   ) {
-    const term = selectTerm(context, type), def = term ? context.terms.get(term) : undefined
+    const term = selectTerm(typeContext, type), def = term ? typeContext.terms.get(term) : undefined
     if (def?.context !== undefined) {
       context = await process(context, def.context, state, def.base ?? context.base, false)
     }
@@ -65,74 +103,214 @@ export async function compactValue(
     if (property === '@type') {
       const alias = compactIri(context, '@type', undefined, true, false, options)
       const values = array(raw).filter((v): v is string => typeof v === 'string').map((v) =>
-        compactIri(context, v, undefined, true, false, options)
+        compactIri(typeContext, v, undefined, true, false, options)
       )
       result[alias] = collapse(
         values,
         options.compactArrays ?? true,
-        definition(context, alias)?.container ?? [],
+        context.mode === 'json-ld-1.1' ? definition(context, alias)?.container ?? [] : [],
       )
       continue
     }
     if (property === '@reverse' && object(raw)) {
       const compacted = await compactValue(context, '@reverse', raw, state, options)
       if (object(compacted)) {
-        result[compactIri(context, '@reverse', undefined, true, false, options)] = compacted
+        for (const key of Object.keys(compacted)) {
+          if (!context.terms.get(key)?.reverse) continue
+          result[key] = compacted[key]!
+          delete compacted[key]
+        }
+        if (Object.keys(compacted).length) {
+          result[compactIri(context, '@reverse', undefined, true, false, options)] = compacted
+        }
       }
       continue
     }
     if (property.startsWith('@')) {
       result[compactIri(context, property, raw, true, false, options)] = await compactValue(
         context,
-        activeProperty,
+        property === '@graph' && activeProperty === null
+          ? '@graph'
+          : property === '@graph'
+          ? activeProperty
+          : compactIri(context, property, undefined, true, false, options),
         raw,
         state,
         options,
       )
       continue
     }
+    if (Array.isArray(raw) && !raw.length) {
+      result[compactIri(context, property, raw, true, false, options)] = []
+    }
     for (const item of array(raw)) {
-      const key = compactIri(context, property, item, true, false, options),
+      const key = compactIri(context, property, item, true, activeProperty === '@reverse', options),
         term = context.terms.get(key),
         container = term?.container ?? []
+      let target = result
+      if (term?.nest !== undefined) {
+        if (term.nest !== '@nest' && context.terms.get(term.nest)?.id !== '@nest') {
+          throw new JsonLdError(
+            'invalid @nest value',
+            'A compaction nest mapping must name @nest or its alias.',
+          )
+        }
+        target = getMap(result, term.nest)
+      }
       let scoped = context
       if (term?.context !== undefined) {
-        scoped = await process(context, term.context, state, term.base ?? context.base, true)
+        scoped = await process(
+          context,
+          term.context,
+          state,
+          term.base ?? context.base,
+          true,
+          false,
+          true,
+        )
+      }
+      if (container.includes('@graph') && object(item) && Object.hasOwn(item, '@graph')) {
+        if ((!container.includes('@id') && Object.hasOwn(item, '@id'))) {
+          add(
+            target,
+            key,
+            await compactValue(scoped, key, item, state, options),
+            container,
+            options.compactArrays ?? true,
+          )
+          continue
+        }
+        const contents = await compactValue(scoped, key, item['@graph']!, state, options)
+        if (container.includes('@id') || container.includes('@index')) {
+          const index = container.includes('@id')
+            ? typeof item['@id'] === 'string'
+              ? compactIri(context, item['@id'], undefined, false, false, options)
+              : '@none'
+            : typeof item['@index'] === 'string'
+            ? item['@index']
+            : '@none'
+          addMap(
+            getMap(target, key),
+            index === '@none'
+              ? compactIri(context, '@none', undefined, true, false, options)
+              : index,
+            contents,
+            (options.compactArrays ?? true) && !container.includes('@set'),
+          )
+        } else {
+          const values = array(contents),
+            value = values.length > 1
+              ? { [compactIri(context, '@included', undefined, true, false, options)]: values }
+              : contents
+          if (values.length === 1) {
+            for (const child of values) {
+              add(target, key, child, container, options.compactArrays ?? true)
+            }
+          } else add(target, key, value, container, options.compactArrays ?? true)
+        }
+        continue
       }
       if (object(item) && Array.isArray(item['@list'])) {
-        const list = await compactValue(scoped, key, item['@list'], state, options)
+        const list = array(await compactValue(scoped, key, item['@list'], state, options))
+        if (container.includes('@list')) {
+          if (Object.hasOwn(target, key)) {
+            throw new JsonLdError(
+              'compaction to list of lists',
+              'Compaction would merge two lists into one list container.',
+            )
+          }
+          target[key] = list
+          continue
+        }
         add(
-          result,
+          target,
           key,
-          container.includes('@list')
-            ? list
-            : { [compactIri(context, '@list', undefined, true, false, options)]: list },
+          {
+            [compactIri(context, '@list', undefined, true, false, options)]: list,
+            ...(item['@index'] === undefined ? {} : {
+              [compactIri(context, '@index', undefined, true, false, options)]: item['@index']!,
+            }),
+          },
           container,
           options.compactArrays ?? true,
         )
         continue
       }
       if (container.includes('@language') && object(item) && Object.hasOwn(item, '@value')) {
-        const map = getMap(result, key),
-          lang = typeof item['@language'] === 'string' ? item['@language'] : '@none'
-        addMap(map, lang, compactScalar(scoped, key, item, options), options.compactArrays ?? true)
+        const map = getMap(target, key),
+          lang = typeof item['@language'] === 'string'
+            ? item['@language']
+            : compactIri(context, '@none', undefined, true, false, options)
+        addMap(
+          map,
+          lang,
+          item['@value']!,
+          (options.compactArrays ?? true) && !container.includes('@set'),
+        )
         continue
       }
-      if (container.includes('@index') && object(item)) {
-        const map = getMap(result, key),
-          index = typeof item['@index'] === 'string' ? item['@index'] : '@none',
-          copy = { ...item }
-        delete copy['@index']
+      if (
+        (container.includes('@index') || container.includes('@id') ||
+          container.includes('@type')) && object(item)
+      ) {
+        const map = getMap(target, key), copy = { ...item }
+        let index = compactIri(context, '@none', undefined, true, false, options)
+        if (container.includes('@id') && typeof copy['@id'] === 'string') {
+          index = compactIri(context, copy['@id'], undefined, false, false, options)
+          delete copy['@id']
+        } else if (container.includes('@type') && array(copy['@type'] ?? []).length) {
+          const [type, ...types] = array(copy['@type']!)
+          if (typeof type === 'string') {
+            index = compactIri(context, type, undefined, true, false, options)
+          }
+          const typeScope = context.terms.get(index)
+          if (typeScope?.context !== undefined) {
+            scoped = await process(
+              context,
+              typeScope.context,
+              state,
+              typeScope.base ?? context.base,
+              true,
+              false,
+              true,
+            )
+          }
+          if (types.length) copy['@type'] = types
+          else delete copy['@type']
+        } else if (container.includes('@index')) {
+          if (term?.index !== undefined && term.index !== '@index') {
+            const property = expandIri(context, term.index, { vocab: true }),
+              indexes = property ? array(copy[property] ?? []) : []
+            const [first, ...rest] = indexes
+            const indexValue = first === undefined
+              ? undefined
+              : await compactValue(context, term.index, first, state, options)
+            if (typeof indexValue === 'string') {
+              index = indexValue
+              if (property && rest.length) copy[property] = rest
+              else if (property) delete copy[property]
+            }
+          } else {
+            if (typeof copy['@index'] === 'string') index = copy['@index']
+            delete copy['@index']
+          }
+        }
         addMap(
           map,
           index,
-          await compactValue(scoped, key, copy, state, options),
-          options.compactArrays ?? true,
+          await compactValue(
+            scoped,
+            term?.index !== undefined && term.index !== '@index' && index !== '@none' ? null : key,
+            copy,
+            state,
+            options,
+          ),
+          (options.compactArrays ?? true) && !container.includes('@set'),
         )
         continue
       }
       add(
-        result,
+        target,
         key,
         await compactValue(scoped, key, item, state, options),
         container,
@@ -159,8 +337,20 @@ export function compactIri(
   }
   let best: string | undefined
   for (const [term, def] of active.terms) {
-    if (!def.prefix || !def.id || !value.startsWith(def.id) || value === def.id) continue
+    if (
+      !(def.compactPrefix ||
+        active.mode === 'json-ld-1.0' && def.container.includes('@index') && !term.includes(':')) ||
+      !def.id || !value.startsWith(def.id) || value === def.id
+    ) continue
     const candidate = `${term}:${value.slice(def.id.length)}`
+    if (vocab && active.terms.has(candidate)) {
+      const mapped = active.terms.get(candidate)!
+      if (
+        mapped.id !== value ||
+        item !== undefined &&
+          (!object(item) || !Object.hasOwn(item, '@id') && mapped.type !== item['@type'])
+      ) continue
+    }
     if (
       !best || candidate.length < best.length ||
       (candidate.length === best.length && compare(candidate, best) < 0)
@@ -169,6 +359,15 @@ export function compactIri(
   if (best) return best
   if (!vocab && (options.compactToRelative ?? true) && active.base) {
     return relative(value, active.base) ?? value
+  }
+  if (
+    active.mode !== 'json-ld-1.0' && /^[^:]+:/u.test(value) && !value.startsWith('_:') &&
+    active.terms.get(value.split(':')[0]!)?.prefix
+  ) {
+    throw new JsonLdError(
+      'IRI confused with prefix',
+      `Absolute IRI '${value}' would be confused with an active compact IRI prefix.`,
+    )
   }
   return value
 }
@@ -198,9 +397,12 @@ export function compactIri(
     }
   }
   const raw = value['@value'] ?? null
+  const preserveIndex = Object.hasOwn(value, '@index') && !term?.container.includes('@index')
   if (value['@type'] === '@json' && term?.type === '@json') return raw
-  if (typeof value['@type'] === 'string' && term?.type === value['@type']) return raw
-  if (!Object.hasOwn(value, '@type')) {
+  if (!preserveIndex && typeof value['@type'] === 'string' && term?.type === value['@type']) {
+    return raw
+  }
+  if (!preserveIndex && term?.type !== '@none' && !Object.hasOwn(value, '@type')) {
     const language = typeof value['@language'] === 'string'
         ? value['@language'].toLowerCase()
         : null,
@@ -236,6 +438,9 @@ export function compactIri(
   if (value['@direction'] === 'ltr' || value['@direction'] === 'rtl') {
     result[compactIri(active, '@direction', undefined, true, false, options)] = value['@direction']
   }
+  if (preserveIndex) {
+    result[compactIri(active, '@index', undefined, true, false, options)] = value['@index']!
+  }
   return result
 }
 /** Ranks candidate terms for one expanded IRI. */ function candidates(
@@ -244,6 +449,7 @@ export function compactIri(
   item: JsonLdValueType | undefined,
   reverse: boolean,
 ) {
+  if (object(item) && Object.hasOwn(item, '@preserve')) item = item['@preserve']
   const result: {
     /** Candidate compact term being scored for one expanded IRI. */
     term: string
@@ -252,14 +458,67 @@ export function compactIri(
   }[] = []
   for (const [term, def] of active.terms) {
     if (def.id !== iri) continue
+    if (def.reverse !== reverse && def.reverse) continue
     let score = reverse === def.reverse ? 20 : 0
     if (object(item)) {
-      if (Object.hasOwn(item, '@list') && def.container.includes('@list')) score += 20
-      if (typeof item['@id'] === 'string' && (def.type === '@id' || def.type === '@vocab')) {
-        score += 12
+      const list = Object.hasOwn(item, '@list') ? array(item['@list']!) : undefined
+      const graph = Object.hasOwn(item, '@graph')
+      if ((!list || Object.hasOwn(item, '@index')) && def.container.includes('@list')) continue
+      if (!graph && def.container.includes('@graph')) continue
+      const values = list ?? [item]
+      if (def.type && def.type !== '@none') {
+        if (
+          !values.every((value) =>
+            object(value) && (
+              def.type === '@id' || def.type === '@vocab'
+                ? !Object.hasOwn(value, '@value') && !Object.hasOwn(value, '@list')
+                : value['@type'] === def.type
+            )
+          )
+        ) continue
+        score += 60
+        if (typeof item['@id'] === 'string' && (def.type === '@id' || def.type === '@vocab')) {
+          const hasTerm = selectTerm(active, item['@id']) !== undefined
+          if ((def.type === '@vocab') === hasTerm) score += 10
+        }
+      } else if (def.language !== undefined || def.direction !== undefined) {
+        if (
+          !values.every((value) =>
+            object(value) && Object.hasOwn(value, '@value') &&
+            !Object.hasOwn(value, '@type') &&
+            (def.container.includes('@language') ||
+              (value['@language'] ?? null) ===
+                (def.language !== undefined ? def.language : active.language ?? null)) &&
+            (value['@direction'] ?? null) ===
+              (def.direction !== undefined ? def.direction : active.direction ?? null)
+          )
+        ) continue
+        score += 50
+      } else if (
+        values.every((value) =>
+          object(value) && Object.hasOwn(value, '@value') &&
+          !Object.hasOwn(value, '@type') &&
+          (value['@language'] ?? null) === (active.language ?? null) &&
+          (value['@direction'] ?? null) === (active.direction ?? null)
+        )
+      ) score += 30
+      if (list && def.container.includes('@list') && !Object.hasOwn(item, '@index')) score += 200
+      if (graph && def.container.includes('@graph')) score += 200
+      if (def.container.includes('@language')) {
+        if (
+          !Object.hasOwn(item, '@value') || Object.hasOwn(item, '@type') ||
+          Object.hasOwn(item, '@index')
+        ) continue
+        score += Object.hasOwn(item, '@language') ? 150 : 15
       }
-      if (typeof item['@type'] === 'string' && def.type === item['@type']) score += 14
-      if (Object.hasOwn(item, '@value') && def.container.includes('@language')) score += 8
+      if (def.container.includes('@index') && Object.hasOwn(item, '@index')) score += 130
+      if (def.container.includes('@index') && def.index !== undefined && def.index !== '@index') {
+        score += 130
+      }
+      if (def.container.includes('@id') && !Object.hasOwn(item, '@value')) score += 120
+      if (def.container.includes('@type') && !Object.hasOwn(item, '@value')) score += 110
+      if (def.container.includes('@set')) score += 80
+      if (def.type === '@none') score += 10
     }
     result.push({ term, score })
   }
@@ -278,7 +537,12 @@ export function compactIri(
   compactArrays: boolean,
 ) {
   const force = !compactArrays || container.includes('@set'), current = result[property]
-  if (current === undefined) result[property] = force ? [value] : value
+  if (object(value) && value['@preserve'] === '@null' && current !== undefined) return
+  if (object(current) && current['@preserve'] === '@null') {
+    result[property] = force && !Array.isArray(value) ? [value] : value
+    return
+  }
+  if (current === undefined) result[property] = force && !Array.isArray(value) ? [value] : value
   else if (Array.isArray(current)) current.push(value)
   else result[property] = [current, value]
 }
@@ -299,7 +563,7 @@ export function compactIri(
   compactArrays: boolean,
 ) {
   const current = map[key]
-  if (current === undefined) map[key] = compactArrays ? value : [value]
+  if (current === undefined) map[key] = compactArrays || Array.isArray(value) ? value : [value]
   else if (Array.isArray(current)) current.push(value)
   else map[key] = [current, value]
 }
@@ -310,26 +574,24 @@ export function compactIri(
 ): JsonLdValueType {
   return compactArrays && values.length === 1 && !container.includes('@set') ? values[0]! : values
 }
-/** Computes relative IRI when authority matches. */ function relative(
-  value: string,
-  base: string,
-) {
-  try {
-    const target = new URL(value), source = new URL(base)
-    if (target.origin !== source.origin) return undefined
-    const from = source.pathname.split('/')
-    from.pop()
-    const to = target.pathname.split('/')
-    while (from[0] === to[0]) {
-      from.shift()
-      to.shift()
-    }
-    return `${'../'.repeat(from.filter(Boolean).length)}${
-      to.join('/')
-    }${target.search}${target.hash}` || './'
-  } catch {
-    return undefined
+/** Computes a relative IRI without changing RDF lexical identity. */
+function relative(value: string, base: string): string | undefined {
+  const pattern = /^([A-Za-z][A-Za-z0-9+.-]*:)(\/\/[^/?#]*)?([^?#]*)(\?[^#]*)?(#.*)?$/su
+  const target = pattern.exec(value), source = pattern.exec(base)
+  if (!target || !source || target[1] !== source[1] || target[2] !== source[2]) return undefined
+  if (target[3] === source[3]) {
+    if (target[4] !== source[4] && target[4] !== undefined) return `${target[4]}${target[5] ?? ''}`
+    if (target[4] === source[4] && target[5] !== undefined) return target[5]
   }
+  const from = source[3]!.split('/'), to = target[3]!.split('/')
+  from.pop()
+  while (from.length && to.length && from[0] === to[0]) {
+    from.shift()
+    to.shift()
+  }
+  let path = `${'../'.repeat(from.filter(Boolean).length)}${to.join('/')}` || './'
+  if (path.startsWith('@') || /^[^/]*:/u.test(path)) path = `./${path}`
+  return `${path}${target[4] ?? ''}${target[5] ?? ''}`
 }
 /** Returns scalar/array as array. */ function array(value: JsonLdValueType): JsonLdValueType[] {
   return Array.isArray(value) ? value : [value]

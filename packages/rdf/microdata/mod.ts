@@ -17,9 +17,9 @@ import {
   XSD,
 } from '../term.ts'
 import { type TextSourceType, throwIfAborted } from '../text.ts'
-/** Microdata registry predicate used to connect a vocabulary to additional vocabulary behavior. */
-const USES_VOCABULARY = 'http://www.w3.org/ns/rdfa#usesVocabulary',
-  XSD_G_YEAR = 'http://www.w3.org/2001/XMLSchema#gYear',
+import { resolve as resolveIri } from '../iri.ts'
+/** XML Schema datatypes selected by HTML time values. */
+const XSD_G_YEAR = 'http://www.w3.org/2001/XMLSchema#gYear',
   XSD_G_YEAR_MONTH = 'http://www.w3.org/2001/XMLSchema#gYearMonth',
   XSD_TIME = 'http://www.w3.org/2001/XMLSchema#time',
   XSD_DURATION = 'http://www.w3.org/2001/XMLSchema#duration'
@@ -45,8 +45,7 @@ export interface VocabularyType {
   /** Extension metadata retained for custom registries. */ readonly [key: string]: unknown
 }
 /** Microdata vocabulary registry keyed by vocabulary IRI prefix. */
-export type VocabularyRegistryType =
-  Readonly<Record<string, VocabularyType>>
+export type VocabularyRegistryType = Readonly<Record<string, VocabularyType>>
 /** Options for native Microdata-to-RDF parsing. */
 export interface ParseOptionsType {
   /** Effective document base IRI used to resolve Microdata identifiers and URL values. */
@@ -57,12 +56,15 @@ export interface ParseOptionsType {
   /** Maximum decoded source bytes. */ readonly maxBytes?: number
   /** Maximum markup node count. */ readonly maxNodes?: number
   /** Maximum markup depth. */ readonly maxDepth?: number
+  /** Maximum buffered RDF statements, including vocabulary aliases. Defaults to 1,000,000. */
+  readonly maxQuads?: number
+  /** Maximum active nested item expansions, including itemref chains. Defaults to 128. */
+  readonly maxItemDepth?: number
   /** Caller cancellation. */ readonly signal?: AbortSignal
 }
 /** Shared state for one conversion. */ interface StateType {
   /** Effective document base IRI shared by this Microdata conversion operation. */
   readonly base?: string
-  /** Document subject for vocabulary-use statements. */ readonly document?: SubjectTermType
   /** Target graph. */ readonly graph: GraphTermType
   /** Vocabulary registry. */ readonly vocabularies: VocabularyRegistryType
   /** itemref targets by id. */ readonly ids: ReadonlyMap<string, MarkupElementType>
@@ -70,8 +72,13 @@ export interface ParseOptionsType {
     MarkupElementType,
     SubjectTermType
   >
-  /** Vocabularies already reported. */ readonly used: Set<string>
+  /** Items being expanded; completed shared items can be reused. */
+  readonly active: Set<MarkupElementType>
   /** Deterministic result buffer. */ readonly quads: Quad[]
+  /** Admission ceiling checked before retaining each semantic statement. */ readonly maxQuads:
+    number
+  /** Semantic nesting ceiling independent of the markup tree's depth. */ readonly maxItemDepth:
+    number
   /** HTML attribute rules enabled. */ readonly html: boolean
   /** Caller cancellation. */ readonly signal?: AbortSignal
 }
@@ -94,6 +101,14 @@ export async function* parse(
   source: TextSourceType,
   options: ParseOptionsType = {},
 ): AsyncGenerator<Quad> {
+  const maxQuads = options.maxQuads ?? 1_000_000
+  if (!Number.isSafeInteger(maxQuads) || maxQuads < 1) {
+    throw new RangeError('maxQuads must be a positive safe integer.')
+  }
+  const maxItemDepth = options.maxItemDepth ?? 128
+  if (!Number.isSafeInteger(maxItemDepth) || maxItemDepth < 1) {
+    throw new RangeError('maxItemDepth must be a positive safe integer.')
+  }
   const html = !(options.xml ?? false)
   const document = await parseMarkup(source, {
     html,
@@ -112,13 +127,15 @@ export async function* parse(
     if (id !== undefined && !ids.has(id)) ids.set(id, element)
   }
   const state: StateType = {
-    ...(base ? { base, document: namedNode(base) } : {}),
+    ...(base ? { base } : {}),
     graph: options.graph ?? defaultGraph(),
     vocabularies: options.vocabularies ?? DEFAULT_VOCABULARIES,
     ids,
     memory: new Map(),
-    used: new Set(),
+    active: new Set(),
     quads: [],
+    maxQuads,
+    maxItemDepth,
     html,
     ...(options.signal ? { signal: options.signal } : {}),
   }
@@ -142,24 +159,21 @@ export async function* parse(
   parent: ItemContextType,
 ): SubjectTermType {
   throwIfAborted(state.signal)
+  if (state.active.has(element)) throw new TypeError('Recursive Microdata itemref.')
   const existing = state.memory.get(element)
   if (existing) return existing
+  if (state.active.size >= state.maxItemDepth) {
+    throw new RangeError('Microdata maxItemDepth exceeded.')
+  }
+  state.active.add(element)
   const identifier = attr(element, 'itemid', state.html)
   const subject = identifier ? resource(identifier, state.base) ?? blankNode() : blankNode()
   state.memory.set(element, subject)
-  const types = tokens(attr(element, 'itemtype', state.html)).map((v) =>
-    resource(v, state.base)?.value
-  ).filter((v): v is string => Boolean(v))
+  const types = tokens(attr(element, 'itemtype', state.html)).map(absolute)
+    .filter((v): v is string => v !== undefined)
   for (const type of types) emit(state, subject, RDF.type, namedNode(type))
   const type = types[0] ?? parent.type
   const vocabulary = type ? vocabularyFor(type, state.vocabularies) : parent.vocabulary
-  if (
-    vocabulary && state.document && registryVocabulary(vocabulary, state.vocabularies) &&
-    !state.used.has(vocabulary)
-  ) {
-    state.used.add(vocabulary)
-    emit(state, state.document, USES_VOCABULARY, namedNode(vocabulary))
-  }
   const inheritedLanguage = language(element, state.html) ?? parent.language
   const context: ItemContextType = {
     ...(type ? { type } : {}),
@@ -189,6 +203,7 @@ export async function* parse(
       aliases(state, object, name, predicate, subject, context)
     }
   }
+  state.active.delete(element)
   return subject
 }
 /** Collects property descendants without crossing nested item children. */ function properties(
@@ -251,9 +266,13 @@ export async function* parse(
   if (!context.vocabulary) return
   const entry = state.vocabularies[context.vocabulary]?.properties?.[name]
   if (!entry) return
-  for (const alias of [...asList(entry.subPropertyOf), ...asList(entry.equivalentProperty)]) {
-    const resolved = predicateIri(alias, context, state.base) ?? absolute(alias)
-    if (resolved && resolved !== predicate) emit(state, subject, resolved, object)
+  // Do not first copy the caller's possibly large alias arrays. Semantic
+  // admission must stop fan-out before retaining another RDF statement.
+  for (const aliases of [entry.subPropertyOf, entry.equivalentProperty]) {
+    for (const alias of asList(aliases)) {
+      const resolved = predicateIri(alias, context, state.base) ?? absolute(alias)
+      if (resolved && resolved !== predicate) emit(state, subject, resolved, object)
+    }
   }
 }
 /** Appends one generated statement. */ function emit(
@@ -262,6 +281,8 @@ export async function* parse(
   predicate: string,
   object: ObjectTermType,
 ) {
+  throwIfAborted(state.signal)
+  if (state.quads.length >= state.maxQuads) throw new RangeError('Microdata maxQuads exceeded.')
   state.quads.push(quad(subject, namedNode(predicate), object, state.graph))
 }
 /** Resolves one property token with vocabulary rules. */ function predicateIri(
@@ -273,9 +294,7 @@ export async function* parse(
   if (direct) return direct
   if (context.vocabulary) return joinVocabulary(context.vocabulary, name)
   if (!base) return undefined
-  const url = new URL(base)
-  url.hash = name
-  return url.href
+  return resolveIri(`#${name}`, base)
 }
 /** Derives the active vocabulary from an item type. */ function vocabularyFor(
   type: string,
@@ -290,12 +309,6 @@ export async function* parse(
   if (hash >= 0) return type.slice(0, hash + 1)
   const slash = type.lastIndexOf('/')
   return slash >= 0 ? type.slice(0, slash + 1) : type
-}
-/** Tests explicit registry membership. */ function registryVocabulary(
-  value: string,
-  registry: VocabularyRegistryType,
-) {
-  return Object.hasOwn(registry, value)
 }
 /** Joins a vocabulary and property token. */ function joinVocabulary(vocab: string, name: string) {
   return vocab.endsWith('/') || vocab.endsWith('#') ? `${vocab}${name}` : `${vocab}#${name}`
@@ -365,17 +378,13 @@ export async function* parse(
 /** Resolves an IRI reference. */ function resolve(value: string, base?: string) {
   if (!value) return undefined
   try {
-    return base ? new URL(value, base).href : new URL(value).href
+    return resolveIri(value, base)
   } catch {
     return undefined
   }
 }
 /** Returns value only if absolute IRI. */ function absolute(value: string) {
-  try {
-    return new URL(value).href
-  } catch {
-    return undefined
-  }
+  return /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value) ? value : undefined
 }
 /** Splits a space-separated token list. */ function tokens(value?: string) {
   return value?.trim().split(/\s+/u).filter(Boolean) ?? []

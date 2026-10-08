@@ -5,6 +5,7 @@ import type { Quad } from './term.ts'
 import { chunks, type TextSourceType, throwIfAborted } from './text.ts'
 
 export type { TextSourceType } from './text.ts'
+export { consume, pending } from './iteration.ts'
 
 /**
  * Minimal writable async parser used by external streaming RDF adapters.
