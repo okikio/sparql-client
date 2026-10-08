@@ -120,16 +120,35 @@ BENCH_LARGE=1 BENCH_ONLY=packages/rdf/parse_compare_bench.ts BENCH_PARSE_FORMAT=
 
 Unset `BENCH_ONLY`, `BENCH_PARSE_FORMAT` and `BENCH_PARSE_COUNT` for the full matrix. The shared plan validates those selectors and records each completed child's name, environment and arguments. A focused result is evidence for its selected cell, not completion of the full matrix.
 
-`bench:report` selects Mitata JSON output with `BENCH_FORMAT=json`. Each invocation creates its own timestamped directory and writes `meta.json` before collecting samples. Every program retains raw JSON stdout and a separate `.stderr` file, including unsuccessful runs. Metadata records the exact child arguments, runtime, CPU/OS/memory, large-fixture mode, elapsed time, exit code and SHA-256 identities for package TypeScript, benchmark source and pinned configuration.
+`bench:report` selects Mitata JSON output with `BENCH_FORMAT=json`. Each invocation atomically creates its own directory with a timestamp prefix and random suffix, then writes `meta.json` before collecting samples. Concurrent starts cannot overwrite each other's metadata. Every program retains raw JSON stdout and a separate `.stderr` file, including unsuccessful runs. Metadata records the exact child arguments, runtime, CPU/OS/memory, large-fixture mode, elapsed time, exit code and SHA-256 identities for package TypeScript, benchmark source and pinned configuration.
 
-Native benchmark children have a twenty-minute operational watchdog and 32MiB limits on each captured output stream.
-A deadline kills the owned child and waits for output closure; startup failures, nonzero exits, and deadlines retain
-partial output and an unsuccessful status. These limits diagnose stalled or malformed producers, rather than define
-throughput requirements. Compiler-cost probes use the same child-lifetime primitive; they remain a separate isolated
-validation lane.
+Native report capture streams each pipe into a preopened file and awaits every partial write before reading more.
+stdout and stderr each have an independent 128 MiB retained-byte quota. This is deliberate admission headroom over
+an observed 32 MiB truncation, not a typical report size or a performance budget. The failing dataset report had
+all 23 measured runs and 8,842 measured samples before its calibration array exhausted the old memory collector.
+The new collector keeps both measured and calibration samples. Exceeding a quota retains the admitted prefix and
+fails collection; an incomplete file is never parsed as a successful report. Capture failures retain their stage
+separately from the direct child's actual exit code and signal.
+
+After file-open and child acquisition, the twenty-minute child watchdog covers output capture and owned retirement.
+Acquisition remains inside the isolated runner's outer watchdog. The child timer stops only that direct child;
+inherited descendant pipes or an uncooperative native disk call still require the isolated runner's outer watchdog.
+JSON decoding uses fatal UTF-8 and a file-size-bounded read after successful collection. This validation still
+materializes the complete admitted JSON and its arrays, outside Mitata's measured callbacks. Streaming capture
+does not make JSON parsing constant-memory or establish power-loss durability of the evidence files.
+`elapsedMs` remains total runner lifecycle. `captureElapsedMs` records acquisition, child execution, pipe capture
+and file close; `validationElapsedMs` records subsequent raw-file admission and validation. These milliseconds
+are orchestration observations, separate from Mitata's nanosecond operation samples. Compiler and human-output
+callers retain their existing separate 32 MiB in-memory collector.
 
 The runner saves progress after each program. A nonzero child exit fails the report while preserving its evidence. After all programs finish, the runner hashes its inputs again; any source or dependency change invalidates the timings. Source, tests, manifests and benchmark runner code must stay frozen during collection. Documentation edits outside those hashed inputs do not change the measurements.
 
 `bench:storage` requires the installed sibling OPFS artifact and the six current workspace artifacts; prepare them through `consumer:storage`. Its report records actual installed-input and fixture identities. The full `release-check` DAG runs this gate after the installed storage consumer checks. The publishing workflow selects the exact published OPFS version from its reviewed source commit before running those gates.
+
+Compiler reports also use an atomically acquired directory under `.tmp/reports/types/`. `BENCH_TYPES_REPORT`
+selects its base directory, and `STORAGE_COLD_REPORT` selects a base for packed-storage reports. Each configured
+base contains a timestamp-prefixed child with an owned random suffix; neither variable selects a shared
+`report.json` to overwrite. Without `STORAGE_COLD_REPORT`, storage evidence uses its own temporary directory.
+Both runners print the actual report location, which must be retained with its raw files.
 
 CI uploads `.tmp/reports/bench/` with the commit SHA in the artifact name. A completed equivalent-work report can support a performance decision; a partial report or historical timing cannot establish a current performance pass or a universal throughput SLO.

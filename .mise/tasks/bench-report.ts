@@ -4,12 +4,17 @@ import { arch, cpus, platform, release, totalmem } from 'node:os'
 import { assertStable, identity } from './bench-identity.ts'
 import { plan } from './benchmarks.ts'
 import { validateMitata } from '../../bench/validate.ts'
-import { collect } from './bench-command.ts'
+import { read, spool } from './bench-command.ts'
+import type { StreamType } from './bench-command.ts'
 import { get } from './sources.ts'
 
 /** Every invocation retains its own evidence, including unsuccessful benchmark programs. */
-const OUT = `.tmp/reports/bench/${new Date().toISOString().replaceAll(':', '-')}`
-await Deno.mkdir(OUT, { recursive: true })
+const parent = '.tmp/reports/bench'
+await Deno.mkdir(parent, { recursive: true })
+const OUT = await Deno.makeTempDir({
+  dir: parent,
+  prefix: `${new Date().toISOString().replaceAll(':', '-')}-`,
+})
 const files = (await get('.', 'benchmark')).filter((path) =>
   path.startsWith('packages/') && path.endsWith('_bench.ts')
 )
@@ -18,7 +23,7 @@ const workloads = plan(files, Deno.env.get('BENCH_LARGE') === '1')
 /** Source and dependency identities distinguish samples collected before and after a repair. */
 const inputs = await identity()
 const meta = {
-  version: 3,
+  version: 4,
   status: 'running' as 'running' | 'pass' | 'fail' | 'invalid',
   failure: undefined as string | undefined,
   inputsAfter: undefined as Readonly<Record<string, string>> | undefined,
@@ -33,6 +38,15 @@ const meta = {
     memoryBytes: totalmem(),
   },
   large: Deno.env.get('BENCH_LARGE') === '1',
+  collection: {
+    mode: 'file-spool',
+    quotaBytesPerStream: 128 * 1024 * 1024,
+    timeoutMs: 20 * 60_000,
+    elapsedScope:
+      'elapsedMs is total runner lifecycle; captureElapsedMs covers acquisition/capture/close, validationElapsedMs covers later admission. Mitata operation samples remain nanoseconds inside the child.',
+    validation:
+      'Complete admitted raw file parsed outside Mitata callbacks; no measured or calibration samples omitted.',
+  },
   inputs,
   runs: [] as Array<{
     file: string
@@ -42,7 +56,15 @@ const meta = {
     report: string
     stderr: string
     elapsedMs: number
+    captureElapsedMs: number
+    validationElapsedMs: number
     exitCode: number | null
+    signal: string | null
+    capture: {
+      stdout: StreamType
+      stderr: StreamType
+      failures: readonly { stage: string; stream?: string; reason: string }[]
+    }
     status: 'pass' | 'fail'
   }>,
 }
@@ -61,11 +83,13 @@ try {
     ]
     console.log(`Starting ${name}.`)
     const start = performance.now()
-    const output = await collect(Deno.execPath(), args, {
+    const output = await spool(Deno.execPath(), args, { stdout: report, stderr }, {
       env: { BENCH_FORMAT: 'json', BENCH_PREFLIGHT_ONLY: '0', ...env },
+      quotaBytes: meta.collection.quotaBytesPerStream,
+      timeoutMs: meta.collection.timeoutMs,
     })
-    await Deno.writeFile(report, output.stdout)
-    await Deno.writeFile(stderr, output.stderr)
+    const captureElapsedMs = performance.now() - start
+    const validationStart = performance.now()
     let validationFailed = false
     let validationFailure: unknown
     try {
@@ -75,7 +99,11 @@ try {
           { cause: output.error },
         )
       }
-      validateMitata(JSON.parse(new TextDecoder().decode(output.stdout)))
+      const raw = await read(report, output.stdout.quotaBytes)
+      if (raw.byteLength !== output.stdout.retainedBytes) {
+        throw new Error('Raw benchmark size changed after complete capture.')
+      }
+      validateMitata(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw)))
     } catch (error) {
       validationFailed = true
       validationFailure = error
@@ -88,7 +116,19 @@ try {
       report,
       stderr,
       elapsedMs: performance.now() - start,
+      captureElapsedMs,
+      validationElapsedMs: performance.now() - validationStart,
       exitCode: output.code,
+      signal: output.signal,
+      capture: {
+        stdout: output.stdout,
+        stderr: output.stderr,
+        failures: output.failures.map(({ stage, stream, reason }) => ({
+          stage,
+          ...(stream === undefined ? {} : { stream }),
+          reason: reason instanceof Error ? reason.stack ?? reason.message : String(reason),
+        })),
+      },
       status: output.success && !validationFailed ? 'pass' : 'fail',
     })
     await save(validationFailed ? [validationFailure] : [])

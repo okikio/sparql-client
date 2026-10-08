@@ -3,7 +3,8 @@
  *
  * After consumer:storage installs the seven current archives, run
  * deno task bench:storage.
- * STORAGE_COLD_CONSUMER selects that installed consumer; STORAGE_COLD_REPORT selects the retained report directory.
+ * STORAGE_COLD_CONSUMER selects that installed consumer. STORAGE_COLD_REPORT selects a retained report base;
+ * each invocation atomically acquires a unique child directory there. Without it, an owned temporary directory is used.
  * @module
  */
 import { arch, cpus, platform, release } from 'node:os'
@@ -36,10 +37,14 @@ const count = Number(Deno.env.get('STORAGE_COLD_SAMPLES') ?? '12')
 if (!Number.isSafeInteger(count) || count < 12) {
   throw new Error('Use at least 12 independent samples per runtime.')
 }
-const output = Deno.env.get('STORAGE_COLD_REPORT') === undefined
-  ? await Deno.makeTempDir({ prefix: 'storage-cold-report-' })
-  : resolve(Deno.env.get('STORAGE_COLD_REPORT')!)
-await Deno.mkdir(output, { recursive: true })
+const reportBase = Deno.env.get('STORAGE_COLD_REPORT')
+if (reportBase !== undefined) await Deno.mkdir(resolve(reportBase), { recursive: true })
+const output = await Deno.makeTempDir(
+  reportBase === undefined ? { prefix: 'storage-cold-report-' } : {
+    dir: resolve(reportBase),
+    prefix: `${new Date().toISOString().replaceAll(':', '-')}-`,
+  },
+)
 const script = join(consumer, 'cold.ts')
 await Deno.copyFile('integration/storage/cold.ts', script)
 const inputs = await identity()

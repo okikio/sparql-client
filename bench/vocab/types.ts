@@ -67,10 +67,14 @@ export { createSchema, type IdReferenceType, type ValueType, type NodeType, type
 `
 
 const selected = selectCases(Deno.args)
-/** Compiler evidence has its own snapshot; it is distinct from native Mitata measurements. */
-const outputDirectory = Deno.env.get('BENCH_TYPES_REPORT') ??
-  `.tmp/reports/types/${new Date().toISOString().replaceAll(':', '-')}`
-await Deno.mkdir(outputDirectory, { recursive: true })
+/** A configured report base contains atomically acquired invocation directories. */
+const reportBase = Deno.env.get('BENCH_TYPES_REPORT') ?? '.tmp/reports/types'
+await Deno.mkdir(reportBase, { recursive: true })
+/** Compiler evidence has its own snapshot; concurrent invocations cannot replace its receipts. */
+const outputDirectory = await Deno.makeTempDir({
+  dir: reportBase,
+  prefix: `${new Date().toISOString().replaceAll(':', '-')}-`,
+})
 const inputs = await identity()
 let compilerPaths: readonly string[] = []
 const results: ResultType[] = []
