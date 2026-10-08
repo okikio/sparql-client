@@ -31,7 +31,7 @@ The [Mitata documentation](https://github.com/evanwashere/mitata) describes resu
 
 ## Durable benchmark programs
 
-Both `deno task bench` and `deno task bench:report` discover the twelve package-owned Mitata definitions and use the same process plan from `.mise/tasks/benchmarks.ts`. Programs run serially in a deterministic order, with the competitive parser matrix last. The competitive parser definition expands into one process per syntax and fixture size; the other eleven definitions each use one process.
+Both `deno task bench` and `deno task bench:report` discover package-owned Mitata definitions and use the same process plan from `.mise/tasks/benchmarks.ts`. Programs run serially in a deterministic order, with the competitive parser matrix last. The competitive parser definition expands into one process per syntax and fixture size; every other definition uses one process. The current fourteen definitions produce twenty-five normal processes or twenty-nine with `BENCH_LARGE=1`. The discovered programs and each report's completed workload list remain the authority when definitions change.
 
 Use `deno task bench:check` to run every program's correctness preflight without collecting timings. It imports generated vocabulary modules, exercises their schemas, compares complete RDF results, and checks query semantics before any Mitata callback runs. Measured tasks explicitly disable this mode so an inherited environment flag cannot turn a report into a preflight-only run.
 
@@ -40,6 +40,7 @@ Use `deno task bench:check` to run every program's correctness preflight without
 | `packages/comunica/adapter_bench.ts`      | Direct Comunica results versus its adapter, with the same source and query.             |
 | `packages/oxigraph/adapter_bench.ts`      | Direct Oxigraph results versus its adapter, with the same store and query.              |
 | `packages/rdf/dataset_bench.ts`           | Construction, exact indexes and pattern filtering against N3 Store and a semantic scan. |
+| `packages/rdf/markup/host_bench.ts`       | HTML character references and XML normalization against authored complete text.         |
 | `packages/rdf/nquads/parse_bench.ts`      | Whole-document and chunked N-Quads parsing with equivalent quads.                       |
 | `packages/rdf/parse_compare_bench.ts`     | Native/N3/Oxigraph syntax parsing, chunk boundaries and first-result latency.           |
 | `packages/rdf/standards_compare_bench.ts` | Native JSON-LD, RDFC, RDF/XML, RDFa and Microdata versus independent processors.        |
@@ -48,6 +49,7 @@ Use `deno task bench:check` to run every program's correctness preflight without
 | `packages/sparql/syntax/scan_bench.ts`    | Source-ranged streaming and materialized query syntax.                                  |
 | `packages/triplestore/store_bench.ts`     | Indexed store lookups and corresponding matching quads.                                 |
 | `packages/vocab/compile_bench.ts`         | Complete vocabulary inspect/name/emit compilation.                                      |
+| `packages/vocab/inherit_bench.ts`         | Chain and cyclic inheritance against complete class/property identities.                |
 | `packages/vocab/runtime_bench.ts`         | Generated Standard Schema validation against the same values.                           |
 
 `deno task bench:types` runs `bench/vocab/types.ts` separately. Its eleven fixtures cover flat/tree/deep inheritance, up to 1,000 classes or depth, and two/four/eight combined types. Each generated module is checked by an isolated TypeScript 5.9.3 compiler process. The report separates generation time/source bytes, compiler wall time, memory, instantiations and compiler diagnostics. Runtime throughput cannot substitute for this compiler cost.
@@ -93,7 +95,7 @@ Mitata 1.0.34 retains only nonnegative heap deltas across batches and normalizes
 
 The default GC policy collects once after warmup. Inner GC collects before and after each batch. Its GC observations measure only the explicit collection after the batch, in nanoseconds per collection, without per-operation normalization. They are separate from operation latency; natural collection inside timed operations remains part of the timed cost.
 
-With `BENCH_LARGE=1`, the parser matrix retains all sixteen cells: four syntaxes at 100, 10,000, 100,000 and 1,000,000 quads. Each cell retains nine timed cases: native/N3/Oxigraph whole-document parsing, four native chunk sizes, hostile splits and native first-result latency. That is 144 parser cases across sixteen isolated processes, plus the other eleven benchmark processes. Process isolation changes fixture lifetime; it does not reduce scales, competitors, semantic checks or Mitata sampling.
+With `BENCH_LARGE=1`, the parser matrix retains all sixteen cells: four syntaxes at 100, 10,000, 100,000 and 1,000,000 quads. Each cell retains nine timed cases: native/N3/Oxigraph whole-document parsing, four native chunk sizes, hostile splits and native first-result latency. That is 144 parser cases across sixteen isolated processes, plus the independently discovered non-parser programs. Process isolation changes fixture lifetime; it does not reduce scales, competitors, semantic checks or Mitata sampling.
 
 Each child starts with `--v8-flags=--expose-gc`, so the parser's `.gc('inner')` requests have an exposed collector. Materialized semantic-oracle arrays stay within short-lived function activations rather than benchmark closures. Temporary Oxigraph Wasm result and term wrappers are released after their values are consumed, including failure paths; the benchmark does not dispose a caller-owned engine. A process exit then retires the completed cell's strings, chunk fixtures and runtime heap before the next cell starts. Process isolation prevents completed cells from accumulating their fixtures in the next cell. It does not establish a universal resource limit.
 
