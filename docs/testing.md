@@ -100,7 +100,41 @@ The package task writes `.tmp/packages/artifacts.json` only after source inputs 
 Installed consumers require that receipt, the exact current name/version/archive set, and matching SHA-256 archive
 bytes. They also compare the installed first-party payload with extracted archive members. Same-version source edits,
 extra or stale archives, and a modified installed tree fail before runtime or Linux validation. Receipt and tarballs
-travel together in CI. Rebuild on CI or an isolated runner after changing package inputs; `package` includes a JSR
+travel together in CI. Linux consumers copy the complete verified installation, selected archives and receipt
+into an exact owned container; they do not bind any host source or installation path. Host metadata is recorded as unknown where unavailable. A Linux-only
+private bootstrap establishes and verifies actual copied POSIX modes/ownership; it does not invent host metadata.
+Public Windows installed-consumer support and standalone Docker/Linux validation remain available. Admitted Linux files use 0444
+(or 0555 for executables), and admitted Linux directories use 0555. On Windows, acquisition clears inherited readonly attributes only on newly copied regular files and the copied worker;
+original attributes remain unchanged. Linux admitted modes remain independent of these host attributes. Host-private staging directories remain
+owner-writable, allowing normal retirement without a permission-changing traversal. Verification, Docker copying, report reads/writes and cleanup recheck the
+acquired physical root and canonical parent, available device/inode/owner observations and a private nonce.
+Device/inode observations must be exact positive safe integers; zero or unavailable values remain unknown.
+A copied nonce cannot prove an identical replacement is the original object when native identity is unknown.
+Replaced roots, parents or marker kinds reject before use or removal; refusal leaves the original copy for independent
+investigation rather than deleting a substituted path. Unknown host metadata remains unknown. These guards
+detect observed substitutions and do not promise fd-relative security against hostile concurrent path changes.
+A bounded private root bootstrap sets copied ownership;
+the actual consumer runs as UID/GID 1000 with no effective, permitted or ambient capabilities, verified through
+`/proc/self/status`. Source hardlinks are copied into independent files; contained aliases become private relative
+links. Escaped aliases, Git metadata, special files and changed complete membership fail admission. The actual
+Node/Bun/Deno runtime checks copied bytes, modes and ownership before and after behavior. Only `/tmp` is intended
+for consumer writes. This is a protected private payload, not a read-only container rootfs: Docker's copy API
+rejects a read-only destination root. Every owned container removal is independently attempted, and failures retain
+primary, diagnostic and cleanup causes. CLI diagnostics have independent 32 MiB byte limits for stdout and
+stderr. This maintainer admission limit is not a benchmark or consumer performance budget. Output overflow
+retains the admitted prefix, cancels the acquired readers and stops the exact CLI child; actual child exit and
+signal remain separate from capture failures. Daemon container removal remains a separate bounded operation.
+Payload cleanup returns one shared promise, including an earlier retirement failure, and verification checks
+the retained receipt as well as its private copied counterpart. Retained report roots and each observation directory
+have separately acquired physical ownership, admitted before evidence writes. Their ownership receipt preserves
+actual root/parent observations; evidence remains retained after payload removal. Each acquired report records exact CLI commands,
+actual exits/signals, pipe EOFs and capture faults alongside bounded raw stdout/stderr files and SHA-256 hashes.
+Report-write failures reject the invocation independently of its actual exit and still allow exact-container
+removal to be attempted. Unique `.tmp/reports/consumer-copy/` receipts retain exact original and
+admitted tree metadata plus worker/task source hashes. These acquisition checks are outside benchmark callbacks
+and cold measurement phases; `bench:storage` reports their preparation authority separately.
+
+Rebuild on CI or an isolated runner after changing package inputs; `package` includes a JSR
 dry-run and can invoke type checking. Root runtime-test task edits and JSON record order do not invalidate an archive.
 
 The package task preserves generated JavaScript exports and resolves workspace dependency versions in the actual

@@ -66,6 +66,12 @@ const meta = {
   percentile:
     'sorted samples; h=(n-1)*p; linear interpolation between floor(h) and ceil(h), including p95 and p99',
   inputs,
+  preparationAuthority: [
+    '.mise/tasks/storage-consumer.ts',
+    '.mise/tasks/container.ts',
+    '.mise/tasks/container-worker.mjs',
+    '.mise/tasks/command.ts',
+  ],
   fixture: {} as Readonly<Record<string, string>>,
   runs: [] as RunType[],
   summaries: [] as Array<{
@@ -301,6 +307,11 @@ async function identity(): Promise<Readonly<Record<string, string>>> {
       script,
       resolve('integration/storage/cold.ts'),
       resolve('.mise/tasks/storage-cold.ts'),
+      // Acquisition authority is recorded separately from the measured cold child closure.
+      resolve('.mise/tasks/storage-consumer.ts'),
+      resolve('.mise/tasks/container.ts'),
+      resolve('.mise/tasks/container-worker.mjs'),
+      resolve('.mise/tasks/command.ts'),
     ]
   ) result[file] = await hash(file)
   return Object.fromEntries(
