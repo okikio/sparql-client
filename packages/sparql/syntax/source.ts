@@ -1,3 +1,4 @@
+import { consume, pending } from '@okikio/rdf/stream'
 /** Incremental source adapter used by the SPARQL lexical scanner. @module */
 
 import type { SourceType } from './types.ts'
@@ -14,6 +15,7 @@ const DIRECT_CHUNK_SIZE = 16 * 1024
 export async function* chunks(
   source: SourceType,
   signal?: AbortSignal,
+  onCleanup?: (cleanup: Promise<void>) => void,
 ): AsyncGenerator<string | Uint8Array> {
   if (typeof source === 'string') {
     for (let offset = 0; offset < source.length; offset += DIRECT_CHUNK_SIZE) {
@@ -37,7 +39,7 @@ export async function* chunks(
     try {
       while (true) {
         throwIfAborted(signal)
-        const item = await read(reader, signal)
+        const item = await pending(() => reader.read(), signal)
         if (item.done) {
           complete = true
           return
@@ -46,16 +48,22 @@ export async function* chunks(
       }
     } finally {
       if (!complete) {
-        await reader.cancel('SPARQL syntax consumer stopped before source completion').catch(() =>
-          undefined
+        const cleanup = reader.cancel(
+          signal?.aborted
+            ? signal.reason
+            : 'SPARQL syntax consumer stopped before source completion',
         )
-      }
-      reader.releaseLock()
+        void cleanup.catch(() => undefined)
+        reader.releaseLock()
+        onCleanup?.(cleanup)
+      } else reader.releaseLock()
     }
   }
 
   if (Symbol.asyncIterator in Object(source)) {
-    for await (const chunk of source as AsyncIterable<string | Uint8Array>) {
+    for await (
+      const chunk of consume(source as AsyncIterable<string | Uint8Array>, signal, onCleanup)
+    ) {
       throwIfAborted(signal)
       yield chunk
     }
@@ -70,45 +78,5 @@ export async function* chunks(
 
 /** Throws the original abort reason before more input is accepted. */
 export function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
-}
-
-/** Cancels a Web Stream read that is already pending when the operation aborts. */
-function read(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  signal?: AbortSignal,
-): Promise<ReadableStreamReadResult<Uint8Array>> {
-  if (!signal) return reader.read()
-  if (signal.aborted) {
-    void reader.cancel(signal.reason).catch(() => undefined)
-    return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
-  }
-
-  return new Promise((resolve, reject) => {
-    let settled = false
-    const finish = () => signal.removeEventListener('abort', onAbort)
-    const onAbort = () => {
-      if (settled) return
-      settled = true
-      finish()
-      void reader.cancel(signal.reason).catch(() => undefined)
-      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
-    }
-
-    signal.addEventListener('abort', onAbort, { once: true })
-    reader.read().then(
-      (value) => {
-        if (settled) return
-        settled = true
-        finish()
-        resolve(value)
-      },
-      (error) => {
-        if (settled) return
-        settled = true
-        finish()
-        reject(error)
-      },
-    )
-  })
+  if (signal?.aborted) throw signal.reason
 }

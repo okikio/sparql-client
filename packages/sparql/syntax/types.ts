@@ -137,6 +137,8 @@ export interface OptionsType {
   readonly maxTokens?: number
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
+  /** Observes actual cooperative source cleanup separately from terminal abort. */
+  readonly onCleanup?: (cleanup: Promise<void>) => void
 }
 
 /** Materialized view over the event stream. This is intentionally not a SPARQL AST. */

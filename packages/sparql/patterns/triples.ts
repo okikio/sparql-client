@@ -1,3 +1,4 @@
+import * as structure from '../structure.ts'
 /**
  * Basic triple pattern construction.
  *
@@ -14,6 +15,7 @@
 import { isTerm as isRdfTerm, type Term as RdfTerm } from '@okikio/rdf'
 import type { PatternValueType, PredicateInputType, SparqlTermType } from '../sparql.ts'
 import {
+  isSparqlTerm,
   isVariableToken,
   rawPattern,
   rawTerm,
@@ -72,7 +74,18 @@ export function tripleSubjectString(subject: TripleSubjectType): string {
     const value = subject.trim()
     return /^[?$]/.test(value) ? toVarToken(value) : toPredicateName(value)
   }
-  if (isRdfTerm(subject)) return rdfTerm(subject)
+  if (isRdfTerm(subject)) {
+    if (!['NamedNode', 'Variable', 'BlankNode', 'Quad'].includes(subject.termType)) {
+      throw new TypeError('Invalid triple subject role.')
+    }
+    return rdfTerm(subject)
+  }
+  if (structure.meaning(subject)?.role === 'literal') {
+    throw new TypeError('Literal cannot be a triple subject.')
+  }
+  if (!isSparqlTerm(subject)) {
+    throw new TypeError('Triple subject requires a term, not expression/path syntax.')
+  }
   return subject.value
 }
 
@@ -84,7 +97,15 @@ export function tripleSubjectString(subject: TripleSubjectType): string {
  * semantics.
  */
 export function tripleObjectString(object: TripleObjectType): string {
-  if (isRdfTerm(object)) return rdfTerm(object)
+  if (isRdfTerm(object)) {
+    if (object.termType === 'DefaultGraph') {
+      throw new TypeError('Default graph cannot be an object.')
+    }
+    return rdfTerm(object)
+  }
+  if (typeof object === 'object' && object !== null && structure.isPath(object)) {
+    throw new TypeError('Path cannot be a triple object.')
+  }
   if (typeof object === 'string') {
     const value = object.trim()
     if (isVariableToken(value)) return toVarToken(value)
@@ -141,7 +162,24 @@ export function triple(
   const p = predicateString(predicate)
   const o = tripleObjectString(object)
 
-  return rawPattern(`${s} ${p} ${o} .`)
+  const tokens = [s, p, o]
+  const meanings = [subject, object].filter((value): value is SparqlTermType | RdfTerm =>
+    typeof value === 'object' && value !== null
+  ).map((value) => structure.meaning(value))
+  const bindings = [
+    ...new Set([
+      ...tokens.filter(isVariableToken).map(toVarToken),
+      ...meanings.flatMap((value) => value?.bindings ?? []),
+    ]),
+  ]
+  return structure.pattern(rawPattern(`${s} ${p} ${o} .`), {
+    kind: 'triples',
+    bindings,
+    variables: bindings.length > 0,
+    blanks: tokens.some((value) => value.startsWith('_:')) ||
+      meanings.some((value) => value?.blanks === true),
+    paths: typeof predicate === 'object' && structure.isPath(predicate),
+  })
 }
 
 // ============================================================================
@@ -229,6 +267,12 @@ export function triples(
       return [[pred, value]]
     })
 
+  const children = list.map(([predicate, object]) => triple(subject, predicate, object))
+  const record: structure.PatternType = {
+    kind: 'group',
+    bindings: [...structure.scope(children)],
+    children,
+  }
   // Build semicolon-separated list
   const lines: string[] = list.map(([p, o], idx) => {
     const pred = predicateString(p)
@@ -248,7 +292,7 @@ export function triples(
   if (rest.length === 0) {
     // Single predicate-object: everything on a single line
     // `first` currently has leading spaces; strip them on the left.
-    return rawPattern(`${subjectTerm} ${first.trimStart()}`)
+    return structure.pattern(rawPattern(`${subjectTerm} ${first.trimStart()}`), record)
   }
 
   // Multiple: first predicate shares the line with the subject,
@@ -256,7 +300,7 @@ export function triples(
   const firstLine = `${subjectTerm} ${first.trimStart()}`
   const restLines = rest.join('\n')
 
-  return rawPattern(`${firstLine}\n${restLines}`)
+  return structure.pattern(rawPattern(`${firstLine}\n${restLines}`), record)
 }
 
 // ============================================================================
@@ -306,6 +350,10 @@ export function tripleTerm(
   predicate: TriplePredicateType,
   object: TripleObjectType,
 ): SparqlTermType {
+  if (typeof predicate === 'object' && structure.isPath(predicate)) {
+    throw new TypeError('Triple-term predicate cannot be a path.')
+  }
+
   const s = tripleSubjectString(subject)
   const p = predicateString(predicate)
   const o = tripleObjectString(object)

@@ -1,3 +1,4 @@
+import * as structure from './structure.ts'
 /**
  * SPARQL 1.1 Update operations.
  *
@@ -129,7 +130,21 @@ export class UpdateBuilder {
 
   /** Stores one immutable update-operation sequence; every builder method returns a new sequence instead of mutating this instance. */
   constructor(state: UpdateStateType) {
-    this.state = state
+    this.state = {
+      operations: state.operations.map((operation) =>
+        Object.freeze({
+          ...operation,
+          ...(operation.data ? { data: structure.snapshot(operation.data) } : {}),
+          ...(operation.where ? { where: structure.snapshot(operation.where) } : {}),
+          ...(operation.deleteTemplate
+            ? { deleteTemplate: structure.snapshot(operation.deleteTemplate) }
+            : {}),
+          ...(operation.insertTemplate
+            ? { insertTemplate: structure.snapshot(operation.insertTemplate) }
+            : {}),
+        })
+      ),
+    }
   }
 
   /**
@@ -622,23 +637,38 @@ export class UpdateBuilder {
 
       switch (op.type) {
         case 'INSERT_DATA': {
-          const graphClause = op.graph ? `GRAPH ${op.graph} ` : ''
-          operations.push(`INSERT DATA { ${graphClause}${op.data!.value} }`)
+          if (!op.data) throw new TypeError('INSERT DATA requires data.')
+          structure.template(op.data, 'insert-data')
+          if (op.graph) toGraphRef(op.graph)
+          const data = op.graph ? `GRAPH ${op.graph} { ${op.data.value} }` : op.data.value
+          operations.push(`INSERT DATA { ${data} }`)
           break
         }
 
         case 'DELETE_DATA': {
-          const graphClause = op.graph ? `GRAPH ${op.graph} ` : ''
-          operations.push(`DELETE DATA { ${graphClause}${op.data!.value} }`)
+          if (!op.data) throw new TypeError('DELETE DATA requires data.')
+          structure.template(op.data, 'delete-data')
+          if (op.graph) toGraphRef(op.graph)
+          const data = op.graph ? `GRAPH ${op.graph} { ${op.data.value} }` : op.data.value
+          operations.push(`DELETE DATA { ${data} }`)
           break
         }
 
         case 'DELETE_WHERE': {
-          operations.push(`DELETE WHERE { ${op.where!.value} }`)
+          if (!op.where) throw new TypeError('DELETE WHERE requires its quads pattern.')
+          structure.template(op.where, 'delete-where')
+          operations.push(`DELETE WHERE { ${op.where.value} }`)
           break
         }
 
         case 'DELETE_INSERT': {
+          if (!op.deleteTemplate && !op.insertTemplate) {
+            throw new TypeError('MODIFY requires DELETE or INSERT.')
+          }
+          if (!op.where) throw new TypeError('MODIFY requires a WHERE group.')
+          if (op.deleteTemplate) structure.template(op.deleteTemplate, 'delete')
+          if (op.insertTemplate) structure.template(op.insertTemplate, 'insert')
+          structure.scope([op.where])
           const parts: string[] = []
           if (op.deleteTemplate) {
             parts.push(`DELETE { ${op.deleteTemplate.value} }`)
@@ -654,12 +684,17 @@ export class UpdateBuilder {
         }
 
         case 'LOAD': {
+          if (!op.source) throw new TypeError('LOAD requires a source IRI.')
+          toGraphRef(op.source)
+          if (op.graph) toGraphRef(op.graph)
           const into = op.graph ? ` INTO GRAPH ${op.graph}` : ''
           operations.push(`LOAD ${silent}${op.source!}${into}`)
           break
         }
 
         case 'CLEAR': {
+          if (!op.graph) throw new TypeError('CLEAR requires a target.')
+          toGraphRefAll(op.graph)
           const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL'
             ? op.graph
             : `GRAPH ${op.graph}`
@@ -668,6 +703,8 @@ export class UpdateBuilder {
         }
 
         case 'DROP': {
+          if (!op.graph) throw new TypeError('DROP requires a target.')
+          toGraphRefAll(op.graph)
           const target = op.graph === 'DEFAULT' || op.graph === 'NAMED' || op.graph === 'ALL'
             ? op.graph
             : `GRAPH ${op.graph}`
@@ -676,11 +713,16 @@ export class UpdateBuilder {
         }
 
         case 'CREATE': {
+          if (!op.graph) throw new TypeError('CREATE requires a graph IRI.')
+          toGraphRef(op.graph)
           operations.push(`CREATE ${silent}GRAPH ${op.graph}`)
           break
         }
 
         case 'COPY': {
+          if (!op.source || !op.dest) throw new TypeError('COPY requires source and destination.')
+          toGraphOrDefault(op.source)
+          toGraphOrDefault(op.dest)
           const sourceRef = op.source!
           const destRef = op.dest!
           operations.push(`COPY ${silent}${sourceRef} TO ${destRef}`)
@@ -688,6 +730,9 @@ export class UpdateBuilder {
         }
 
         case 'MOVE': {
+          if (!op.source || !op.dest) throw new TypeError('MOVE requires source and destination.')
+          toGraphOrDefault(op.source)
+          toGraphOrDefault(op.dest)
           const sourceRef = op.source!
           const destRef = op.dest!
           operations.push(`MOVE ${silent}${sourceRef} TO ${destRef}`)
@@ -695,6 +740,9 @@ export class UpdateBuilder {
         }
 
         case 'ADD': {
+          if (!op.source || !op.dest) throw new TypeError('ADD requires source and destination.')
+          toGraphOrDefault(op.source)
+          toGraphOrDefault(op.dest)
           const sourceRef = op.source!
           const destRef = op.dest!
           operations.push(`ADD ${silent}${sourceRef} TO ${destRef}`)
@@ -718,7 +766,7 @@ export class UpdateBuilder {
  * templates, insert templates, and where patterns. Call done() when finished
  * to return to the main UpdateBuilder.
  */
-class ModifyBuilder {
+export class ModifyBuilder {
   /** Shared update-document state used while constructing a MODIFY operation. */
   private readonly updateState: UpdateStateType
   /** DELETE template patterns accumulated for the current MODIFY builder. */
@@ -760,7 +808,7 @@ class ModifyBuilder {
   delete(template: PatternValueType): ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
-      template,
+      templates(this.deleteTemplate, template),
       this.insertTemplate,
       this.wherePatterns,
     )
@@ -787,7 +835,7 @@ class ModifyBuilder {
     return new ModifyBuilder(
       this.updateState,
       this.deleteTemplate,
-      template,
+      templates(this.insertTemplate, template),
       this.wherePatterns,
     )
   }
@@ -816,7 +864,7 @@ class ModifyBuilder {
       this.updateState,
       this.deleteTemplate,
       this.insertTemplate,
-      [...this.wherePatterns, pattern],
+      [...this.wherePatterns, structure.snapshot(pattern)],
     )
   }
 
@@ -841,9 +889,14 @@ class ModifyBuilder {
    * ```
    */
   done(): UpdateBuilder {
-    const whereValue = this.wherePatterns.length > 0
-      ? rawPattern(this.wherePatterns.map((p) => p.value).join('\n  '))
-      : undefined
+    const whereValue = structure.pattern(
+      rawPattern(this.wherePatterns.map((p) => p.value).join('\n  ')),
+      {
+        kind: 'group',
+        bindings: [...structure.scope(this.wherePatterns)],
+        children: this.wherePatterns,
+      },
+    )
 
     return new UpdateBuilder({
       operations: [
@@ -937,4 +990,17 @@ export function deleteOp(data: PatternValueType, graph?: IriInputType): UpdateBu
  */
 export function modify(): ModifyBuilder {
   return UpdateBuilder.create().modify()
+}
+
+/** Appends template patterns with checked child roles, preserving repeated calls. */
+function templates(
+  previous: PatternValueType | undefined,
+  next: PatternValueType,
+): PatternValueType {
+  const children = [...(previous ? [previous] : []), structure.snapshot(next)]
+  return structure.pattern(rawPattern(children.map((value) => value.value).join('\n')), {
+    kind: 'group',
+    bindings: [...structure.scope(children)],
+    children,
+  })
 }

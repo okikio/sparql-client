@@ -47,6 +47,10 @@ import {
   XSD,
 } from '@okikio/rdf'
 
+import * as structure from './structure.ts'
+
+import * as lexical from './lexical.ts'
+
 // ============================================================================
 // Core Types
 // ============================================================================
@@ -55,6 +59,8 @@ import {
 export const SPARQL_VALUE_BRAND = Symbol('SparqlValueBrand')
 /** Brand for values that serialize as one SPARQL term. */
 export const SPARQL_TERM_BRAND = Symbol('SparqlTermBrand')
+/** Predicate-only property-path syntax, never a data term or expression. */
+export const SPARQL_PATH_BRAND = Symbol('SparqlPathBrand')
 /** Brand for values that serialize as one SPARQL expression. */
 export const SPARQL_EXPR_BRAND = Symbol('SparqlExprBrand')
 /** Brand for values that serialize as a graph-pattern fragment. */
@@ -71,6 +77,16 @@ export interface SparqlTermType {
   /** Compile-time brand that marks values that serialize as SPARQL terms. */
   readonly [SPARQL_TERM_BRAND]: true
   /** Serialized SPARQL term fragment safe to embed where the type permits a term. */
+  readonly value: string
+}
+
+/** One checked property path accepted only in predicate slots. */
+export interface SparqlPathType {
+  /** Identifies this facade as library-owned SPARQL syntax. */
+  readonly [SPARQL_VALUE_BRAND]: true
+  /** Restricts this checked facade to predicate traversal slots, excluding data/expression slots. */
+  readonly [SPARQL_PATH_BRAND]: true
+  /** Grouped path syntax serialized from the compact construction record. */
   readonly value: string
 }
 
@@ -117,13 +133,13 @@ export interface SparqlUpdateType {
 export type SparqlDocumentType = SparqlQueryType | SparqlUpdateType
 
 /** Any library-owned SPARQL syntax fragment accepted by shared helpers. */
-export type SparqlValueType = SparqlTermType | SparqlExprType | PatternValueType
+export type SparqlValueType = SparqlTermType | SparqlExprType | PatternValueType | SparqlPathType
 
 /** IRI-bearing input accepted by SPARQL grammar positions that require an IRI. */
 export type IriInputType = string | SparqlTermType | RdfNamedNode
 
 /** Predicate syntax accepted by triple and property-path constructors. */
-export type PredicateInputType = string | SparqlTermType | RdfNamedNode
+export type PredicateInputType = string | SparqlTermType | SparqlPathType | RdfNamedNode
 
 /**
  * Values that can be safely interpolated into the `sparql` tag *as a single
@@ -137,11 +153,27 @@ export type SparqlInterpolatableType =
   | SparqlValueType
   | string
   | number
+  | bigint
   | boolean
   | Date
   | null
   | undefined
   | RdfTerm
+
+/**
+ * One VALUES cell: a native scalar, named node, literal, or explicit term such as UNDEF.
+ * Variables, blank nodes, expressions, paths, null and undefined are not data cells.
+ * rawTerm remains the caller-owned escape hatch for advanced token syntax.
+ */
+export type ValuesItemType =
+  | string
+  | number
+  | bigint
+  | boolean
+  | Date
+  | RdfNamedNode
+  | RdfLiteral
+  | SparqlTermType
 
 /**
  * Variable name without the leading ? or $ sigil.
@@ -182,8 +214,9 @@ export function isSparqlValue(value: unknown): value is SparqlValueType {
 }
 
 /** Returns whether a library SPARQL value is a term fragment. */
-export function isSparqlTerm(v: SparqlValueType): v is SparqlTermType {
-  return (v as SparqlTermType)[SPARQL_TERM_BRAND] === true
+export function isSparqlTerm(value: unknown): value is SparqlTermType {
+  return isSparqlValue(value) && SPARQL_TERM_BRAND in value &&
+    value[SPARQL_TERM_BRAND] === true
 }
 
 /** Returns whether a library SPARQL value is an expression fragment. */
@@ -211,8 +244,7 @@ export function toRawString(value: string | SparqlValueType): string {
 // ============================================================================
 
 /** SPARQL 1.2 `VARNAME` production, including digit-leading and Unicode variable names. */
-const VARNAME =
-  /^(?:[A-Z_a-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}])(?:[A-Z_a-z0-9\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0300-\u036F\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}])*$/u
+const VARNAME = lexical.VARNAME
 
 /**
  * Check if a string is already a SPARQL variable token (`?name` or `$name`).
@@ -267,34 +299,42 @@ export function isIRIRefToken(text: string): boolean {
  * This gives you a clean lexical token suitable for query text.
  */
 export function toIriLikeToken(value: string | RdfNamedNode): string {
-  if (typeof value !== 'string') return rdfTerm(value)
-  const trimmed = value.trim()
-
-  // Already <IRI> → validate inner and return.
-  if (isIRIRefToken(trimmed)) {
-    const inner = trimmed.slice(1, -1)
-    validateIRI(inner)
-    return trimmed
+  if (typeof value !== 'string') {
+    if (value.termType !== 'NamedNode') throw new TypeError('IRI slot requires a named node.')
+    validateIRI(value.value)
+    return rdfTerm(value)
   }
-
-  // Try as absolute IRI first (scheme:...)
-  try {
-    validateIRI(trimmed)
-    return `<${trimmed}>`
-  } catch {
-    // Not a valid absolute IRI → fall through to prefixed
+  const token = value.trim()
+  if (isIRIRefToken(token)) {
+    validateIRI(token.slice(1, -1))
+    return token
   }
-
-  // Treat as prefixed name `prefix:local`
-  validatePrefixedName(trimmed)
-  return trimmed
+  // Explicit constructors resolve ambiguity. Common absolute URI spellings keep convenience.
+  if (/^(?:https?|urn|file|data|mailto|tel):/.test(token)) {
+    validateIRI(token)
+    return `<${token}>`
+  }
+  validatePrefixedName(token)
+  return token
 }
 
-/** Serializes a predicate/path atom without flattening RDF named nodes to strings. */
+/** Predicate slots permit a named node, variable, a, or an explicitly constructed path. */
 export function toPredicateToken(input: PredicateInputType): string {
-  if (isRdfTerm(input)) return rdfTerm(input)
-  if (isSparqlValue(input)) return input.value
-  if (isVariableToken(input.trim())) return toVarToken(input)
+  if (isRdfTerm(input)) {
+    if (input.termType !== 'NamedNode' && input.termType !== 'Variable') {
+      throw new TypeError('Invalid predicate role.')
+    }
+    return rdfTerm(input)
+  }
+  if (isSparqlValue(input)) {
+    if (SPARQL_PATH_BRAND in input) return input.value
+    if (!isSparqlTerm(input)) throw new TypeError('Predicate requires a term or path.')
+    const token = input.value.trim()
+    if (isVariableToken(token)) return toVarToken(token)
+    if (token === 'a') return token
+    return toIriLikeToken(token)
+  }
+  if (/^[?$]/.test(input.trim())) return toVarToken(input)
   return toPredicateName(input)
 }
 
@@ -316,8 +356,14 @@ export function toPredicateToken(input: PredicateInputType): string {
  *   - anything else → treated as IRI/prefixed name via toIriLikeToken()
  */
 export function toVarOrIriRef(input: string | SparqlTermType | RdfNamedNode): string {
-  if (isRdfTerm(input)) return rdfTerm(input)
+  if (isRdfTerm(input)) {
+    if (!['NamedNode', 'Variable'].includes(input.termType)) {
+      throw new TypeError('Graph/service slot requires an IRI or variable.')
+    }
+    return rdfTerm(input)
+  }
   if (isSparqlValue(input)) {
+    if (!isSparqlTerm(input)) throw new TypeError('Graph/service slot requires a term.')
     const token = input.value.trim()
     if (isVariableToken(token)) return toVarToken(token)
     return toIriLikeToken(token)
@@ -353,7 +399,10 @@ export function toVarOrIriRef(input: string | SparqlTermType | RdfNamedNode): st
  * - Normalise to `<IRI>` or `prefix:local`
  */
 export function toGraphRef(input: IriInputType): string {
-  if (isRdfTerm(input)) return rdfTerm(input)
+  if (isRdfTerm(input)) return toIriLikeToken(input)
+  if (isSparqlValue(input) && !isSparqlTerm(input)) {
+    throw new TypeError('Graph slot requires an IRI term.')
+  }
 
   const token = isSparqlValue(input) ? input.value.trim() : input.trim()
   if (isVariableToken(token)) {
@@ -726,18 +775,7 @@ export const INJECTION_CHARS = /[<>"'\n\r\t{}:]/
  * @throws {Error} If the IRI is invalid or contains forbidden characters
  */
 export function validateIRI(iri: string): void {
-  // Must have a valid URI scheme (RFC 3986)
-  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(iri)) {
-    throw new Error(`IRI must have a valid scheme (e.g., http:, urn:, file:), got: ${iri}`)
-  }
-
-  // Block characters that break IRI syntax in SPARQL
-  const forbidden = ['<', '>', '"', ' ', '\n', '\r', '\t', '{', '}']
-  for (const char of forbidden) {
-    if (iri.includes(char)) {
-      throw new Error(`IRI contains forbidden character '${char}': ${iri}`)
-    }
-  }
+  lexical.iri(iri)
 }
 
 /**
@@ -771,18 +809,7 @@ export function validateVariableName(name: string): void {
  * @throws {Error} If the prefix name is invalid
  */
 export function validatePrefixName(name: string): void {
-  // Empty prefix (default namespace) is always valid
-  if (name === '') return
-
-  // Block injection characters
-  if (INJECTION_CHARS.test(name) || name.includes(':')) {
-    throw new Error(`Prefix name contains forbidden characters: ${name}`)
-  }
-
-  // Must start with letter or underscore
-  if (!/^[A-Za-z_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF]/.test(name)) {
-    throw new Error(`Prefix name must start with a letter or underscore: ${name}`)
-  }
+  lexical.prefix(name)
 }
 
 /**
@@ -791,31 +818,14 @@ export function validatePrefixName(name: string): void {
  * @throws {Error} If the prefixed name is malformed
  */
 export function validatePrefixedName(prefixedName: string): void {
-  const colonIndex = prefixedName.indexOf(':')
-  if (colonIndex === -1) {
-    throw new Error(`Prefixed name must contain a colon: ${prefixedName}`)
-  }
-
-  const prefix = prefixedName.slice(0, colonIndex)
-  const local = prefixedName.slice(colonIndex + 1)
-
-  validatePrefixName(prefix)
-
-  // Local part can be empty or must be a valid local name
-  // This is a simplified check - full PN_LOCAL is more complex
-  if (local !== '' && !/^[A-Za-z0-9_.-]*$/.test(local)) {
-    throw new Error(`Invalid local part in prefixed name: ${prefixedName}`)
-  }
+  lexical.prefixed(prefixedName)
 }
 
 /**
  * Validate a BCP 47 language tag.
  */
 export function validateLanguageTag(tag: string): void {
-  // Basic BCP 47 validation
-  if (!/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]+)*$/.test(tag)) {
-    throw new Error(`Invalid language tag: ${tag}. Expected BCP 47 format (e.g., "en", "en-US")`)
-  }
+  lexical.language(tag)
 }
 
 /**
@@ -826,7 +836,10 @@ export function validateLanguageTag(tag: string): void {
  * "foo" and "?foo" become "foo" internally.
  */
 export function normalizeVariableName(name: VariableNameType): string {
-  const n = isSparqlValue(name) ? name?.value : name
+  if (isSparqlValue(name) && (!isSparqlTerm(name) || !isVariableToken(name.value))) {
+    throw new TypeError('Variable slot requires a variable term.')
+  }
+  const n = isSparqlValue(name) ? name.value : name
   // Strip ? or $ prefix if present
   if (n.startsWith('?') || n.startsWith('$')) {
     return n.slice(1)
@@ -851,7 +864,7 @@ export function normalizeVariableName(name: VariableNameType): string {
 export function variable(name: VariableNameType): SparqlTermType {
   const n = normalizeVariableName(name)
   validateVariableName(n)
-  return rawTerm(`?${n}`)
+  return structure.term(rawTerm(`?${n}`), { role: 'variable', bindings: [`?${n}`] })
 }
 
 /**
@@ -865,9 +878,9 @@ export function variable(name: VariableNameType): SparqlTermType {
  * uri('urn:isbn:0451450523')          // → <urn:isbn:0451450523>
  */
 export function uri(iri: string | RdfNamedNode): SparqlTermType {
-  if (typeof iri !== 'string') return rawTerm(rdfTerm(iri))
+  if (typeof iri !== 'string') return structure.term(rawTerm(rdfTerm(iri)), { role: 'iri' })
   validateIRI(iri)
-  return rawTerm(`<${iri}>`)
+  return structure.term(rawTerm(`<${iri}>`), { role: 'iri' })
 }
 
 /**
@@ -879,12 +892,8 @@ export function uri(iri: string | RdfNamedNode): SparqlTermType {
  * prefixed('foaf', 'name')  // → foaf:name
  */
 export function prefixed(prefix: PrefixNameType, localName: string): SparqlTermType {
-  validatePrefixName(prefix)
-  // Local names have complex rules; block obvious injection
-  if (INJECTION_CHARS.test(localName)) {
-    throw new Error(`Local name contains forbidden characters: ${localName}`)
-  }
-  return rawTerm(`${prefix}:${localName}`)
+  validatePrefixedName(`${prefix}:${localName}`)
+  return structure.term(rawTerm(`${prefix}:${localName}`), { role: 'iri' })
 }
 
 /**
@@ -911,10 +920,10 @@ export function strlit(value: string): SparqlTermType {
   const escaped = escapeString(value)
 
   if (needsLongQuotes(value)) {
-    return rawTerm(`"""${escaped}"""`)
+    return structure.term(rawTerm(`"""${escaped}"""`), { role: 'literal' })
   }
 
-  return rawTerm(`"${escaped}"`)
+  return structure.term(rawTerm(`"${escaped}"`), { role: 'literal' })
 }
 
 /**
@@ -934,10 +943,10 @@ export function typed(value: string, datatype: DatatypeIriType): SparqlTermType 
   const escaped = escapeString(value)
 
   if (needsLongQuotes(value)) {
-    return rawTerm(`"""${escaped}"""^^${datatypeToken}`)
+    return structure.term(rawTerm(`"""${escaped}"""^^${datatypeToken}`), { role: 'literal' })
   }
 
-  return rawTerm(`"${escaped}"^^${datatypeToken}`)
+  return structure.term(rawTerm(`"${escaped}"^^${datatypeToken}`), { role: 'literal' })
 }
 
 /**
@@ -954,10 +963,10 @@ export function lang(value: string, tag: LanguageTagType): SparqlTermType {
   const escaped = escapeString(value)
 
   if (needsLongQuotes(value)) {
-    return rawTerm(`"""${escaped}"""@${tag.toLowerCase()}`)
+    return structure.term(rawTerm(`"""${escaped}"""@${tag.toLowerCase()}`), { role: 'literal' })
   }
 
-  return rawTerm(`"${escaped}"@${tag.toLowerCase()}`)
+  return structure.term(rawTerm(`"${escaped}"@${tag.toLowerCase()}`), { role: 'literal' })
 }
 
 /**
@@ -970,13 +979,11 @@ export function lang(value: string, tag: LanguageTagType): SparqlTermType {
  *
  * @throws {Error} If value is not an integer
  */
-export function integer(value: number): SparqlTermType {
-  if (!Number.isInteger(value)) {
-    throw new Error(`Expected integer, got: ${value}`)
+export function integer(value: number | bigint): SparqlTermType {
+  if (typeof value !== 'bigint' && !Number.isSafeInteger(value)) {
+    throw new TypeError('Integer input must be a bigint or safe integer number.')
   }
-
-  // Use SPARQL native integer syntax
-  return rawTerm(String(value))
+  return structure.term(rawTerm(String(value)), { role: 'literal' })
 }
 
 /**
@@ -990,17 +997,32 @@ export function integer(value: number): SparqlTermType {
  *
  * @throws {Error} If value is not finite (NaN or Infinity)
  */
-export function decimal(value: number): SparqlTermType {
-  if (!Number.isFinite(value)) {
-    throw new Error(`Expected finite number, got: ${value}`)
+export function decimal(value: number | string): SparqlTermType {
+  let text: string
+  if (typeof value === 'string') {
+    if (value.length > 16 * 1024 || !/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(value)) {
+      throw new TypeError('Decimal requires a bounded XSD decimal lexical form.')
+    }
+    text = value
+  } else {
+    if (!Number.isFinite(value)) throw new TypeError('Decimal number must be finite.')
+    text = Object.is(value, -0) ? '-0' : String(value)
+    const [coefficient, exponent] = text.toLowerCase().split('e')
+    if (exponent !== undefined) {
+      const negative = coefficient!.startsWith('-')
+      const [whole, fraction = ''] = coefficient!.replace(/^-/, '').split('.')
+      const digits = whole! + fraction
+      const place = whole!.length + Number(exponent)
+      text = (negative ? '-' : '') +
+        (place <= 0
+          ? '0.' + '0'.repeat(-place) + digits
+          : place >= digits.length
+          ? digits + '0'.repeat(place - digits.length) + '.0'
+          : digits.slice(0, place) + '.' + digits.slice(place))
+    }
   }
-
-  const str = String(value)
-  // Ensure decimal point for unambiguous decimal type
-  if (!str.includes('.') && !str.includes('e') && !str.includes('E')) {
-    return rawTerm(str + '.0')
-  }
-  return rawTerm(str)
+  if (!text.includes('.')) text += '.0'
+  return structure.term(rawTerm(text), { role: 'literal' })
 }
 
 /**
@@ -1016,10 +1038,11 @@ export function decimal(value: number): SparqlTermType {
  */
 export function double(value: number): SparqlTermType {
   if (!Number.isFinite(value)) {
-    throw new Error(`Expected finite number, got: ${value}`)
+    return typed(Number.isNaN(value) ? 'NaN' : value < 0 ? '-INF' : 'INF', XSD.double)
   }
-  // Scientific notation triggers xsd:double
-  return rawTerm(value.toExponential())
+  return structure.term(rawTerm(Object.is(value, -0) ? '-0.0E0' : value.toExponential()), {
+    role: 'literal',
+  })
 }
 
 /**
@@ -1046,7 +1069,7 @@ export function num(value: number): SparqlTermType {
  * Boolean values in SPARQL are written as bare keywords, not quoted strings.
  */
 export function boolean(value: boolean): SparqlTermType {
-  return rawTerm(value ? 'true' : 'false')
+  return structure.term(rawTerm(value ? 'true' : 'false'), { role: 'literal' })
 }
 
 /**
@@ -1129,7 +1152,12 @@ export function dateTime(value: Date | string): SparqlTermType {
  */
 export function convertValue(value: SparqlInterpolatableType, strict = true): string {
   // Already a SPARQL value – pass straight through.
-  if (isSparqlValue(value)) return value.value
+  if (isSparqlValue(value)) {
+    if (!isSparqlTerm(value)) {
+      throw new TypeError('Data slots require one term, not an expression or pattern.')
+    }
+    return value.value
+  }
   if (isRdfTerm(value)) return rdfTerm(value)
 
   // Null/undefined cannot represent "unbound" – force caller to decide.
@@ -1146,6 +1174,8 @@ export function convertValue(value: SparqlInterpolatableType, strict = true): st
   if (typeof value === 'string') {
     return strlit(value).value
   }
+
+  if (typeof value === 'bigint') return integer(value).value
 
   if (typeof value === 'boolean') {
     return boolean(value).value
@@ -1197,6 +1227,20 @@ export function isNonStringIterable(value: unknown): value is Iterable<unknown> 
   )
 }
 
+/** Validates checked VALUES grammar roles before using the scalar conversion authority. */
+export function toValuesToken(value: ValuesItemType): string {
+  if (isRdfTerm(value) && value.termType !== 'NamedNode' && value.termType !== 'Literal') {
+    throw new TypeError('VALUES cells require an IRI or literal, not a variable or blank node.')
+  }
+  if (isSparqlValue(value)) {
+    const meaning = structure.meaning(value)
+    if (meaning && meaning.role !== 'iri' && meaning.role !== 'literal') {
+      throw new TypeError('VALUES cells require an IRI, literal or explicit UNDEF term.')
+    }
+  }
+  return convertValue(value)
+}
+
 /**
  * Create a VALUES-style list: `VALUES ?x { v1 v2 v3 }`.
  *
@@ -1221,12 +1265,12 @@ export function isNonStringIterable(value: unknown): value is Iterable<unknown> 
  * ```
  */
 export function valuesList(
-  items: Iterable<SparqlInterpolatableType>,
+  items: Iterable<ValuesItemType>,
 ): SparqlValueType {
   const parts: string[] = []
 
   for (const item of items) {
-    parts.push(convertValue(item))
+    parts.push(toValuesToken(item))
   }
 
   if (parts.length === 0) {
@@ -1263,7 +1307,7 @@ export function exprList(
   const parts: string[] = []
 
   for (const item of items) {
-    parts.push(convertValue(item))
+    parts.push(isSparqlValue(item) && isSparqlExpr(item) ? item.value : convertValue(item))
   }
 
   if (parts.length === 0) {
@@ -1295,16 +1339,22 @@ export function rdfList(
   items: Iterable<SparqlInterpolatableType>,
 ): SparqlValueType {
   const parts: string[] = []
+  const bindings = new Set<string>()
 
   for (const item of items) {
     parts.push(convertValue(item))
+    for (const name of embedded([item])) bindings.add(name)
   }
 
   if (parts.length === 0) {
     throw new Error('Cannot create RDF list from an empty iterable')
   }
 
-  return rawTerm(`( ${parts.join(' ')} )`)
+  return structure.term(rawTerm(`( ${parts.join(' ')} )`), {
+    role: 'collection',
+    blanks: true,
+    bindings: [...bindings],
+  })
 }
 
 // ============================================================================
@@ -1343,10 +1393,11 @@ export function rdfList(
  * ```
  */
 export function bnode(id?: string): SparqlTermType {
-  if (id) {
-    return rawTerm(`_:${id}`)
+  if (id !== undefined) {
+    lexical.blank(id)
+    return structure.term(rawTerm(`_:${id}`), { role: 'blank', blanks: true })
   }
-  return rawTerm('[]')
+  return structure.term(rawTerm('[]'), { role: 'blank', blanks: true })
 }
 
 /**
@@ -1387,25 +1438,20 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
  * - Everything else → treated as `:${localName}` (assumes a default `:` prefix).
  */
 export function toPredicateName(key: string): string {
-  if (isVariableToken(key)) return toVarToken(key)
-
-  if (key.startsWith('<') && key.endsWith('>')) {
-    return key
+  const value = key.trim()
+  if (isVariableToken(value)) return toVarToken(value)
+  if (value === 'a') return value
+  if (isIRIRefToken(value)) {
+    validateIRI(value.slice(1, -1))
+    return value
   }
-
-  if (key.startsWith('http://') || key.startsWith('https://')) {
-    return `<${key}>`
+  if (/^(?:https?|urn|file|data):/.test(value)) {
+    validateIRI(value)
+    return `<${value}>`
   }
-
-  if (key.includes(':')) {
-    return key
-  }
-
-  // `a` = `rdf:type` its a common shortcut in SPARQL
-  if (key === 'a') return key
-
-  // Fallback: assume a default ":" prefix is bound.
-  return `:${key}`
+  const token = value.includes(':') ? value : `:${value}`
+  validatePrefixedName(token)
+  return token
 }
 
 /**
@@ -1479,9 +1525,11 @@ export function bnodePattern(props: BnodePropsType): SparqlTermType {
   }
 
   const propertyFragments: string[] = []
+  const bindings = new Set<string>()
 
   for (const [rawKey, rawVal] of entries) {
     const predicate = toPredicateName(rawKey)
+    if (isVariableToken(predicate)) bindings.add(toVarToken(predicate))
 
     if (rawVal === null || rawVal === undefined) {
       throw new Error(
@@ -1496,6 +1544,7 @@ export function bnodePattern(props: BnodePropsType): SparqlTermType {
       !(rawVal instanceof Date)
     ) {
       const nested = bnodePattern(rawVal as BnodePropsType)
+      for (const name of embedded([nested])) bindings.add(name)
       propertyFragments.push(`${predicate} ${nested.value}`)
       continue
     }
@@ -1506,6 +1555,7 @@ export function bnodePattern(props: BnodePropsType): SparqlTermType {
 
       for (const item of rawVal as Iterable<SparqlInterpolatableType>) {
         objects.push(convertValue(item))
+        for (const name of embedded([item])) bindings.add(name)
       }
 
       if (objects.length === 0) {
@@ -1518,13 +1568,18 @@ export function bnodePattern(props: BnodePropsType): SparqlTermType {
       continue
     }
 
+    for (const name of embedded([rawVal as SparqlInterpolatableType])) bindings.add(name)
     // Single scalar value.
     propertyFragments.push(
       `${predicate} ${convertValue(rawVal as SparqlInterpolatableType)}`,
     )
   }
 
-  return rawTerm(`[ ${propertyFragments.join(' ; ')} ]`)
+  return structure.term(rawTerm(`[ ${propertyFragments.join(' ; ')} ]`), {
+    role: 'blank',
+    blanks: true,
+    bindings: [...bindings],
+  })
 }
 
 // ============================================================================
@@ -1612,10 +1667,13 @@ export function sparql(
 export function rdfTerm(term: RdfTerm): string {
   switch (term.termType) {
     case 'NamedNode':
+      validateIRI(term.value)
       return `<${escapeIriForQuery(term.value)}>`
     case 'BlankNode':
+      lexical.blank(term.value)
       return `_:${term.value}`
     case 'Variable':
+      validateVariableName(term.value)
       return `?${term.value}`
     case 'DefaultGraph':
       throw new TypeError('The default graph is not a standalone SPARQL term.')
@@ -1623,8 +1681,13 @@ export function rdfTerm(term: RdfTerm): string {
       const literal = term as RdfLiteral
       const lexical = `"${escapeString(literal.value, '"')}"`
       if (literal.language) {
+        validateLanguageTag(literal.language)
+        if (literal.direction && !['ltr', 'rtl'].includes(literal.direction)) {
+          throw new TypeError('Invalid literal direction.')
+        }
         return `${lexical}@${literal.language}${literal.direction ? `--${literal.direction}` : ''}`
       }
+      validateIRI(literal.datatype.value)
       if (literal.datatype.value === XSD.string) return lexical
       return `${lexical}^^<${escapeIriForQuery(literal.datatype.value)}>`
     }
@@ -1658,7 +1721,7 @@ function escapeIriForQuery(value: string): string {
   let output = ''
   for (const char of value) {
     const point = char.codePointAt(0)!
-    if (point <= 0x20 || '<>\"{}|^`\\'.includes(char)) {
+    if (point <= 0x20 || '<>"{}|^`\\'.includes(char)) {
       output += point <= 0xffff
         ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
         : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`
@@ -1668,3 +1731,22 @@ function escapeIriForQuery(value: string): string {
 }
 
 export default sparql
+
+/** Reads variable facts from semantic terms, without guessing names inside opaque strings. */
+function embedded(values: Iterable<SparqlInterpolatableType>): Set<string> {
+  const names = new Set<string>()
+  const pending: SparqlInterpolatableType[] = [...values]
+  while (pending.length) {
+    const value = pending.pop()!
+    if (isSparqlValue(value)) {
+      for (const name of structure.meaning(value)?.bindings ?? []) names.add(name)
+    } else if (isRdfTerm(value)) {
+      if (value.termType === 'Variable') names.add(toVarToken(value.value))
+      else if (value.termType === 'Quad') {
+        const quad = value as RdfQuad
+        pending.push(quad.subject, quad.predicate, quad.object)
+      }
+    }
+  }
+  return names
+}

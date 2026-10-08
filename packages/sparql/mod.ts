@@ -19,3 +19,6 @@ export { getQueryText, getUpdateText } from './client.ts'
 export type { Queryable, QueryInputType, QueryOptionsType, UpdateInputType } from './client.ts'
 export { mapBindings } from './result/binding.ts'
 export type { BindingType } from './result/binding.ts'
+
+export { acquire, result } from './result/stream.ts'
+export type { ResultOptionsType, ResultType } from './result/stream.ts'

@@ -9,6 +9,28 @@ async function collect<T>(source: AsyncIterable<T>): Promise<T[]> {
 }
 
 describe('@okikio/sparql/syntax', () => {
+  it('shares complete Unicode token grammar and keeps terminal dots outside local names', async () => {
+    const source = (async function* () {
+      for (const char of 'PREFIX 前: <urn:> SELECT ?𐀀 WHERE { ?𐀀 前:a.b 前:終. }') yield char
+    })()
+    const values = await collect(tokens(source))
+    expect(values.filter((value) => value.kind === 'prefixed').map((value) => value.raw))
+      .toEqual(['前:', '前:a.b', '前:終'])
+    expect(values.some((value) => value.kind === 'variable' && value.value === '𐀀')).toBe(true)
+    expect(values.some((value) => value.kind === 'punctuation' && value.raw === '.')).toBe(true)
+    await expect(collect(tokens('SELECT ?a WHERE { ?a _bad:p <urn:o> }'))).rejects.toThrow()
+    expect((await collect(tokens(':a.', { maxTokenLength: 2 }))).map((value) => value.raw)).toEqual(
+      [':a', '.'],
+    )
+    const blank = await collect(tokens('SELECT * WHERE { _:a.b :p _:終. }'))
+    expect(blank.filter((value) => value.kind === 'blank').map((value) => value.raw)).toEqual([
+      '_:a.b',
+      '_:終',
+    ])
+    const invalid = await inspect('SELECT ?a WHERE { ?a _bad:p <urn:o> }', { tolerant: true })
+    expect(invalid.diagnostics.some((value) => value.message.includes('_bad:p'))).toBe(true)
+  })
+
   it('emits source-ranged version and SPARQL 1.2 feature events without building an AST', async () => {
     const document = await inspect(
       'VERSION "1.2"\nSELECT ?s WHERE { BIND( <<( ?s :p :o )>> AS ?t ) }',
@@ -57,7 +79,9 @@ describe('@okikio/sparql/syntax', () => {
     expect(values.some((value) => value.kind === 'whitespace')).toBe(true)
   })
 
-  it('cancels a pending Web Stream read when the consumer returns early', async () => {
+  it('cancels upstream work and releases the reader when the consumer returns early', {
+    timeout: 5_000,
+  }, async () => {
     let cancelled = false
     const source = new ReadableStream<Uint8Array>({
       pull(controller) {
@@ -70,9 +94,35 @@ describe('@okikio/sparql/syntax', () => {
     })
 
     for await (const _token of tokens(source)) break
-    await Promise.resolve()
     expect(cancelled).toBe(true)
+    expect(source.locked).toBe(false)
   })
+
+  it(
+    'aborts an active scanner refill and preserves the caller reason',
+    { timeout: 2_000 },
+    async () => {
+      const reading = Promise.withResolvers<void>()
+      let cancelled = 0
+      const source = new ReadableStream<Uint8Array>({
+        pull() {
+          reading.resolve()
+          return new Promise<void>(() => {})
+        },
+        cancel() {
+          cancelled++
+        },
+      }, { highWaterMark: 0 })
+      const controller = new AbortController()
+      const reason = new Error('stop pending syntax input')
+      const pending = tokens(source, { signal: controller.signal }).next()
+      await reading.promise
+      controller.abort(reason)
+      await expect(pending).rejects.toBe(reason)
+      expect(cancelled).toBe(1)
+      expect(source.locked).toBe(false)
+    },
+  )
 
   it('keeps malformed tokens observable in tolerant mode', async () => {
     const values = await collect(events('SELECT * WHERE { ?s :p @-- }', { tolerant: true }))

@@ -1,8 +1,18 @@
 /** SPARQL 1.1 Graph Store HTTP Protocol client. @module */
 
-import { defaultGraph, type GraphTermType, namedNode, type Quad, quad } from '@okikio/rdf'
+import {
+  type BlankNode,
+  defaultGraph,
+  type GraphTermType,
+  namedNode,
+  type Quad,
+  quad,
+} from '@okikio/rdf'
 import { parse as parseNTriples, write as writeNTriples } from '@okikio/rdf/ntriples'
+import { pending } from '@okikio/rdf/stream'
+import { acquire } from '../result/stream.ts'
 import { QueryError } from '../http/error.ts'
+import { relabel } from '../result/graph.ts'
 
 /** Graph selected by a Graph Store HTTP Protocol request. */
 export type GraphTargetType = {
@@ -21,12 +31,14 @@ export interface GraphStoreOptionsType {
   readonly fetch?: typeof fetch
   /** HTTP headers merged into protocol requests without mutating the caller-supplied Headers object. */
   readonly headers?: HeadersInit
-  /** Maximum response body size accepted before the protocol client aborts decoding. */
+  /** Positive safe-integer transfer limit in bytes, default 64 MiB. Error previews also stop at 16 KiB. */
   readonly maxResponseBytes?: number
 }
 
 /** Per-request Graph Store controls. */
 export interface GraphStoreRequestOptionsType {
+  /** Observes actual cooperative cleanup separately from prompt terminal cancellation. */
+  readonly onCleanup?: (cleanup: Promise<void>) => void
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
   /** HTTP headers merged into protocol requests without mutating the caller-supplied Headers object. */
@@ -77,9 +89,13 @@ const DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 export function create(options: GraphStoreOptionsType): Client {
   const endpoint = new URL(options.endpoint)
   const fetchImpl = options.fetch ?? fetch
+  const maxBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw new RangeError('maxResponseBytes must be a positive safe integer.')
+  }
   return {
     endpoint,
-    /** Returns the previously issued or cached value without changing ordering state. */
+    /** Reads an N-Triples graph and restores its addressed graph name. */
     async get(target, requestOptions = {}) {
       const response = await send(
         fetchImpl,
@@ -90,48 +106,91 @@ export function create(options: GraphStoreOptionsType): Client {
         options,
         requestOptions,
       )
+      const media = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
+      if (media !== 'application/n-triples' && media !== 'text/plain') {
+        await discard(response, requestOptions.onCleanup)
+        throw new QueryError(
+          'media',
+          `Expected N-Triples Graph Store response, received '${media ?? 'unknown'}'.`,
+        )
+      }
       const text = await limitedText(
         response,
-        options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
+        maxBytes,
+        requestOptions.signal,
+        false,
+        requestOptions.onCleanup,
       )
       const graph = graphFor(target)
       const values: Quad[] = []
-      for await (
-        const value of parseNTriples(
-          text,
-          requestOptions.signal ? { signal: requestOptions.signal } : {},
-        )
-      ) {
-        values.push(quad(value.subject, value.predicate, value.object, graph))
+      const labels = new Map<string, BlankNode>()
+      try {
+        for await (
+          const value of parseNTriples(
+            text,
+            requestOptions.signal ? { signal: requestOptions.signal } : {},
+          )
+        ) {
+          values.push(relabel(quad(value.subject, value.predicate, value.object, graph), labels))
+        }
+      } catch (cause) {
+        requestOptions.signal?.throwIfAborted()
+        throw new QueryError('protocol', 'Graph Store endpoint returned malformed N-Triples.', {
+          cause,
+        })
       }
       return values
     },
     /** Replaces the selected Graph Store graph with the supplied RDF payload. */
     async put(target, source, requestOptions = {}) {
+      requestOptions.signal?.throwIfAborted()
       await discard(
-        await send(fetchImpl, endpoint, target, 'PUT', body(source), options, requestOptions),
+        await send(
+          fetchImpl,
+          endpoint,
+          target,
+          'PUT',
+          body(source, requestOptions.signal),
+          options,
+          requestOptions,
+        ),
+        requestOptions.onCleanup,
       )
     },
     /** Merges the supplied RDF payload into the selected Graph Store graph. */
     async post(target, source, requestOptions = {}) {
+      requestOptions.signal?.throwIfAborted()
       await discard(
-        await send(fetchImpl, endpoint, target, 'POST', body(source), options, requestOptions),
+        await send(
+          fetchImpl,
+          endpoint,
+          target,
+          'POST',
+          body(source, requestOptions.signal),
+          options,
+          requestOptions,
+        ),
+        requestOptions.onCleanup,
       )
     },
     /** Removes the selected graph through the SPARQL Graph Store Protocol. */
     async delete(target, requestOptions = {}) {
       await discard(
         await send(fetchImpl, endpoint, target, 'DELETE', undefined, options, requestOptions),
+        requestOptions.onCleanup,
       )
     },
   }
 }
 
 /** Encoded HTTP request body produced for the selected SPARQL Protocol method. */
-function body(source: Iterable<Quad>): string {
+function body(source: Iterable<Quad>, signal?: AbortSignal): string {
   const values = Array.from(
     source,
-    (value) => quad(value.subject, value.predicate, value.object, defaultGraph()),
+    (value) => {
+      signal?.throwIfAborted()
+      return quad(value.subject, value.predicate, value.object, defaultGraph())
+    },
   )
   return writeNTriples(values)
 }
@@ -153,22 +212,34 @@ async function send(
   if (payload !== undefined) headers.set('content-type', 'application/n-triples; charset=utf-8')
   let response: Response
   try {
-    response = await fetchImpl(url, {
-      method,
-      headers,
-      ...(payload === undefined ? {} : { body: payload }),
-      ...(options.signal ? { signal: options.signal } : {}),
-    })
+    response = await acquire(
+      () =>
+        fetchImpl(url, {
+          method,
+          headers,
+          ...(payload === undefined ? {} : { body: payload }),
+          ...(options.signal ? { signal: options.signal } : {}),
+        }),
+      (value) => value.body?.cancel(),
+      options.signal,
+      options.onCleanup,
+    )
   } catch (cause) {
     if (options.signal?.aborted) {
-      throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+      throw options.signal.reason
     }
     throw new QueryError('network', 'Graph Store request failed before a response was received.', {
       cause,
     })
   }
   if (!response.ok) {
-    const detail = await response.text().catch(() => '')
+    const detail = await limitedText(
+      response,
+      Math.min(client.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES, 16 * 1024),
+      options.signal,
+      true,
+      options.onCleanup,
+    )
     throw new QueryError(
       'http',
       `Graph Store endpoint returned HTTP ${response.status} ${response.statusText}.`,
@@ -199,15 +270,62 @@ function graphFor(target: GraphTargetType): GraphTermType {
 }
 
 /** Reads a bounded response preview for diagnostics without materializing an unbounded body. */
-async function limitedText(response: Response, maxBytes: number): Promise<string> {
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (bytes.byteLength > maxBytes) {
-    throw new QueryError('limit', `Graph Store response exceeded ${maxBytes} bytes.`)
+async function limitedText(
+  response: Response,
+  maxBytes: number,
+  signal?: AbortSignal,
+  preview = false,
+  onCleanup?: (cleanup: Promise<void>) => void,
+): Promise<string> {
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  // Successful graph bytes must preserve RDF identity. A bounded error preview
+  // may end inside an encoded character and therefore remains tolerant.
+  const decoder = new TextDecoder('utf-8', { fatal: !preview })
+  const decode = (value?: Uint8Array, stream = false): string => {
+    try {
+      return decoder.decode(value, { stream })
+    } catch (cause) {
+      throw new QueryError('protocol', 'Graph Store endpoint returned malformed UTF-8.', { cause })
+    }
   }
-  return new TextDecoder().decode(bytes)
+  let bytes = 0, text = '', complete = false
+  try {
+    while (true) {
+      signal?.throwIfAborted()
+      const item = await pending(() => reader.read(), signal)
+      signal?.throwIfAborted()
+      if (item.done) {
+        complete = true
+        return text + decode()
+      }
+      const remaining = maxBytes - bytes
+      bytes += item.value.byteLength
+      if (bytes > maxBytes || (preview && bytes === maxBytes)) {
+        if (preview) return text + decode(item.value.subarray(0, remaining))
+        throw new QueryError('limit', `Graph Store response exceeded ${maxBytes} bytes.`)
+      }
+      text += decode(item.value, true)
+    }
+  } catch (cause) {
+    signal?.throwIfAborted()
+    if (cause instanceof QueryError) throw cause
+    throw new QueryError('network', 'Graph Store response transfer failed before completion.', {
+      cause,
+    })
+  } finally {
+    if (!complete) observe(reader.cancel('Graph Store consumption stopped'), onCleanup)
+    reader.releaseLock()
+  }
 }
 
 /** Cancels and drains no further response data after the caller no longer needs the body. */
-async function discard(response: Response): Promise<void> {
-  if (response.body) await response.body.cancel().catch(() => undefined)
+function discard(response: Response, onCleanup?: (cleanup: Promise<void>) => void): void {
+  if (response.body) observe(response.body.cancel(), onCleanup)
+}
+
+/** The observer cannot change terminal authority; its promise preserves actual cleanup failure. */
+function observe(cleanup: Promise<void>, onCleanup?: (cleanup: Promise<void>) => void): void {
+  void cleanup.catch(() => undefined)
+  if (onCleanup) void Promise.resolve().then(() => onCleanup(cleanup)).catch(() => undefined)
 }

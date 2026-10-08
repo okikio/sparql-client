@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import * as rdf from '@okikio/rdf'
 import { name, offers, price } from '@okikio/vocab/schema'
+import { query } from '../../conformance/query.ts'
 import {
   definePrefix,
   exists,
@@ -11,6 +12,7 @@ import {
   prefixed,
   sequence,
   SPARQL_EXPR_BRAND,
+  SPARQL_PATH_BRAND,
   SPARQL_PATTERN_BRAND,
   SPARQL_TERM_BRAND,
   triple,
@@ -38,7 +40,7 @@ describe('@okikio/sparql grammar-role helpers', () => {
     expect(undef().value).toBe('UNDEF')
   })
 
-  it('returns term syntax for property paths', () => {
+  it('returns predicate-only syntax for property paths', () => {
     for (
       const path of [
         zeroOrMore('schema:parent'),
@@ -46,15 +48,18 @@ describe('@okikio/sparql grammar-role helpers', () => {
         sequence('schema:a', 'schema:b'),
       ]
     ) {
-      expect(path[SPARQL_TERM_BRAND]).toBe(true)
+      expect(path[SPARQL_PATH_BRAND]).toBe(true)
     }
   })
   it('uses RDF named nodes directly in property paths', () => {
-    expect(zeroOrMore(name).value).toBe('<https://schema.org/name>*')
-    expect(sequence(offers, price).value).toBe(
-      '<https://schema.org/offers>/<https://schema.org/price>',
-    )
-    expect(inverse(name).value).toBe('^<https://schema.org/name>')
+    expect(query(`SELECT * WHERE { ?s ${zeroOrMore(name).value} ?o }`))
+      .toEqual(query('SELECT * WHERE { ?s <https://schema.org/name>* ?o }'))
+    expect(query(`SELECT * WHERE { ?s ${sequence(offers, price).value} ?o }`))
+      .toEqual(
+        query('SELECT * WHERE { ?s <https://schema.org/offers>/<https://schema.org/price> ?o }'),
+      )
+    expect(query(`SELECT * WHERE { ?s ${inverse(name).value} ?o }`))
+      .toEqual(query('SELECT * WHERE { ?s ^<https://schema.org/name> ?o }'))
   })
 
   it('uses RDF named nodes in datatype, IRI, and prefix constructors', () => {

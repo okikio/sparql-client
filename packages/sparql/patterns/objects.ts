@@ -1,3 +1,4 @@
+import * as structure from '../structure.ts'
 /**
  * GraphTermType pattern matching inspired by Cypher.
  *
@@ -19,6 +20,7 @@
 import { isTerm as isRdfTerm, namedNode, RDF } from '@okikio/rdf'
 
 import {
+  type IriInputType,
   type PatternValueType,
   raw,
   rawPattern,
@@ -29,7 +31,9 @@ import {
   type SparqlTermType,
   type SparqlValueType,
   toPredicateName,
+  toPredicateToken,
   toRawString,
+  toVarOrIriRef,
   toVarToken,
   variable,
 } from '../sparql.ts'
@@ -220,7 +224,7 @@ export class Node implements PatternValueType {
   /** Returns the variable name without its optional leading question mark. */
   private readonly varName: string
   /** Builds the RDF type term or expression used by the object-pattern helpers. */
-  private readonly typesTerm: TriplePredicateType[] = []
+  private readonly typesTerm: IriInputType[] = []
   /** Property records or property definitions owned by this model. */
   private readonly properties: PropertyEntryType[] = []
 
@@ -249,19 +253,20 @@ export class Node implements PatternValueType {
   /** Creates a variable-backed graph-pattern node and normalizes optional type/property seeds into predicate-preserving entries. */
   constructor(
     subject: string | SparqlTermType,
-    type?: TriplePredicateType | TriplePredicateType[],
+    type?: IriInputType | IriInputType[],
     options?: NodePropertyMapType,
   ) {
     const subjectString = toVarToken(subject)
 
     this.varName = subjectString
     this.subjectTerm = variable(subjectString)
+    structure.source(this, () => structure.inspect(this.pattern()))
 
     if (type) {
       if (Array.isArray(type)) {
-        this.typesTerm.push(...type)
+        for (const value of type) this.a(value)
       } else {
-        this.typesTerm.push(type)
+        this.a(type)
       }
     }
 
@@ -275,7 +280,7 @@ export class Node implements PatternValueType {
   /** Creates a variable-backed node using the fluent object-pattern API. */
   static create(
     name: string,
-    type?: TriplePredicateType | TriplePredicateType[],
+    type?: IriInputType | IriInputType[],
     options?: NodePropertyMapType,
   ): Node {
     return new Node(name, type, options)
@@ -302,13 +307,14 @@ export class Node implements PatternValueType {
    * node('person').a('foaf:Person').a('schema:Author')
    * ```
    */
-  a(typeIri: TriplePredicateType): this {
+  a(typeIri: IriInputType): this {
+    toVarOrIriRef(typeIri)
     this.typesTerm.push(typeIri)
     return this
   }
 
   /** Alias for {@link a} with more explicit naming. */
-  type(typeIri: TriplePredicateType): this {
+  type(typeIri: IriInputType): this {
     this.a(typeIri)
     return this
   }
@@ -321,7 +327,7 @@ export class Node implements PatternValueType {
    * node('item').types(['schema:Product', 'schema:CreativeWork'])
    * ```
    */
-  types(typesIri: TriplePredicateType[]): this {
+  types(typesIri: IriInputType[]): this {
     for (const typeIri of typesIri) {
       this.a(typeIri)
     }
@@ -400,15 +406,17 @@ export class Node implements PatternValueType {
    * necessary triples. The visited set prevents infinite recursion if there
    * are circular references.
    */
-  private buildPatternInternal(visited: Set<Node>): string {
-    if (visited.has(this)) return ''
+  private buildPatternInternal(visited: Set<Node>): PatternValueType {
+    if (visited.has(this)) {
+      return structure.pattern(rawPattern(''), { kind: 'group', bindings: [], children: [] })
+    }
     visited.add(this)
 
     const pairs: PredicateObjectListType = []
-    const nested: string[] = []
+    const nested: PatternValueType[] = []
 
     for (const type of this.typesTerm) {
-      const object = typeof type === 'string' ? rawTerm(type) : type
+      const object = typeof type === 'string' ? rawTerm(toVarOrIriRef(type)) : type
       pairs.push([namedNode(RDF.type), object])
     }
 
@@ -417,7 +425,7 @@ export class Node implements PatternValueType {
       if (atomic instanceof Node) {
         object = atomic.term()
         const value = atomic.buildPatternInternal(visited)
-        if (value.trim()) nested.push(value)
+        if (value.value.trim()) nested.push(value)
       } else {
         object = atomic
       }
@@ -429,8 +437,12 @@ export class Node implements PatternValueType {
       for (const value of values) push(entry.predicate, value)
     }
 
-    const self = pairs.length === 0 ? '' : triples(this.subjectTerm, pairs).value
-    return [self, ...nested].filter((value) => value.trim()).join('\n')
+    const children = [...(pairs.length ? [triples(this.subjectTerm, pairs)] : []), ...nested]
+    return structure.pattern(rawPattern(children.map((value) => value.value).join('\n')), {
+      kind: 'group',
+      bindings: [...structure.scope(children)],
+      children,
+    })
   }
 
   /**
@@ -440,8 +452,7 @@ export class Node implements PatternValueType {
    */
   pattern(): PatternValueType {
     const visited = new Set<Node>()
-    const text = this.buildPatternInternal(visited)
-    return rawPattern(text)
+    return this.buildPatternInternal(visited)
   }
 
   /**
@@ -641,6 +652,7 @@ export class Relationship implements PatternValueType {
     }
 
     this.predicate = predicate
+    structure.source(this, () => structure.inspect(this.buildTriples()))
   }
 
   /** Creates a relationship between two variable-backed nodes using the supplied predicate term. */
@@ -713,21 +725,26 @@ export class Relationship implements PatternValueType {
    * If there are no properties, just generates the basic triple. If there are
    * properties, generates the triple plus a reification structure.
    */
-  private buildTriples(): SparqlValueType {
+  private buildTriples(): PatternValueType {
     const base = triple(this.fromTerm, this.predicate, this.toTerm)
 
     if (this.properties.length === 0) {
       return base
     }
 
+    // A path is a query traversal, not an RDF predicate that can be reified as data.
+    if (typeof this.predicate === 'object' && structure.isPath(this.predicate)) {
+      throw new TypeError('Relationship metadata requires one predicate term, not a path.')
+    }
     // Reify with properties
     const edgeId = this.getEdgeId()
+    const predicate = toPredicateToken(this.predicate)
     const poList: PredicateObjectListType = [
       [namedNode(RDF.type), namedNode(RDF.statement)],
       [namedNode(RDF.subject), this.fromTerm],
       [
         namedNode(RDF.predicate),
-        typeof this.predicate === 'string' ? rawTerm(this.predicate) : this.predicate,
+        predicate === 'a' ? namedNode(RDF.type) : rawTerm(predicate),
       ],
       [namedNode(RDF.object), this.toTerm],
     ]
@@ -743,7 +760,11 @@ export class Relationship implements PatternValueType {
 
     const edgeTriples = triples(rawTerm(edgeId), poList)
 
-    return rawPattern(`${base.value}\n  ${edgeTriples.value}`)
+    return structure.pattern(rawPattern(`${base.value}\n  ${edgeTriples.value}`), {
+      kind: 'group',
+      bindings: [...structure.scope([base, edgeTriples])],
+      children: [base, edgeTriples],
+    })
   }
 
   /** Serializes this relationship pattern using the same value contract consumed by SPARQL builders. */
@@ -775,7 +796,7 @@ export class Relationship implements PatternValueType {
  */
 export function node(
   name: string,
-  type?: TriplePredicateType | TriplePredicateType[],
+  type?: IriInputType | IriInputType[],
   options?: NodePropertyMapType,
 ): Node {
   return Node.create(name, type, options)

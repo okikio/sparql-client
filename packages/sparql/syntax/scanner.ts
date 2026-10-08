@@ -1,3 +1,4 @@
+import * as lexical from '../lexical.ts'
 /** Data-oriented lexical scanner used by SPARQL syntax inspection. @module */
 
 import { chunks, throwIfAborted } from './source.ts'
@@ -229,7 +230,7 @@ export class Scanner {
     this.signal = options.signal
     this.trivia = options.trivia ?? false
     this.maxTokenLength = options.maxTokenLength ?? DEFAULT_MAX_TOKEN_LENGTH
-    this.#source = chunks(source, options.signal)
+    this.#source = chunks(source, options.signal, options.onCleanup)
   }
 
   /** Advances to the next lexical token. */
@@ -428,7 +429,7 @@ export class Scanner {
       value += char
       this.#guard(mark)
     }
-    this.kind = KindType.Variable
+    this.kind = lexical.VARNAME.test(value) ? KindType.Variable : KindType.Unknown
     this.value = value
     this.raw = raw
     this.#finish()
@@ -594,10 +595,28 @@ export class Scanner {
         char = this.#peek()
       }
       if (char === undefined || isDelimiter(char)) break
+      if (char === '.') {
+        let offset = 1
+        while (true) {
+          if (offset - 1 > this.maxTokenLength - raw.length) {
+            throw this.error('sparql-token-limit', 'Blank-label lookahead exceeds maxTokenLength.')
+          }
+          if (this.#peek(offset) === undefined && !this.#done) await this.#refill(offset + 1)
+          if (this.#peek(offset) !== '.') break
+          offset++
+        }
+        const next = this.#peek(offset)
+        if (next === undefined || !isPnContinue(next) || next === ':') break
+      }
       raw += this.#take() ?? ''
       this.#guard(mark)
     }
-    this.kind = raw.length > 2 ? KindType.Blank : KindType.Unknown
+    try {
+      lexical.blank(raw.slice(2))
+      this.kind = KindType.Blank
+    } catch {
+      this.kind = KindType.Unknown
+    }
     this.value = raw.slice(2)
     this.raw = raw
     this.#finish()
@@ -616,6 +635,23 @@ export class Scanner {
         char = this.#peek()
       }
       if (char === undefined || isDelimiter(char)) break
+      if (char === '.') {
+        // A terminal dot belongs to the next punctuation token, not PN_LOCAL.
+        let offset = 1
+        while (true) {
+          if (offset - 1 > this.maxTokenLength - raw.length) {
+            throw this.error(
+              'sparql-token-limit',
+              'Prefixed-name lookahead exceeds maxTokenLength.',
+            )
+          }
+          if (this.#peek(offset) === undefined && !this.#done) await this.#refill(offset + 1)
+          if (this.#peek(offset) !== '.') break
+          offset++
+        }
+        const next = this.#peek(offset)
+        if (next === undefined || (!isPnContinue(next) && next !== '%' && next !== '\\')) break
+      }
       if (char === '\\') {
         if (this.#peek(1) === undefined && !this.#done) await this.#refill(2)
         const next = this.#peek(1)
@@ -640,7 +676,12 @@ export class Scanner {
     }
 
     if (raw.includes(':')) {
-      this.kind = KindType.Prefixed
+      try {
+        lexical.prefixed(raw)
+        this.kind = KindType.Prefixed
+      } catch {
+        this.kind = KindType.Unknown
+      }
       this.value = raw
     } else if (!escapedLocal && raw === 'a') {
       this.kind = KindType.Keyword
@@ -873,22 +914,22 @@ function isWhitespace(char: string): boolean {
 
 /** Returns whether the supplied value satisfies the var start contract. */
 function isVarStart(char: string): boolean {
-  return /[\p{L}\p{N}_]/u.test(char)
+  return lexical.varStart(char)
 }
 
 /** Returns whether the supplied value satisfies the var continue contract. */
 function isVarContinue(char: string): boolean {
-  return /[\p{L}\p{N}\p{M}\p{Pc}_\u00B7]/u.test(char)
+  return lexical.varContinue(char)
 }
 
 /** Returns whether the supplied value satisfies the pn start contract. */
 function isPnStart(char: string): boolean {
-  return /[\p{L}_]/u.test(char)
+  return lexical.pnStart(char)
 }
 
 /** Returns whether the supplied value satisfies the pn continue contract. */
 function isPnContinue(char: string): boolean {
-  return /[\p{L}\p{N}\p{M}\p{Pc}_:.-]/u.test(char)
+  return lexical.pnContinue(char)
 }
 
 /** Returns whether the supplied value satisfies the delimiter contract. */

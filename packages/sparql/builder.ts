@@ -1,3 +1,4 @@
+import * as structure from './structure.ts'
 /**
  * Immutable fluent builders for complete SPARQL query documents.
  *
@@ -26,7 +27,8 @@ import {
   validatePrefixName,
   type VariableNameType,
 } from './sparql.ts'
-import { bind, filter, optional } from './utils.ts'
+import { bind, filter, optional, values as dataValues } from './utils.ts'
+import type { ValuesItemType } from './sparql.ts'
 
 /** SELECT projection item accepted by the fluent builder. */
 export type ProjectionItemType = string | SparqlTermType | SparqlExprType
@@ -57,6 +59,19 @@ export type SelectModifierType = 'none' | 'distinct' | 'reduced'
  * `construct` is deliberately separate from `where`. A CONSTRUCT template is
  * output data syntax, while WHERE is the graph pattern evaluated by the query.
  */
+/** Persistent append chunks keep incremental builder calls linear in admitted patterns. */
+interface GroupType {
+  readonly previous?: GroupType
+  readonly items: readonly PatternValueType[]
+}
+
+/** Flattens chunks once, preserving order without recursive calls. */
+function items(group: GroupType | undefined): PatternValueType[] {
+  const chunks: (readonly PatternValueType[])[] = []
+  for (let current = group; current; current = current.previous) chunks.push(current.items)
+  return chunks.reverse().flat()
+}
+
 interface QueryStateType {
   /** SPARQL query form currently represented by the builder state. */
   readonly type: 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE'
@@ -72,24 +87,14 @@ interface QueryStateType {
   readonly from: readonly string[]
   /** Named graph IRIs included in the query dataset. */
   readonly fromNamed: readonly string[]
-  /** Graph patterns that form the query or update WHERE clause. */
-  readonly where: readonly PatternValueType[]
-  /** FILTER expressions appended to the current graph pattern. */
-  readonly filters: readonly PatternValueType[]
-  /** OPTIONAL graph-pattern groups appended to the current query. */
-  readonly optional: readonly PatternValueType[]
-  /** VALUES or binding records attached to the current query state. */
-  readonly bindings: readonly PatternValueType[]
-  /** UNION graph-pattern branches attached to the current query state. */
-  readonly unions: readonly (readonly PatternValueType[])[]
+  /** Ordered group items, including BIND and VALUES in source order. */
+  readonly group: GroupType | undefined
   /** ORDER BY specifications applied in source order. */
   readonly sorts: readonly SortSpecType[]
   /** GROUP BY expressions applied before aggregate projection. */
   readonly groupBy: readonly string[]
   /** HAVING expressions applied after grouping. */
   readonly having: readonly SparqlExprType[]
-  /** Value expressions retained from source metadata. */
-  readonly values: ReadonlyMap<string, readonly SparqlTermType[]>
   /** Maximum result rows requested by the current query. */
   readonly limit?: number
   /** Result rows skipped before query results are returned. */
@@ -106,15 +111,10 @@ const initialState: QueryStateType = {
   prefixes: new Map(),
   from: [],
   fromNamed: [],
-  where: [],
-  filters: [],
-  optional: [],
-  bindings: [],
-  unions: [],
+  group: undefined,
   sorts: [],
   groupBy: [],
   having: [],
-  values: new Map(),
   modifier: 'none',
 }
 
@@ -134,19 +134,24 @@ function projectionText(item: ProjectionItemType): string {
  * endpoint or independent parser has to diagnose them.
  */
 function projectionVariable(item: ProjectionItemType): string | undefined {
+  if (typeof item !== 'string') {
+    const alias = structure.projection(item)
+    if (alias) return alias
+  }
   const token = projectionText(item).trim()
-  if (isVariableToken(token)) return `?${token.slice(1)}`
-  const alias = /\bAS\s+([^\s)]+)\s*\)$/iu.exec(token)?.[1]
-  return alias && isVariableToken(alias) ? `?${alias.slice(1)}` : undefined
+  return isVariableToken(token) ? `?${token.slice(1)}` : undefined
 }
 
 /** Rejects duplicate SELECT result-column variables after normalization. */
 function validateProjection(projection: ProjectionType): void {
   if (projection === '*') return
+  if (projection.length === 0) throw new TypeError('SELECT needs a projection or wildcard.')
   const seen = new Set<string>()
   for (const item of projection) {
     const variable = projectionVariable(item)
-    if (variable === undefined) continue
+    if (variable === undefined) {
+      throw new TypeError('SELECT projection needs a variable or an explicit .as(variable) alias.')
+    }
     if (seen.has(variable)) {
       throw new TypeError(`SELECT projection contains duplicate result variable '${variable}'.`)
     }
@@ -200,7 +205,11 @@ export class QueryBuilder {
 
   /** Starts a SELECT query. */
   static select(projection: ProjectionType = '*'): QueryBuilder {
-    return new QueryBuilder({ ...initialState, type: 'SELECT', projection })
+    return new QueryBuilder({
+      ...initialState,
+      type: 'SELECT',
+      projection: projection === '*' ? '*' : [...projection],
+    })
   }
 
   /** Starts an ASK query. */
@@ -219,7 +228,7 @@ export class QueryBuilder {
       ...initialState,
       type: 'CONSTRUCT',
       projection: [],
-      ...(template === undefined ? {} : { construct: template }),
+      ...(template === undefined ? {} : { construct: structure.snapshot(template) }),
     })
   }
 
@@ -257,50 +266,52 @@ export class QueryBuilder {
   prefix(name: string, iri: string | SparqlTermType | RdfNamedNode | Namespace): QueryBuilder {
     validatePrefixName(name)
     const prefixes = new Map(this.#state.prefixes)
-    prefixes.set(name, namespaceText(iri))
+    const namespace = namespaceText(iri)
+    if (prefixes.has(name) && prefixes.get(name) !== namespace) {
+      throw new TypeError(`Conflicting prefix ${name}.`)
+    }
+    prefixes.set(name, namespace)
     return new QueryBuilder({ ...this.#state, prefixes })
   }
 
-  /** Adds graph patterns to WHERE. */
+  /** Appends group clauses in source order. FILTER retains the scope of this group. */
   where(...patterns: readonly PatternValueType[]): QueryBuilder {
-    return new QueryBuilder({ ...this.#state, where: [...this.#state.where, ...patterns] })
+    return new QueryBuilder({
+      ...this.#state,
+      group: {
+        ...(this.#state.group ? { previous: this.#state.group } : {}),
+        items: patterns.map(structure.snapshot),
+      },
+    })
   }
 
-  /** Adds FILTER graph-pattern clauses from expressions. */
+  /** Adds group-scoped FILTER expressions. */
   filter(...conditions: readonly SparqlExprType[]): QueryBuilder {
-    return new QueryBuilder({
-      ...this.#state,
-      filters: [...this.#state.filters, ...conditions.map((value) => filter(value))],
-    })
+    return this.where(...conditions.map(filter))
   }
 
-  /** Adds OPTIONAL graph-pattern clauses. */
+  /** Adds OPTIONAL groups in source order. */
   optional(...patterns: readonly PatternValueType[]): QueryBuilder {
-    return new QueryBuilder({
-      ...this.#state,
-      optional: [...this.#state.optional, ...patterns.map((value) => optional(value))],
-    })
+    return this.where(...patterns.map(optional))
   }
 
-  /** Adds a BIND clause with an explicit output variable. */
+  /** Adds a computed binding at this exact group position. */
   bind(expression: SparqlExprType | SparqlTermType, variable: VariableNameType): QueryBuilder {
-    return new QueryBuilder({
-      ...this.#state,
-      bindings: [...this.#state.bindings, bind(expression, variable)],
-    })
+    return this.where(bind(expression, variable))
   }
 
-  /**
-   * Adds one UNION expression containing two or more graph-pattern branches.
-   *
-   * One call represents one disjunction. Each branch is emitted in its own
-   * group so `union(a, b)` means `{ a } UNION { b }`, not `{ a b }`.
-   */
+  /** Adds a disjunction without flattening branch scopes into the containing group. */
   union(...branches: readonly PatternValueType[]): QueryBuilder {
-    if (branches.length < 2) {
-      throw new TypeError('UNION requires at least two graph-pattern branches.')
-    }
-    return new QueryBuilder({ ...this.#state, unions: [...this.#state.unions, [...branches]] })
+    if (branches.length < 2) throw new TypeError('UNION requires at least two branches.')
+    const children = branches.map(structure.snapshot)
+    const text = children.map((branch) => `{ ${branch.value} }`).join(' UNION ')
+    return this.where(
+      structure.pattern(rawPattern(text), {
+        kind: 'union',
+        bindings: children.flatMap((branch) => [...structure.scope([branch])]),
+        children,
+      }),
+    )
   }
 
   /** Adds GROUP BY variables. */
@@ -326,7 +337,7 @@ export class QueryBuilder {
 
   /** Sets LIMIT after validating the non-negative integer grammar. */
   limit(count: number): QueryBuilder {
-    if (!Number.isInteger(count) || count < 0) {
+    if (!Number.isSafeInteger(count) || count < 0) {
       throw new TypeError(`LIMIT must be a non-negative integer, got ${count}.`)
     }
     return new QueryBuilder({ ...this.#state, limit: count })
@@ -334,7 +345,7 @@ export class QueryBuilder {
 
   /** Sets OFFSET after validating the non-negative integer grammar. */
   offset(count: number): QueryBuilder {
-    if (!Number.isInteger(count) || count < 0) {
+    if (!Number.isSafeInteger(count) || count < 0) {
       throw new TypeError(`OFFSET must be a non-negative integer, got ${count}.`)
     }
     return new QueryBuilder({ ...this.#state, offset: count })
@@ -350,23 +361,52 @@ export class QueryBuilder {
     return new QueryBuilder({ ...this.#state, modifier: 'reduced' })
   }
 
-  /** Adds one single-variable VALUES data block. */
-  values(variable: VariableNameType, values: readonly SparqlTermType[]): QueryBuilder {
-    const blocks = new Map(this.#state.values)
-    blocks.set(toVarToken(variable), [...values])
-    return new QueryBuilder({ ...this.#state, values: blocks })
+  /** Appends one VALUES relation. Repeated blocks are joins, never silent replacements. */
+  values(variable: VariableNameType, values: readonly ValuesItemType[]): QueryBuilder {
+    return this.where(dataValues(variable, values))
   }
 
-  /** Explicitly converts this complete query into a subquery graph pattern. */
+  /** Converts SELECT only into a SubSelect body; declarations belong to the containing document. */
   asSubquery(): PatternValueType {
-    return rawPattern(`{ ${this.build().value} }`)
+    if (this.#state.type !== 'SELECT' || this.#state.from.length || this.#state.fromNamed.length) {
+      throw new TypeError('Subqueries require SELECT without FROM/FROM NAMED.')
+    }
+    const body = new QueryBuilder({ ...this.#state, prefixes: new Map() }).build()
+    const bound = this.#state.projection === '*'
+      ? [...structure.scope(items(this.#state.group))]
+      : this.#state.projection.map(projectionVariable).filter((value): value is string =>
+        value !== undefined
+      )
+    return structure.pattern(rawPattern(`{ ${body.value} }`), {
+      kind: 'subselect',
+      bindings: bound,
+      prefixes: new Map(this.#state.prefixes),
+    })
   }
 
   /** Builds one complete query document. */
   build(): SparqlQueryType {
     const parts: string[] = []
-
-    for (const [name, iri] of this.#state.prefixes) parts.push(`PREFIX ${name}: <${iri}>`)
+    const group = items(this.#state.group)
+    structure.scope(group)
+    if (this.#state.type === 'SELECT') validateProjection(this.#state.projection)
+    if (this.#state.construct) structure.template(this.#state.construct, 'construct')
+    if (this.#state.type === 'CONSTRUCT' && !this.#state.construct) {
+      for (const item of group) structure.template(item, 'construct')
+    }
+    const prefixes = new Map(this.#state.prefixes)
+    const pending: object[] = [...group]
+    while (pending.length) {
+      const record = structure.inspect(pending.pop()!)
+      for (const [name, iri] of record?.prefixes ?? []) {
+        if (prefixes.has(name) && prefixes.get(name) !== iri) {
+          throw new TypeError(`Conflicting subquery prefix ${name}.`)
+        }
+        prefixes.set(name, iri)
+      }
+      pending.push(...record?.children ?? [])
+    }
+    for (const [name, iri] of prefixes) parts.push(`PREFIX ${name}: <${iri}>`)
     if (this.#state.prefixes.size > 0) parts.push('')
 
     if (this.#state.type === 'SELECT') {
@@ -393,32 +433,9 @@ export class QueryBuilder {
     for (const graph of this.#state.from) parts.push(`FROM ${graph}`)
     for (const graph of this.#state.fromNamed) parts.push(`FROM NAMED ${graph}`)
 
-    const hasPattern = this.#state.where.length > 0 || this.#state.filters.length > 0 ||
-      this.#state.optional.length > 0 || this.#state.bindings.length > 0 ||
-      this.#state.unions.length > 0 || this.#state.values.size > 0
-
-    if (this.#state.type === 'CONSTRUCT' && !this.#state.construct) {
+    if (group.length || this.#state.type !== 'DESCRIBE') {
       parts.push('WHERE {')
-    } else if (hasPattern || this.#state.type === 'ASK' || this.#state.type === 'CONSTRUCT') {
-      parts.push('WHERE {')
-    }
-
-    if (parts.at(-1) === 'WHERE {') {
-      for (const [variable, values] of this.#state.values) {
-        parts.push(`  VALUES ${variable} { ${values.map((value) => value.value).join(' ')} }`)
-      }
-      for (const pattern of this.#state.where) pushPattern(parts, pattern)
-      for (const pattern of this.#state.filters) pushPattern(parts, pattern)
-      for (const pattern of this.#state.optional) pushPattern(parts, pattern)
-      for (const pattern of this.#state.bindings) pushPattern(parts, pattern)
-      for (const union of this.#state.unions) {
-        union.forEach((branch, index) => {
-          if (index > 0) parts.push('  UNION')
-          parts.push('  {')
-          pushPattern(parts, branch, 2)
-          parts.push('  }')
-        })
-      }
+      for (const pattern of group) pushPattern(parts, pattern)
       parts.push('}')
     }
 

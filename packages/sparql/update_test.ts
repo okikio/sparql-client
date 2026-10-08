@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { namedNode } from '@okikio/rdf'
 import { SPARQL_UPDATE_BRAND, strlit, triple, update, variable } from './mod.ts'
+import { query } from '../../conformance/query.ts'
 
 describe('@okikio/sparql update builder', () => {
   const statement = triple(namedNode('urn:s'), namedNode('urn:p'), strlit('value'))
@@ -9,7 +10,7 @@ describe('@okikio/sparql update builder', () => {
   it('builds a distinct complete update document', () => {
     const document = update().insertData(statement).build()
     expect(document[SPARQL_UPDATE_BRAND]).toBe(true)
-    expect(document.value).toBe('INSERT DATA { <urn:s> <urn:p> "value" . }')
+    expect(query(document.value)).toEqual(query('INSERT DATA { <urn:s> <urn:p> "value" }'))
   })
 
   it('rejects variables where INSERT DATA requires a graph IRI', () => {
@@ -17,9 +18,13 @@ describe('@okikio/sparql update builder', () => {
   })
 
   it('serializes CLEAR and DROP graph keywords without a GRAPH prefix', () => {
-    expect(update().clear('DEFAULT').build().value).toBe('CLEAR DEFAULT')
-    expect(update().drop('NAMED').build().value).toBe('DROP NAMED')
-    expect(update().drop('ALL', true).build().value).toBe('DROP SILENT ALL')
+    for (
+      const [builder, expected] of [
+        [update().clear('DEFAULT'), 'CLEAR DEFAULT'],
+        [update().drop('NAMED'), 'DROP NAMED'],
+        [update().drop('ALL', true), 'DROP SILENT ALL'],
+      ] as const
+    ) expect(query(builder.build().value)).toEqual(query(expected))
   })
 
   it('serializes COPY, MOVE, and ADD with DEFAULT and named graph operands', () => {
@@ -31,19 +36,19 @@ describe('@okikio/sparql update builder', () => {
       .add(source, target, true)
       .build()
 
-    expect(document.value).toBe([
+    expect(query(document.value)).toEqual(query([
       'COPY <urn:graph:source> TO DEFAULT',
       'MOVE DEFAULT TO <urn:graph:target>',
       'ADD SILENT <urn:graph:source> TO <urn:graph:target>',
-    ].join(';\n'))
+    ].join('; ')))
   })
 
   it('accepts RDF named nodes for CLEAR/DROP and rejects variable terms in strict graph positions', () => {
     const graph = namedNode('urn:graph:products')
-    expect(update().clear(graph).drop(graph, true).build().value).toBe([
+    expect(query(update().clear(graph).drop(graph, true).build().value)).toEqual(query([
       'CLEAR GRAPH <urn:graph:products>',
       'DROP SILENT GRAPH <urn:graph:products>',
-    ].join(';\n'))
+    ].join('; ')))
     expect(() => update().clear(variable('graph'))).toThrow()
     expect(() => update().create(variable('graph'))).toThrow()
   })
@@ -57,8 +62,11 @@ describe('@okikio/sparql update builder', () => {
       .done()
       .build()
 
-    expect(document.value.includes('DELETE { ?s schema:old ?old . }')).toBe(true)
-    expect(document.value.includes('INSERT { ?s schema:new ?new . }')).toBe(true)
-    expect(document.value.includes('WHERE { ?s schema:old ?old . }')).toBe(true)
+    const prefix = 'PREFIX schema: <https://schema.org/>'
+    expect(query(`${prefix} ${document.value}`)).toEqual(query(`${prefix}
+      DELETE { ?s schema:old ?old }
+      INSERT { ?s schema:new ?new }
+      WHERE { ?s schema:old ?old }
+    `))
   })
 })

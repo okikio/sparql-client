@@ -1,3 +1,5 @@
+import * as structure from '../structure.ts'
+import { triple } from './triples.ts'
 /**
  * Cypher-like visual graph-pattern syntax that compiles to ordinary SPARQL.
  *
@@ -7,18 +9,19 @@
  * @module
  */
 
-import { isTerm as isRdfTerm, type NamedNode as RdfNamedNode } from '@okikio/rdf'
+import { type NamedNode as RdfNamedNode } from '@okikio/rdf'
 import {
   type PatternValueType,
   rawPattern,
-  rdfTerm,
+  rawTerm,
   type SparqlTermType,
   toPredicateName,
+  toPredicateToken,
 } from '../sparql.ts'
 import { Node } from './objects.ts'
 
 /** Predicate values accepted inside a cypher relationship placeholder. */
-type CypherTermType = SparqlTermType | RdfNamedNode
+export type CypherTermType = SparqlTermType | RdfNamedNode
 
 /**
  * Builds graph patterns from `node-[predicate]->node` visual relationships.
@@ -48,9 +51,9 @@ export function cypher(
     source += strings[index + 1] ?? ''
   }
 
-  const triples: string[] = []
+  const patterns: PatternValueType[] = []
   for (const node of nodes) {
-    if (node.value.trim()) triples.push(node.value)
+    if (node.value.trim()) patterns.push(node.pattern())
   }
 
   // Keep connector recognition explicit. This prevents a reverse arrow from
@@ -69,16 +72,19 @@ export function cypher(
     const reverse = leftConnector === '<-'
     const subject = reverse ? right.getVarName() : left.getVarName()
     const object = reverse ? left.getVarName() : right.getVarName()
-    triples.push(`${subject} ${predicate} ${object} .`)
+    patterns.push(triple(subject, rawTerm(predicate), object))
   }
 
-  return rawPattern(triples.join('\n'))
+  return structure.pattern(rawPattern(patterns.map((value) => value.value).join('\n')), {
+    kind: 'group',
+    bindings: [...structure.scope(patterns)],
+    children: patterns,
+  })
 }
 
 /** Serializes a visual-edge predicate without flattening RDF named nodes. */
 function predicateText(source: string, terms: ReadonlyMap<string, CypherTermType>): string {
   const term = terms.get(source)
   if (!term) return toPredicateName(source)
-  if (isRdfTerm(term)) return rdfTerm(term)
-  return term.value
+  return toPredicateToken(term)
 }
