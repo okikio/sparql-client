@@ -287,3 +287,7 @@ See `conformance/source.ts` for immutable suite revisions and `docs/conformance.
 Browser gates use Playwright's `failOnFlakyTests` control, so a retry that passes still fails the gate and retains diagnostic attempts. Each run owns its fixture servers; it does not reuse a listener that could serve a different checkout. See the [Playwright configuration contract](https://playwright.dev/docs/api/class-testconfig#test-config-fail-on-flaky-tests).
 
 Playwright runner artifacts, screenshots and traces live under `.tmp/reports/browser/artifacts/`, beside the JSON report. Runner cleanup recreates this ignored task-owned leaf rather than attempting to create `test-results` in the readonly release snapshot root. CI retains this same directory on failure.
+
+Browser fixtures start a fresh Vite server for each task and disable file watching and hot reload.
+Their source stays fixed for the run. This avoids watching nested OPFS dependency trees and
+report output while testing browser capabilities. Restart the task after editing a fixture.

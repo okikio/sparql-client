@@ -88,6 +88,9 @@ export default defineConfig({
   resolve: { alias },
   optimizeDeps: { noDiscovery: true },
   server: {
+    // Each test owns an immutable fixture server; live edits and hot reload are outside this contract.
+    watch: null,
+    hmr: false,
     fs: {
       allow: [
         fileURLToPath(new URL('../..', import.meta.url)),
