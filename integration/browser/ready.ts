@@ -55,6 +55,13 @@ export type AdmissionOptionsType = {
   timeoutMs?: number
 }
 
+/** Native HTTP error classes are failures; 304 revalidates a cached document representation.
+ * The callable API remains required after navigation regardless of status or cache mapping.
+ */
+export function httpFailure(response: Pick<Response, 'status'>): boolean {
+  return response.status() >= 400
+}
+
 /**
  * Admits one borrowed page through native Playwright navigation and numeric polling.
  *
@@ -124,7 +131,7 @@ export async function open(
     }
   }
   const response = (value: Response): void => {
-    if (value.status() >= 400 && authored(value.request())) {
+    if (httpFailure(value) && authored(value.request())) {
       observe({
         kind: 'http',
         url: text(value.url()),
@@ -176,7 +183,7 @@ export async function open(
       navigating = false
     }
     // Retain the returned main response independently, even after an earlier load event.
-    if (navigation && !navigation.ok()) {
+    if (navigation && httpFailure(navigation)) {
       observe({
         kind: 'http',
         url: text(navigation.url()),
@@ -196,7 +203,6 @@ export async function open(
           if (api === undefined) return false
           const names = ['run', 'storage', 'worker']
           const valid = api !== null && typeof api === 'object' &&
-            Object.keys(api).sort().join(',') === names.join(',') &&
             names.every((name) => typeof Reflect.get(api, name) === 'function')
           return { valid }
         },
@@ -208,7 +214,7 @@ export async function open(
       if (!value || !value.valid) {
         kind = 'shape'
         throw new TypeError(
-          'Authored browserTest requires exactly run, worker and storage functions.',
+          'Authored browserTest requires callable run, worker and storage functions.',
         )
       }
     })

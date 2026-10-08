@@ -377,7 +377,9 @@ deno task browser:install
 OPFS_SOURCE=../opfs deno task browser
 ```
 
-The default fixture admits exactly the authored `run`, `worker` and `storage` functions. Markup
+The default fixture requires callable `run`, `worker` and `storage` functions. Additional
+fixture methods or metadata are allowed; they cannot replace a missing or non-callable
+required function. An independent native extension control protects this structural contract. Markup
 comparisons also import and admit the actual `parseMarkup` capability outside their semantic body.
 The persistent storage fixture imports its optional source modules only when the selected capability
 exists. Its body still writes, compacts and reloads the page, then reconstructs the committed terms;
@@ -391,12 +393,22 @@ An independent native rejection is retained alongside the original load fault, a
 response status remains separately recorded even when an earlier load event already failed. Later API-wait faults
 use the native cancellation signal. Required-document HTTP failure controls independently observe
 owned page close and continued use of the borrowed context. Script404 controls require completed authored404 fulfillment plus native HTTP or request failure
-for that exact selected script. Unrelated page exceptions cannot certify a selected-resource failure;
+for that exact selected script. Native response events and returned navigation responses share
+the same HTTP error boundary: status 400 or above. A conditional 304 revalidates cached HTML under
+[RFC 9110 section 15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5);
+its restored callable API still has to pass admission. A maintained native loopback server control
+serves 200 with ETag/no-cache, records the browser's actual second GET and completed response,
+then checks a fresh realm with the same authored body and API. A matching conditional request
+receives 304; an unconditional reload correctly receives a fresh 200. The pure shared HTTP
+classifier separately checks revalidation and error-class boundaries, so its correctness does
+not depend on any engine's default reload policy. It uses no request routing, which would disable
+browser HTTP caching. Browser response telemetry can expose 200 or 304; the native server records
+the actual revalidation separately. Unrelated page exceptions cannot certify a selected-resource failure;
 a response status is asserted only when that engine supplies it. The listeners stop before behavioral assertions and exclude
 unrelated image/fetch request failures. Playwright owns the admission attachment path under the
 existing artifact root; original admission, attachment and owned-page close errors remain independent. The native
 controls in `integration/browser/readiness.spec.ts` use actual requested modules and explicit release
-gates, wrong API shapes and real script/request failures. These eight operational controls own a
+gates, wrong API shapes and real script/request failures. These ten operational controls own a
 finite 120 second body limit because they directly exercise the 60 second acquisition inside their
 body; ordinary consumer, markup and storage bodies retain 30 seconds. This allows native failure
 retirement to remain under an active owner without promising a hard close deadline. They do not substitute a fake browser,
