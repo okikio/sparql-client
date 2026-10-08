@@ -41,7 +41,7 @@ describe('private packed consumer copy', () => {
       expect(admitted.gid).toBe(0)
       expect(payload.inputs).toEqual(before)
       await payload.verify()
-      expect(JSON.parse(await Deno.readTextFile(payload.receipt)).taskInputs).toHaveLength(3)
+      expect(JSON.parse(await Deno.readTextFile(payload.receipt)).taskInputs).toHaveLength(5)
       await payload.record({
         command: ['fixture', 'exact-arguments'],
         timeoutMs: 30_000,
@@ -716,7 +716,12 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/not-write-authority',
-      bootstrap: { workerSha256: 'expected-worker', receiptSha256: 'expected-receipt' },
+      bootstrap: {
+        workerSha256: 'expected-worker',
+        receiptSha256: 'expected-receipt',
+        supervisorSha256: 'expected-supervisor',
+        handshakeSha256: 'expected-handshake',
+      },
       record: (_event: ObservationType) => Promise.resolve(),
       verify: () => Promise.resolve(),
       close: () => Promise.resolve(),
@@ -748,7 +753,12 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/retained-copy-admission.json',
-      bootstrap: { workerSha256: 'worker', receiptSha256: 'receipt' },
+      bootstrap: {
+        workerSha256: 'worker',
+        receiptSha256: 'receipt',
+        supervisorSha256: 'supervisor',
+        handshakeSha256: 'handshake',
+      },
       record: (event: ObservationType) => {
         observations.push(event)
         return Promise.resolve()
@@ -789,7 +799,12 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/retained-copy-admission.json',
-      bootstrap: { workerSha256: 'worker', receiptSha256: 'receipt' },
+      bootstrap: {
+        workerSha256: 'worker',
+        receiptSha256: 'receipt',
+        supervisorSha256: 'supervisor',
+        handshakeSha256: 'handshake',
+      },
       record: (_event: ObservationType) => Promise.resolve(),
       verify: () => Promise.resolve(),
       close: () => Promise.resolve(),
@@ -803,7 +818,7 @@ describe('private packed consumer copy', () => {
           code: 0,
           success: true,
           stdout: args.includes('sha256sum')
-            ? 'worker  /work/worker.mjs\nreceipt  /work/admission.json\n'
+            ? 'worker  /work/worker.mjs\nreceipt  /work/admission.json\nsupervisor  /work/attest.sh\nhandshake  /work/attest.mjs\n'
             : args[0] === 'wait'
             ? '7\n'
             : '',
@@ -826,7 +841,12 @@ describe('private packed consumer copy', () => {
       inputs: [],
       entries: [],
       receipt: '/not-write-authority',
-      bootstrap: { workerSha256: 'worker', receiptSha256: 'receipt' },
+      bootstrap: {
+        workerSha256: 'worker',
+        receiptSha256: 'receipt',
+        supervisorSha256: 'supervisor',
+        handshakeSha256: 'handshake',
+      },
       verify: () => Promise.resolve(),
       close: () => Promise.resolve(),
       record: (event: ObservationType) => {

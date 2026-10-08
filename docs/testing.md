@@ -114,7 +114,7 @@ Replaced roots, parents or marker kinds reject before use or removal; refusal le
 investigation rather than deleting a substituted path. Unknown host metadata remains unknown. These guards
 detect observed substitutions and do not promise fd-relative security against hostile concurrent path changes.
 A bounded private root bootstrap first acquires the physical `/work` root without recursion.
-It checks the worker and receipt as independent regular files before acquiring them, then compares their
+It checks the worker, receipt, supervisor and handshake module as independent regular files before acquiring them, then compares their
 `sha256sum` results with independently admitted host hashes before loading the worker. The selected Linux
 images must provide `sh`, `stat`, `chown` and `sha256sum`; setup failure retains its actual CLI outcome.
 The lane-native worker acquires each physical directory before descending, including restrictive copied
@@ -123,8 +123,9 @@ ownership changes. It verifies complete bytes/kinds/contained links before final
 is retained for root setup; no DAC override is added. Production ownership is fixed to UID/GID zero.
 The import-safe worker has an explicit current-owner seam for task-owned host tests, with no CLI/environment
 owner override; that seam is not proof of root Docker admission. These checks set copied ownership;
-the actual consumer runs as UID/GID 1000 with no effective, permitted or ambient capabilities, verified through
-`/proc/self/status`. Source hardlinks are copied into independent files; contained aliases become private relative
+the actual consumer runs as UID/GID 1000 with zero inheritable, effective, permitted and ambient sets.
+The native supervisor verifies those values through the actual runtime child's `/proc/<pid>/status`, before approval.
+Its bounding set retains CHOWN and NoNewPrivs=1 prevents privilege gains through exec. Source hardlinks are copied into independent files; contained aliases become private relative
 links. Escaped aliases, Git metadata, special files and changed complete membership fail admission. The actual
 Node/Bun/Deno runtime checks copied bytes, modes and ownership before and after behavior. Only `/tmp` is intended
 for consumer writes. This is a protected private payload, not a read-only container rootfs: Docker's copy API
@@ -338,5 +339,11 @@ report output while testing browser capabilities. Restart the task after editing
 Vite loads fixture configuration through `--configLoader native`. Deno already understands the
 TypeScript source, so the loader must not emit a temporary module beside maintained configuration
 files. This keeps startup compatible with the readonly source used by release preparation.
+
+### Native runtime attestation
+
+Runtime identity is observed by a copied native shell supervisor after the actual Node, Bun or Deno process starts and before its worker imports library behavior. The worker publishes its PID and nonce in a private physical gate; the supervisor binds that readiness to its launched child, live parent and process starttime. It records raw proc status and NUL-preserving launch/runtime argument bytes. Root admission requires UID/GID zero with only CHOWN effective/permitted; ordinary execution requires all four UID/GID values of 1000, zero inheritable/permitted/effective/ambient sets and NoNewPrivs=1. The bounding set remains CHOWN for both roles; it is not claimed to be zero. The supervisor verifies the live process again before approval and before each retirement signal. Gate and journal identities are rechecked before use or removal. Readiness and approval bytes are finite and exact.
+
+Deno never reads protected proc files or gains allow-all for this evidence. Its only extra read/write authority is the acquired temporary handshake directory. The supervisor and handshake module are independently transport-hashed before loading, alongside the worker and receipt; they are also retained as preparation input hashes. The images provide native sh, stat, chown, sha256sum, cat, head, wc, od, cmp, chmod, mv, rm and sleep. Native startup admission is limited to 30 seconds; post-approval completion and uncooperative wait are bounded by the caller command and exact-container cleanup deadlines, not by a claimed shell guarantee. Child exit, supervisor rejection and independent cleanup faults remain separate observations. The gate is a trusted-worker provenance boundary, not a hostile concurrent filesystem sandbox.
 
 The installed-package jobs run the maintained tooling controls on Linux, macOS, and Windows before importing the archives. This exercises native host copy retirement, including Windows readonly attributes, on the host that supplies those filesystem semantics. A Linux skip of that Windows control is not Windows coverage.

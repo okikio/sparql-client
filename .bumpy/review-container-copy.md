@@ -41,7 +41,7 @@ path changes.
 
 A bounded root bootstrap owns only the private container copy. It acquires the
 physical `/work` directory first, then separately checks/acquires its regular
-worker and receipt. Native `sha256sum` compares both with independently admitted
+worker, receipt, supervisor and handshake module. Native `sha256sum` compares their bytes with independently admitted
 host hashes before the worker loads. The selected Linux images provide `sh`,
 `stat`, `chown` and `sha256sum`. The lane-native worker acquires each physical
 directory before descent, even when copied directories are restrictive. It rejects
@@ -50,7 +50,7 @@ permission changes. Complete bytes and kinds are checked before final readonly
 modes. Setup retains only `CHOWN`, without a DAC override. Production ownership
 is always zero; an import-safe current-owner test seam cannot be selected by CLI
 or environment and is not root-container proof. The consumer runs
-as UID/GID 1000 and checks that it has no effective, permitted or ambient capabilities.
+as UID/GID 1000 with independently observed zero inheritable, effective, permitted and ambient capabilities; its bounding set retains CHOWN and NoNewPrivs prevents gaining that capability through exec.
 Its temporary directory remains writable. The container root filesystem is not
 claimed to be read-only: Docker refuses to populate such a root through its copy API.
 CLI diagnostics retain at most 32 MiB of bytes independently per output stream.
@@ -71,3 +71,7 @@ source hashes, selected archives and original versus copied metadata.
 Copy preparation and its checks occur outside cold-start measurement intervals.
 The existing 36 serial cold samples and byte/RDF recovery oracles remain unchanged;
 their report now identifies this preparation authority separately.
+
+Runtime identity is observed by a copied native shell supervisor after the actual Node, Bun or Deno process starts and before its worker imports library behavior. The worker publishes its PID and nonce in a private physical gate; the supervisor binds that readiness to its launched child, live parent and process starttime. It records raw proc status and NUL-preserving launch/runtime argument bytes. Root admission requires UID/GID zero with only CHOWN effective/permitted; ordinary execution requires all four UID/GID values of 1000, zero inheritable/permitted/effective/ambient sets and NoNewPrivs=1. The bounding set remains CHOWN for both roles; it is not claimed to be zero. The supervisor verifies the live process again before approval and before each retirement signal. Gate and journal identities are rechecked before use or removal. Readiness and approval bytes are finite and exact.
+
+Deno never reads protected proc files or gains allow-all for this evidence. Its only extra read/write authority is the acquired temporary handshake directory. The supervisor and handshake module are independently transport-hashed before loading, alongside the worker and receipt; they are also retained as preparation input hashes. The images provide native sh, stat, chown, sha256sum, cat, head, wc, od, cmp, chmod, mv, rm and sleep. Native startup admission is limited to 30 seconds; post-approval completion and uncooperative wait are bounded by the caller command and exact-container cleanup deadlines, not by a claimed shell guarantee. Child exit, supervisor rejection and independent cleanup faults remain separate observations. The gate is a trusted-worker provenance boundary, not a hostile concurrent filesystem sandbox.

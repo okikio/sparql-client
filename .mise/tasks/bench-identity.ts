@@ -15,6 +15,9 @@ export async function identity(root = '.'): Promise<Readonly<Record<string, stri
     '.mise/tasks/bench.ts',
     '.mise/tasks/bench-identity.ts',
     '.mise/tasks/bench-command.ts',
+    // Copied Linux preparation authority is conservative support, not a native operation workload.
+    '.mise/tasks/attest.sh',
+    '.mise/tasks/attest.mjs',
     '.mise/tasks/sources.ts',
     'conformance/query.ts',
     'conformance/modules.ts',

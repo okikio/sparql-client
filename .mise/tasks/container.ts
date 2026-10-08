@@ -37,7 +37,12 @@ export interface PayloadType {
   /** Retained exact admission receipt survives disposal of the private copied tree. */
   readonly receipt: string
   /** Independent host-admitted bootstrap hashes, checked by native Linux sha256sum before the worker loads. */
-  readonly bootstrap: { readonly workerSha256: string; readonly receiptSha256: string }
+  readonly bootstrap: {
+    readonly workerSha256: string
+    readonly receiptSha256: string
+    readonly supervisorSha256: string
+    readonly handshakeSha256: string
+  }
   /** Records one completed or rejected CLI observation under this acquired report authority. */
   record(event: ObservationType): Promise<void>
   /** Rejects changes to original inputs, task authority, archive bytes, receipt or private copy. */
@@ -132,6 +137,8 @@ export async function prepare(
   const taskInputs = await Promise.all([
     new URL('./container.ts', import.meta.url),
     new URL('./container-worker.mjs', import.meta.url),
+    new URL('./attest.sh', import.meta.url),
+    new URL('./attest.mjs', import.meta.url),
     new URL('./command.ts', import.meta.url),
     ...authority,
   ].map(async (url) => ({ path: fileURLToPath(url), sha256: digest(await Deno.readFile(url)) })))
@@ -177,12 +184,20 @@ export async function prepare(
     await Deno.writeFile(join(directory, 'archives', 'artifacts.json'), receiptBytes, {
       mode: 0o444,
     })
-    await Deno.copyFile(
-      fileURLToPath(new URL('./container-worker.mjs', import.meta.url)),
-      join(directory, 'worker.mjs'),
-    )
-    // The worker is also a copyFile target, so its inherited Windows readonly attribute must not survive.
-    await Deno.chmod(join(directory, 'worker.mjs'), Deno.build.os === 'windows' ? 0o600 : 0o444)
+    for (
+      const [sourceName, targetName] of [
+        ['container-worker.mjs', 'worker.mjs'],
+        ['attest.sh', 'attest.sh'],
+        ['attest.mjs', 'attest.mjs'],
+      ]
+    ) {
+      await Deno.copyFile(
+        fileURLToPath(new URL(`./${sourceName}`, import.meta.url)),
+        join(directory, targetName!),
+      )
+      // Clear inherited readonly attributes only on newly acquired copied files.
+      await Deno.chmod(join(directory, targetName!), Deno.build.os === 'windows' ? 0o600 : 0o444)
+    }
     // Host-private directories stay owner-writable for removal without a chmod traversal.
     // The separate Linux bootstrap still establishes admitted directories as 0555.
     await admit(ownership)
@@ -226,8 +241,19 @@ export async function prepare(
     const worker = taskInputs.find((input) =>
       input.path === fileURLToPath(new URL('./container-worker.mjs', import.meta.url))
     )!
-    if (byPath.get('worker.mjs')?.sha256 !== worker.sha256) {
-      throw new Error('Copied worker differs from original admission.')
+    for (
+      const [sourceName, targetName] of [
+        ['container-worker.mjs', 'worker.mjs'],
+        ['attest.sh', 'attest.sh'],
+        ['attest.mjs', 'attest.mjs'],
+      ]
+    ) {
+      const input = taskInputs.find((entry) =>
+        entry.path === fileURLToPath(new URL(`./${sourceName}`, import.meta.url))
+      )!
+      if (byPath.get(targetName!)?.sha256 !== input.sha256) {
+        throw new Error('Copied bootstrap differs from original admission.')
+      }
     }
     const inputByPath = new Map(inputs.map((input) => [`consumer/${input.path}`, input]))
     const entries = copied.map((entry) => {
@@ -358,6 +384,12 @@ export async function prepare(
       receipt: retained,
       bootstrap: {
         workerSha256: worker.sha256,
+        supervisorSha256: taskInputs.find((entry) =>
+          entry.path === fileURLToPath(new URL('./attest.sh', import.meta.url))
+        )!.sha256,
+        handshakeSha256: taskInputs.find((entry) =>
+          entry.path === fileURLToPath(new URL('./attest.mjs', import.meta.url))
+        )!.sha256,
         receiptSha256: digest(new TextEncoder().encode(admitted)),
       },
       record: async (event) => {
@@ -370,7 +402,9 @@ export async function prepare(
         const errors: unknown[] = []
         const streams: Record<string, unknown> = {}
         for (const stream of ['stdout', 'stderr'] as const) {
-          if (!output) continue
+          if (!output) {
+            continue
+          }
           const raw = output.streams?.[stream]
           const bytes = raw?.bytes ?? new TextEncoder().encode(output[stream])
           const quota = 32 * 1024 * 1024
@@ -418,7 +452,9 @@ export async function prepare(
                     })) ?? [],
                   }
                   : { reason: observation(event.reason) }),
-                evidenceFailures: errors.map((error) => observation(error)),
+                evidenceFailures: errors.map((error) =>
+                  observation(error)
+                ),
               })
             }\n`,
             { createNew: true },
@@ -671,6 +707,8 @@ export async function run(
   const name = `rdf-packed-copy-${crypto.randomUUID()}`
   const failures: unknown[] = []
   const marker = `/tmp/admitted-${crypto.randomUUID()}`
+  const ordinaryGate = `/tmp/library-attest-${crypto.randomUUID()}`
+  const ordinaryNonce = crypto.randomUUID()
   let created = false
   try {
     await payload.verify()
@@ -706,7 +744,12 @@ export async function run(
       'while [ ! -f "$1" ]; do sleep 0.1; done; shift; cd /work/consumer || exit; exec "$@"',
       '--',
       marker,
-      ...command,
+      '/bin/sh',
+      '/work/attest.sh',
+      'ordinary',
+      ordinaryGate,
+      ordinaryNonce,
+      ...permissions(command, ordinaryGate),
     ], 30_000)
     created = true
     await payload.verify()
@@ -730,9 +773,9 @@ export async function run(
       name,
       '/bin/sh',
       '-c',
-      'for path in /work/worker.mjs /work/admission.json; do test -f "$path" && test ! -L "$path" && test "$(stat -c %h "$path")" = 1 && chown -h 0:0 "$path" || exit 1; done',
+      'for path in /work/worker.mjs /work/admission.json /work/attest.sh /work/attest.mjs; do test -f "$path" && test ! -L "$path" && test "$(stat -c %h "$path")" = 1 && chown -h 0:0 "$path" || exit 1; done',
     ], 30_000)
-    // The worker cannot serve as its own transport oracle: compare both bootstrap byte hashes first.
+    // The worker cannot serve as its own transport oracle: compare every bootstrap byte hash first.
     const bootstrap = await checked([
       'exec',
       '--user',
@@ -741,9 +784,11 @@ export async function run(
       'sha256sum',
       '/work/worker.mjs',
       '/work/admission.json',
+      '/work/attest.sh',
+      '/work/attest.mjs',
     ], 30_000)
     const expected =
-      `${payload.bootstrap.workerSha256}  /work/worker.mjs\n${payload.bootstrap.receiptSha256}  /work/admission.json`
+      `${payload.bootstrap.workerSha256}  /work/worker.mjs\n${payload.bootstrap.receiptSha256}  /work/admission.json\n${payload.bootstrap.supervisorSha256}  /work/attest.sh\n${payload.bootstrap.handshakeSha256}  /work/attest.mjs`
     if (bootstrap.stdout.trimEnd() !== expected) {
       throw new Error('Copied bootstrap bytes differ from independently admitted host hashes.', {
         cause: { bootstrap, expected },
@@ -752,8 +797,22 @@ export async function run(
     const admission = command[0] === 'deno'
       ? [...command.slice(0, -1), '--allow-write=/work', '/work/worker.mjs', '--admit']
       : [...command.slice(0, -1), '/work/worker.mjs', '--admit']
+    const rootGate = `/tmp/library-attest-${crypto.randomUUID()}`
     await checked(
-      ['exec', '--user', '0:0', '--workdir', '/work', name, ...admission],
+      [
+        'exec',
+        '--user',
+        '0:0',
+        '--workdir',
+        '/work',
+        name,
+        '/bin/sh',
+        '/work/attest.sh',
+        'root',
+        rootGate,
+        crypto.randomUUID(),
+        ...permissions(admission, rootGate),
+      ],
       120_000,
     )
     await checked(['exec', '--user', '0:0', name, 'touch', marker], 30_000)
@@ -789,6 +848,22 @@ export async function run(
   }
   if (failures.length) {
     throw new AggregateError(failures, `Copied consumer failed in ${image}, owned ${name}.`)
+  }
+
+  /** Only the acquired handshake directory is added to Deno's existing read/write authority. */
+  function permissions(args: readonly string[], gate: string): readonly string[] {
+    if (args[0] !== 'deno') return args
+    const expanded = args.map((arg) =>
+      arg.startsWith('--allow-read=') || arg.startsWith('--allow-write=') ? `${arg},${gate}` : arg
+    )
+    const additions = []
+    if (!args.some((arg) => arg === '--allow-read' || arg.startsWith('--allow-read='))) {
+      additions.push(`--allow-read=${gate}`)
+    }
+    if (!args.some((arg) => arg === '--allow-write' || arg.startsWith('--allow-write='))) {
+      additions.push(`--allow-write=${gate}`)
+    }
+    return [expanded[0]!, expanded[1]!, ...additions, ...expanded.slice(2)]
   }
 
   async function checked(args: readonly string[], timeoutMs: number): Promise<OutputType> {

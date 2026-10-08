@@ -70,6 +70,8 @@ const meta = {
     '.mise/tasks/storage-consumer.ts',
     '.mise/tasks/container.ts',
     '.mise/tasks/container-worker.mjs',
+    '.mise/tasks/attest.sh',
+    '.mise/tasks/attest.mjs',
     '.mise/tasks/command.ts',
   ],
   fixture: {} as Readonly<Record<string, string>>,
@@ -311,6 +313,8 @@ async function identity(): Promise<Readonly<Record<string, string>>> {
       resolve('.mise/tasks/storage-consumer.ts'),
       resolve('.mise/tasks/container.ts'),
       resolve('.mise/tasks/container-worker.mjs'),
+      resolve('.mise/tasks/attest.sh'),
+      resolve('.mise/tasks/attest.mjs'),
       resolve('.mise/tasks/command.ts'),
     ]
   ) result[file] = await hash(file)

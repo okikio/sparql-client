@@ -43,7 +43,7 @@
     "check:release": "deno check .mise/tasks/release.ts .bumpy/format.ts .mise/tasks/release-consumer.ts .mise/tasks/release_test.ts",
     "release:notes:check": "deno fmt --check .bumpy packages/*/CHANGELOG.md",
     "release:npm": "npm publish",
-    "test:tooling": "deno test --no-check --allow-read --allow-write --allow-run .mise/tasks/artifacts_test.ts .mise/tasks/schema_test.ts .mise/tasks/sources_test.ts .mise/tasks/container_test.ts .mise/tasks/command_test.ts && deno test --no-check --allow-read --allow-write --allow-run --allow-env .mise/tasks/bench-command_test.ts",
+    "test:tooling": "deno test --no-check --allow-read --allow-write --allow-run .mise/tasks/artifacts_test.ts .mise/tasks/schema_test.ts .mise/tasks/sources_test.ts .mise/tasks/container_test.ts .mise/tasks/attest_test.ts .mise/tasks/command_test.ts && deno test --no-check --allow-read --allow-write --allow-run --allow-env .mise/tasks/bench-command_test.ts",
     "test:release": "deno test --no-check -A .mise/tasks/release_test.ts",
     "release:consumer": "deno run -A .mise/tasks/release-consumer.ts",
     "browser:install": "deno run -A npm:@playwright/test@1.62.1 install --with-deps chromium firefox webkit"

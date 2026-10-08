@@ -4,6 +4,7 @@ import { chmod, lchown, lstat, readdir, readFile, readlink, realpath } from 'nod
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { argv } from 'node:process'
+import { attest } from './attest.mjs'
 
 /** Reads only a regular independent receipt from the already acquired private root. */
 async function receipt(root) {
@@ -186,18 +187,14 @@ async function main() {
   const failures = []
   let admitted
   try {
-    const status = await readFile('/proc/self/status', 'utf8')
-    const admitting = argv.includes('--admit')
-    for (const field of ['Uid', 'Gid']) {
-      const values = status.match(new RegExp(`^${field}:\\s+(.*)$`, 'm'))?.[1]?.trim().split(/\s+/u)
-      if (values?.length !== 4 || values.some((value) => value !== (admitting ? '0' : '1000'))) {
-        throw new Error('Consumer must run under its declared copied-payload authority.')
-      }
-    }
-    for (const field of admitting ? [] : ['CapEff', 'CapPrm', 'CapAmb']) {
-      if (!new RegExp(`^${field}:\\s*0+$`, 'm').test(status)) {
-        throw new Error(`Ordinary consumer retains ${field} capabilities.`)
-      }
+    const authority = await attest()
+    const args = argv.slice(2)
+    const admitting = args.length === 1 && args[0] === '--admit'
+    if (
+      !((admitting && authority.role === 'root') ||
+        (args.length === 0 && authority.role === 'ordinary'))
+    ) {
+      throw new Error('Copied worker arguments contradict its independently attested authority.')
     }
     admitted = await receipt(root)
     if (admitting) await admit(root)

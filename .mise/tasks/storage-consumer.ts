@@ -87,7 +87,7 @@ try {
         'deno',
         'run',
         '--no-config',
-        '--allow-read=/work,/tmp,/proc/self/status',
+        '--allow-read=/work,/tmp',
         '--allow-write=/tmp',
         '--allow-env',
         '--node-modules-dir=manual',

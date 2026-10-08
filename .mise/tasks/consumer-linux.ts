@@ -45,7 +45,7 @@ try {
         'deno',
         'run',
         '--no-config',
-        '--allow-read=/work,/proc/self/status',
+        '--allow-read=/work',
         '--allow-net=127.0.0.1',
         '--node-modules-dir=manual',
         '../worker.mjs',
