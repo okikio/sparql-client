@@ -1,4 +1,5 @@
-import { test as base } from '@playwright/test'
+import { own, test as base } from './fixture.ts'
+import { FIXTURE_MS } from './ready.ts'
 import type { BrowserContext } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -28,11 +29,7 @@ export const test = base.extend<object, { persistent: BrowserContext }>({
   context: async ({ persistent }, use) => {
     await use(persistent)
   },
-  page: async ({ context }, use) => {
-    await finish(async (releases) => {
-      const page = await context.newPage()
-      releases.push(() => page.close())
-      await use(page)
-    })
-  },
+  page: [async ({ context, entry }, use, info) => {
+    await own(context, entry, use, info)
+  }, { scope: 'test', timeout: FIXTURE_MS }],
 })

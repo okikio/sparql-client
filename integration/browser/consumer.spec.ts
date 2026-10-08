@@ -1,14 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from './fixture.ts'
 import type { browserTest } from './window.ts'
 import { query } from '../../conformance/query.ts'
 
 /** Each evaluation opts into the fixture global without polluting production declarations. */
 type FixtureType = typeof globalThis & { browserTest: typeof browserTest }
-
-test.beforeEach(async ({ page }) => {
-  await page.goto('/integration/browser/index.html')
-  await page.waitForFunction(() => Boolean((globalThis as Partial<FixtureType>).browserTest))
-})
 
 for (const realm of ['run', 'worker'] as const) {
   test(`${realm}: RDF chunks, terms, dataset indexes and SPARQL builder preserve semantics`, async ({ page }) => {

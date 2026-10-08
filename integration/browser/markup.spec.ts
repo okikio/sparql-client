@@ -1,7 +1,10 @@
 /** Browser host trees are independent oracles for the admitted native table profile. @module */
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from './fixture.ts'
 import type { parseMarkup as ReadMarkup } from '../../packages/rdf/markup.ts'
 import type { MarkupNodeType } from '../../packages/rdf/markup/model.ts'
+
+test.use({ entry: 'markup' })
 
 const cases = [
   '<table><td>one<td>two<tr><th>three</table>',
@@ -14,7 +17,6 @@ const cases = [
 
 for (const [index, source] of cases.entries()) {
   test(`table insertion ${index}: semantic ancestry matches the browser`, async ({ page }) => {
-    await page.goto('/integration/browser/index.html')
     const result = await page.evaluate(async (source) => {
       const uri = '/packages/rdf/markup.ts'
       const { parseMarkup } = await import(/* @vite-ignore */ uri) as {

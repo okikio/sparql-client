@@ -362,6 +362,46 @@ Browser gates use Playwright's `failOnFlakyTests` control, so a retry that passe
 
 Playwright runner artifacts, screenshots and traces live under `.tmp/reports/browser/artifacts/`, beside the JSON report. Runner cleanup recreates this ignored task-owned leaf rather than attempting to create `test-results` in the readonly release snapshot root. CI retains this same directory on failure.
 
+Browser pages have a native test-scoped fixture owner. It creates one page from the borrowed context,
+registers close immediately, and admits the authored document and selected module capabilities before
+handing the page to the test body. The fixture timeout is 90 seconds; navigation and readiness share
+at most 60 seconds, leaving framework time for retirement. In the pinned Playwright 1.62.1 runner,
+setup and teardown share this fixture slot; the body uses its separate ordinary clock. Page creation
+and close have no local timeout or AbortSignal, so their actual completion remains governed by the
+framework and outer runner rather than a promised hard 30 second close deadline. Numeric 50 millisecond
+polling avoids depending on animation frames in a background page. The ordinary behavioral test timeout remains 30 seconds.
+These are finite test acquisition limits, not consumer performance requirements.
+
+```sh
+deno task browser:install
+OPFS_SOURCE=../opfs deno task browser
+```
+
+The default fixture admits exactly the authored `run`, `worker` and `storage` functions. Markup
+comparisons also import and admit the actual `parseMarkup` capability outside their semantic body.
+The persistent storage fixture imports its optional source modules only when the selected capability
+exists. Its body still writes, compacts and reloads the page, then reconstructs the committed terms;
+reload and subsequent readiness receive the monotonic time remaining from that body's existing
+deadline, after its earlier writes. Worker construction and message semantics remain scenario behavior, with no unproven readiness-message extension.
+
+During acquisition, native page exceptions and same-origin document/script request or HTTP failures
+produce bounded diagnostic records. During native navigation these observations latch without aborting the
+document transaction; after navigation settles, a latched fault rejects admission before any API wait.
+An independent native rejection is retained alongside the original load fault, and a returned main
+response status remains separately recorded even when an earlier load event already failed. Later API-wait faults
+use the native cancellation signal. Required-document HTTP failure controls independently observe
+owned page close and continued use of the borrowed context. Script404 controls require completed authored404 fulfillment plus native HTTP or request failure
+for that exact selected script. Unrelated page exceptions cannot certify a selected-resource failure;
+a response status is asserted only when that engine supplies it. The listeners stop before behavioral assertions and exclude
+unrelated image/fetch request failures. Playwright owns the admission attachment path under the
+existing artifact root; original admission, attachment and owned-page close errors remain independent. The native
+controls in `integration/browser/readiness.spec.ts` use actual requested modules and explicit release
+gates, wrong API shapes and real script/request failures. These eight operational controls own a
+finite 120 second body limit because they directly exercise the 60 second acquisition inside their
+body; ordinary consumer, markup and storage bodies retain 30 seconds. This allows native failure
+retirement to remain under an active owner without promising a hard close deadline. They do not substitute a fake browser,
+relax library assertions or convert a supported failure into a skip.
+
 Browser fixtures start a fresh Vite server for each task and disable file watching and hot reload.
 Their source stays fixed for the run. This avoids watching nested OPFS dependency trees and
 report output while testing browser capabilities. Restart the task after editing a fixture.
