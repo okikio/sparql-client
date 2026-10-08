@@ -113,6 +113,33 @@ The remaining standards processors are also project-owned subpaths:
 
 These subpaths own their algorithms directly. They do not delegate through dynamic imports, generic processor injection, or hidden optional dependencies. External implementations remain test and benchmark references only.
 
+### Markup host authority
+
+RDFa, Microdata and JSON-LD HTML extraction use one bounded native HTML host;
+RDF/XML and XML/XHTML/SVG RDFa use a separate XML authority. Semantic processors
+consume the resulting element/text tree, so entity handling, parent ownership
+and source normalization have one owner per host language. Markup readers
+materialize their trees and result quads before yielding; source streaming does
+not imply incremental extraction or bounded memory per input chunk.
+
+The HTML authority implements the normative named-reference table, ASCII-only
+syntax whitespace, raw text/RCDATA, duplicate-attribute ownership, selected
+optional ends and table insertion/foster parenting. Implied table nodes obey
+`maxNodes` and `maxDepth`. Browser comparison tests check semantic ancestry,
+attributes and text independently of private frames and source offsets.
+
+The XML authority checks XML 1.0 syntax, namespaces, character/reference rules,
+line-ending/attribute normalization and standalone DOCTYPE declaration grammar.
+External declarations are parsed without fetching an external subset. DTD
+entities, default attributes and non-UTF-8 input remain outside this profile.
+
+The selected RDF corpora establish those cases, not full HTML/XML host
+conformance. Template/foreign/frameset/plaintext construction, formatting
+adoption, double-escaped script data and general HTML recovery remain unfinished.
+They reject where identified rather than silently producing the wrong RDF tree.
+Full host authority remains an open implementation gate under the core's
+third-party-runtime dependency rule above.
+
 ### Parser lifecycle
 
 The native parser shape is:
@@ -173,7 +200,8 @@ It does not own a concrete database or query engine.
 The public model keeps grammar roles distinct:
 
 ```text
-SparqlTermType       one RDF/SPARQL term or legal predicate path
+SparqlTermType       one RDF/SPARQL term
+SparqlPathType       predicate-only property path
 SparqlExprType       one expression
 PatternValueType     one graph-pattern fragment
 SparqlQueryType      one complete query document
@@ -205,14 +233,29 @@ const query = sparql.select(['?product', '?name']).where(
 
 ```ts
 interface Queryable {
-  queryBindings(...): Promise<AsyncIterable<BindingType>>
-  queryQuads(...): Promise<AsyncIterable<Quad>>
+  queryBindings(...): Promise<ResultType<BindingType>>
+  queryQuads(...): Promise<ResultType<Quad>>
   queryBoolean(...): Promise<boolean>
   update(...): Promise<void>
 }
 ```
 
 The result modes correspond to different SPARQL operation classes and remain separate.
+
+Normal `for await` consumption stays unchanged. Early return requests release;
+`rows.cancel()` or `await rows.close()` also stop a never-consumed operation.
+`await rows.cleanup`, `close({ waitForCleanup: true })` and `await using` explicitly
+wait for cooperative release and can remain pending with an uncooperative source.
+Terminal abort does not pretend that cleanup completed. Cleanup rejects with both
+primary and secondary failures when both occur. Custom adapters wrap acquired
+iterables with `result(source, options)` rather than returning a lazy iterable.
+
+Constructed expressions and paths retain compact child references until one
+iterative, bounded serialization. Checked terms, projection aliases and graph
+clauses retain role/scope facts; there is no compulsory source AST dependency.
+Ordered group items preserve BIND/OPTIONAL/VALUES position; FILTER remains
+scoped to its containing group. Raw fragments deliberately keep syntax correctness
+with the caller and are not proof of a checked term/template/whole query.
 
 The public method is `update()`. Comunica calls its own upstream method `queryVoid()`, so `@okikio/comunica` adapts that private engine name to the generic public contract.
 
@@ -289,31 +332,52 @@ The triplestore owns a persistent indexed RDF dataset, not OPFS itself.
 
 It accepts a small structural filesystem capability. The caller retains ownership of that filesystem unless a future API explicitly transfers it.
 
-### Publication model
+### Publication and recovery
 
-The baseline persistence model uses immutable data segments and immutable generation records:
+Format 3 separates the trusted dataset head from the highest occupied generation.
+Publication allocates above every recognizable segment/commit filename, writes an
+immutable segment and commit, then verifies their exact bytes/checksum and checks
+that the discovered namespace still matches. This detects ordinary stale handles;
+it is not a filesystem compare-and-swap. The application must exclude every other
+writer to the root while a store or migration owns it. Promise fulfillment is a
+process-visible publication receipt, not an fsync or power-loss durability barrier.
 
-```text
-mutation
-   |
-   v
-write immutable segment
-   |
-   v
-verify segment metadata/hash inputs
-   |
-   v
-publish immutable generation record
-   |
-   v
-new generation becomes recoverable
-```
+Recovery admits typed artifact corruption as a fallback candidate. Cancellation,
+filesystem errors, unsupported/mixed protocol versions and exceeded resource
+budgets terminate open. A corrupt sole authoritative generation never becomes an
+empty successful store. Each immutable artifact is verified/cached once per open;
+total bytes, parsed quads, replay steps, unique quads and discovered records have
+explicit positive safe-integer limits. An optional `openReadStream` caps consumed
+bytes; a `readText`-only filesystem may allocate its text before the store can cap it.
 
-Open scans committed generations from newest to oldest and chooses the newest generation whose authoritative data can be read and validated.
+After fallback, the next publication uses a self-contained snapshot above the
+occupied high-water mark. A snapshot's older parent records provenance and need
+not be available on reopen. Delta parents remain required replay dependencies.
+Corrupt/torn history is retained; opening and writing do not repair or delete it.
 
-An incomplete publication is ignored. A corrupt newest committed generation can fall back only when an older valid committed generation actually exists. A corrupt only-generation must not reopen as an empty database.
+A mutation that fails after a write starts rejects with `StoreError` kind
+`outcome-unknown` and preserves its primary `cause`. The live handle rejects more
+writes. Close it, await `store.settlement`, exclude other writers and reopen before
+choosing a new mutation. Cancellation terminates promptly even when the borrowed
+filesystem's write ignores its signal; settlement observes those actual pending
+writes. It cannot guarantee completion from an uncooperative filesystem. Earlier
+acknowledged batches of `import` remain published if a later batch fails.
 
-This avoids requiring atomic rename semantics from every filesystem adapter.
+### Format migration
+
+Format 2 opens read-only. `migrate(fs, { from, to })` copies the recovered dataset
+into a distinct, caller-exclusive root without changing source bytes. The new
+format marker contains persisted operation/source/destination/fingerprint intent.
+Ordinary open requires `ready.json`; the migration's internal verification mode
+checks the initial snapshot before publishing that immutable receipt. A snapshot
+without readiness is not an admitted migration destination.
+
+A retry resumes only exact matching intent and artifact bytes. A torn conflicting
+destination requires a fresh root; there is no assumed atomic pointer switch.
+Readiness validates the identified initial snapshot, not the latest mutable head,
+so migrate → mutate → close → reopen accepts later history. Old readers reject
+format 3 rather than interpreting sparse generations using format 2 rules. The
+caller decides when to switch application paths and retains the source for rollback.
 
 ### Indexes
 
@@ -333,7 +397,15 @@ The current JavaScript store API is synchronous. The adapter checks abort before
 
 `@okikio/comunica` wraps a caller-created QueryEngine. The caller decides sources/context.
 
-Streaming results destroy upstream work when the consumer stops early or the supplied signal aborts. Non-streaming cancellation still depends on context/features provided by the upstream engine.
+Streaming result ownership starts at acquisition, before any pull. SELECT/graph
+results implement `ResultType`: one consumer, one pending pull, prompt terminal
+abort/close, and a separate `cleanup` promise for cooperative release. An acquired
+but never-consumed stream is still cancelable. A late response after acquisition
+abort is retired once; `onCleanup` can observe that retirement without delaying
+terminal rejection. Promise-based Boolean/update operations race caller abort,
+but their underlying work may continue unless upstream context supports cancel.
+An aborted update can have an unknown remote outcome; it is not safe to infer
+rollback or retry automatically.
 
 ### Ownership
 
@@ -356,6 +428,8 @@ The repository uses several explicit seams so changing specifications do not for
 | persistent filesystems        | structural filesystem capability                        |
 
 ## Cancellation and ownership flow
+
+JSON-LD generalized RDF is an explicit result boundary. The JSON-LD facade returns `Quad` values by default and `GeneralizedQuadType` values when `produceGeneralizedRdf` is enabled. The wider type permits blank predicates without weakening the ordinary RDF term model. Dataset storage, canonicalization, and standard syntax writers continue to require named predicates. JSON-LD conversion allocates fresh RDF blank identities per document while preserving repeated references across the document's graphs and generalized predicate positions. RDF-to-JSON-LD conversion retains caller-supplied RDF identities.
 
 ```text
 caller AbortSignal
@@ -479,7 +553,7 @@ There is no permanent root `src/` or centralized `tests/` directory.
 
 ## Remaining release gates
 
-The architecture is not a release certification. Before publication, the project still needs canonical Deno/JSR validation and external integration/conformance work documented in `VALIDATION.md`.
+The architecture is not a release certification. Each publication needs current canonical Deno/JSR, interoperability, conformance and artifact evidence under the gates documented in `VALIDATION.md`. Earlier successful runs do not certify a later source or package artifact.
 
 Most importantly:
 

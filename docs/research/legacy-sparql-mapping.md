@@ -1,5 +1,12 @@
 # SPARQL Mapping Guide
 
+> Historical reference: this document records an earlier API and its claims. It is
+> not the current grammar, API, or standards authority. Some examples and universal
+> coverage statements below are obsolete. Use the current
+> [SPARQL mapping](../sparql-mapping.md) and
+> [conformance and limitations](../conformance.md) for supported construction,
+> execution, and standards profiles.
+
 This guide shows how every library feature maps to SPARQL 1.1, and vice versa. Use this to:
 
 - Understand what SPARQL is generated

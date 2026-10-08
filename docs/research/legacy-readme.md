@@ -1,5 +1,11 @@
 # SPARQL Query Builder
 
+> Historical reference: this document records an earlier API and its claims. It is
+> not the current installation, API, or standards authority. Some examples and
+> coverage statements below are obsolete. Use the current [README](../../README.md),
+> [SPARQL mapping](../sparql-mapping.md), and
+> [conformance and limitations](../conformance.md) before writing consumer code.
+
 Writing SPARQL queries by hand means string concatenation, manual escaping, and hunting through parentheses when something breaks. This library gives you a type-safe query builder with a fluent API. Write `v('age').gte(18)` instead of `FILTER(?age >= 18)`, chain operations like `v('price').mul(1.2).round()`, and get autocomplete in your editor. TypeScript catches errors at compile time, values are properly escaped automatically, and you can compose queries from reusable pieces.
 
 ## Installation

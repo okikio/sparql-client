@@ -58,6 +58,13 @@ Read [`docs/architecture.md`](./docs/architecture.md) before architecture or pub
 - Measure memory and compiler cost when those can change an architectural decision.
 - Keep durable benchmark definitions in the owning package or `bench/`. Assistant-only raw benchmark captures must stay outside the repository; do not promote one run into a universal claim.
 - A surprising benchmark result is a profiling lead. Identify the mechanism, change one thing, and rerun the same oracle.
+- Adopt upstream regressions and workloads with immutable commits, original case identities, licenses/notices,
+  copied-byte hashes, adaptations and explicit profile exclusions. Upstream implementation behavior does not
+  override the selected specification or public contract.
+- Store raw executable source snapshots as inert data. Do not execute upstream setup or let our compiler,
+  formatter or linter reinterpret immutable copied source. Keep adapted harnesses in the normal checks.
+- Keep official standards profiles, upstream regression suites and performance observations as separate proof.
+  A supported case failure requires investigation or a fix, not a silent exclusion or candidate-derived oracle.
 
 ## Documentation
 
@@ -68,6 +75,13 @@ Read [`docs/architecture.md`](./docs/architecture.md) before architecture or pub
 - Do not preserve obsolete APIs merely for compatibility before the first stable release.
 
 ## Validation
+
+Local runtime tests use `deno task test` and `deno task test:release`, which supply `--no-check`.
+Use `deno test --no-check` for focused runs too. Integration tasks apply the same separation.
+Do not run `deno check`, `verify`, release preparation, or compiler-cost benchmarks on a workstation
+where checking has caused memory spikes. Run type and publication checks serially in CI or an
+isolated runner with a memory budget. Do not run checking beside local tests or benchmarks,
+and do not report runtime-only passes as type validation.
 
 Canonical Deno gates:
 
@@ -80,3 +94,19 @@ deno task bench
 ```
 
 When Deno or JSR is unavailable, keep production code Deno-native. Temporary Node validation is assistant-only scratch state and must stay outside the committed repository. `.agents/` is ignored as an additional safeguard.
+
+## Release notes
+
+Use Bumpy bump files in `.bumpy/` to record release intent. Each entry teaches the
+consumer what changed, why it matters, the affected scenario, and any migration.
+Show complete runnable examples for new or changed APIs. Use before/after output,
+tables, or diagrams when they explain semantics, resource ownership, or a workflow.
+Follow the explanatory quality of esbuild changelogs; do not reduce release notes
+to commit subjects. Group by consumer behavior. State supported standards and
+limitations precisely, and attach workload, runtime, units, and evidence to any
+performance claim. Verify examples against the exact release artifacts.
+
+Deno owns package tasks and the source implementation. Bumpy owns release intent,
+version propagation, and changelog rendering. Synchronize `package.json` and
+`deno.json` versions through `deno task release:version`; reject mismatched metadata
+before packing or publishing. Keep local release receipts under ignored `.tmp/`.

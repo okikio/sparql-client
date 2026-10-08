@@ -6,13 +6,14 @@ This guide maps the current `@okikio/sparql` API to SPARQL syntax and to the pac
 
 The package distinguishes the major grammar roles instead of treating every fragment as one branded string.
 
-| Type               | Meaning                                 | Typical producers                                                        |
-| ------------------ | --------------------------------------- | ------------------------------------------------------------------------ |
-| `SparqlTermType`   | one term or legal predicate-path syntax | `v()`, `iri()`, `tripleTerm()`, property-path helpers                    |
-| `SparqlExprType`   | one expression                          | comparison/arithmetic/functions, `exists()`                              |
-| `PatternValueType` | one graph-pattern fragment              | `triple()`, `filter()`, `optional()`, `graph()`, `service()`, `values()` |
-| `SparqlQueryType`  | one complete query document             | `QueryBuilder.build()`                                                   |
-| `SparqlUpdateType` | one complete Update document            | update builders                                                          |
+| Type               | Meaning                      | Typical producers                                                        |
+| ------------------ | ---------------------------- | ------------------------------------------------------------------------ |
+| `SparqlTermType`   | one RDF/SPARQL term          | `v()`, `uri()`, `tripleTerm()`                                           |
+| `SparqlPathType`   | predicate-only property path | `sequence()`, `alternative()`, repetition/inverse helpers                |
+| `SparqlExprType`   | one expression               | comparison/arithmetic/functions, `exists()`                              |
+| `PatternValueType` | one graph-pattern fragment   | `triple()`, `filter()`, `optional()`, `graph()`, `service()`, `values()` |
+| `SparqlQueryType`  | one complete query document  | `QueryBuilder.build()`                                                   |
+| `SparqlUpdateType` | one complete Update document | update builders                                                          |
 
 Complete query/update documents are intentionally not embeddable `SparqlValueType` fragments. Use `subquery()` when a complete query must become a graph pattern.
 
@@ -243,26 +244,34 @@ Do not use `?UNDEF` as a stand-in.
 A complete query is not automatically a graph pattern. Convert it explicitly:
 
 ```ts
+import * as sparql from '@okikio/sparql'
+
 const inner = sparql.select(['?person'])
-  .where(sparql.triple('?person', 'a', 'schema:Person'))
+  .prefix('schema', 'https://schema.org/')
+  .where(sparql.triple('?person', 'a', sparql.prefixed('schema', 'Person')))
 
 const outer = sparql.select('*')
   .where(sparql.subquery(inner))
 ```
 
-This keeps the public types aligned with the grammar instead of allowing arbitrary complete documents in WHERE.
+Only SELECT without FROM/FROM NAMED is a SubSelect. Compatible child prefixes are hoisted to the containing document; conflicting mappings reject. A plain object string is a literal: use `uri()` or `prefixed()` when the object denotes a class IRI.
 
 ## Updates
 
 A modify operation keeps DELETE, INSERT, and WHERE patterns separate:
 
 ```ts
-const update = sparql.modify()
-  .delete(sparql.triple('?person', 'foaf:age', '?oldAge'))
-  .insert(sparql.triple('?person', 'foaf:age', sparql.v('oldAge').add(1)))
-  .where(sparql.triple('?person', 'foaf:age', '?oldAge'))
-  .done()
+import * as sparql from '@okikio/sparql'
+
+const change = sparql.modify()
+  .delete(sparql.triple('?person', 'https://schema.org/age', '?oldAge'))
+  .insert(sparql.triple('?person', 'https://schema.org/age', '?newAge'))
+  .where(sparql.triple('?person', 'https://schema.org/age', '?oldAge'))
+  .where(sparql.bind(sparql.v('oldAge').add(1), 'newAge'))
+  .done().build()
 ```
+
+Expressions belong in WHERE/BIND, then their output variables belong in DELETE/INSERT templates. Evaluated clauses and property paths are rejected in checked templates. DATA rejects variables; DELETE rejects blank nodes, including those allocated by collections. Explicit raw fragments keep validation with their author.
 
 `INSERT DATA` and `DELETE DATA` graph positions require graph IRIs, not variables.
 
@@ -274,8 +283,8 @@ Construction and execution meet at the engine-neutral `Queryable` interface:
 
 ```ts
 interface Queryable {
-  queryBindings(query, options?): Promise<AsyncIterable<BindingType>>
-  queryQuads(query, options?): Promise<AsyncIterable<rdf.Quad>>
+  queryBindings(query, options?): Promise<ResultType<BindingType>>
+  queryQuads(query, options?): Promise<ResultType<rdf.Quad>>
   queryBoolean(query, options?): Promise<boolean>
   update(update, options?): Promise<void>
 }
