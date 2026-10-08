@@ -23,6 +23,12 @@ function cls(iri: string, name: string): ClassType {
 }
 
 describe('@okikio/vocab symbol planning', () => {
+  it('assigns collision ownership using ordinal IRI order', () => {
+    const result = plan(model([cls('urn:ä', 'Thing'), cls('urn:z', 'Thing')]), { prefix: 'ex' })
+    expect([...result.classes.keys()]).toEqual(['urn:z', 'urn:ä'])
+    expect(result.classes.get('urn:z')).toBe('Thing')
+    expect(result.classes.get('urn:ä')).not.toBe('Thing')
+  })
   it('resolves collisions independently of ontology input order', () => {
     const alpha = cls('https://a.example/Thing', 'Thing')
     const beta = cls('https://b.example/Thing', 'Thing')

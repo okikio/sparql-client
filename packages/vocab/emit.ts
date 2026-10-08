@@ -1,6 +1,7 @@
 /** TypeScript vocabulary source emitter. @module */
 
 import type { ManifestType, PropertyType, VocabularyModelType } from './model.ts'
+import { inherit } from './inherit.ts'
 import { createManifest } from './manifest.ts'
 import { type NamePlanType, plan } from './name.ts'
 import type { RangeKindType } from './runtime.ts'
@@ -17,6 +18,14 @@ export interface EmitOptionsType {
   readonly rdfImport?: string
   /** Module specifier used by generated source for vocabulary runtime imports. */
   readonly runtimeImport?: string
+  /** Maximum classes, properties, datatypes and declared inheritance/domain/range edges. Default 100,000. */
+  readonly maxTerms?: number
+  /** Maximum UTF-8 bytes of emitted TypeScript. Default 32 MiB; limits flattened inheritance output. */
+  readonly maxBytes?: number
+  /** Maximum effective property references materialized while resolving the inheritance DAG. Default 1,000,000. */
+  readonly maxProperties?: number
+  /** Caller cancellation checked before planning and at emitted lines. Synchronous work is not preemptible. */
+  readonly signal?: AbortSignal
 }
 
 /** Complete deterministic vocabulary generation result. */
@@ -35,8 +44,23 @@ export interface EmitResultType {
  * It intentionally keeps the ontology IR independent of TypeScript syntax.
  */
 export function emit(model: VocabularyModelType, options: EmitOptionsType): EmitResultType {
+  if (options.signal?.aborted) throw options.signal.reason
+  const maxTerms = options.maxTerms ?? 100_000, maxBytes = options.maxBytes ?? 32 * 1024 * 1024
+  for (const [name, value] of [['maxTerms', maxTerms], ['maxBytes', maxBytes]] as const) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new RangeError(`${name} must be a positive safe integer.`)
+    }
+  }
+  let terms = model.classes.length + model.properties.length + model.datatypes.length
+  for (const value of model.classes) terms += value.superClasses.length
+  for (const value of model.properties) terms += value.domains.length + value.ranges.length
+  if (terms > maxTerms) throw new RangeError(`Vocabulary model exceeds maxTerms (${maxTerms}).`)
   const names = plan(model, { prefix: options.prefix })
-  const writer = new Writer()
+  const inherited = inherit(model, {
+    ...(options.maxProperties === undefined ? {} : { maxProperties: options.maxProperties }),
+    ...(options.signal ? { signal: options.signal } : {}),
+  })
+  const writer = new Writer(maxBytes, options.signal)
   const rdfImport = options.rdfImport ?? '@okikio/rdf'
   const runtimeImport = options.runtimeImport ?? '@okikio/vocab/runtime'
 
@@ -47,9 +71,9 @@ export function emit(model: VocabularyModelType, options: EmitOptionsType): Emit
   writer.line(' * @module')
   writer.line(' */')
   writer.line('')
-  writer.line(`import { namedNode } from ${quote(rdfImport)}`)
+  writer.line(`import { namedNode, type NamedNode } from ${quote(rdfImport)}`)
   writer.line(
-    `import { createSchema, type IdReferenceType, type NodeType, type ValueType } from ${
+    `import { createSchema, type IdReferenceType, type NodeType, type ValueType, type VocabularySchema } from ${
       quote(runtimeImport)
     }`,
   )
@@ -59,8 +83,8 @@ export function emit(model: VocabularyModelType, options: EmitOptionsType): Emit
   writer.line('')
 
   emitTerms(writer, model, names)
-  emitProperties(writer, model, names)
-  emitClasses(writer, model, names)
+  emitProperties(writer, model, names, inherited)
+  emitClasses(writer, model, names, inherited)
   emitTypeMap(writer, model, names)
 
   return {
@@ -75,7 +99,7 @@ function emitTerms(writer: Writer, model: VocabularyModelType, names: NamePlanTy
   for (const value of model.classes) {
     const name = names.classes.get(value.iri)!
     emitDoc(writer, value.comments, value.deprecated, `RDF class term for ${name}.`)
-    writer.line(`export const ${name} = namedNode(${quote(value.iri)})`)
+    writer.line(`export const ${name}: NamedNode = namedNode(${quote(value.iri)})`)
   }
   writer.line('')
 
@@ -83,7 +107,7 @@ function emitTerms(writer: Writer, model: VocabularyModelType, names: NamePlanTy
   for (const iri of model.datatypes) {
     const name = names.datatypes.get(iri)!
     writer.line(`/** RDF datatype term for ${name}. */`)
-    writer.line(`export const ${name} = namedNode(${quote(iri)})`)
+    writer.line(`export const ${name}: NamedNode = namedNode(${quote(iri)})`)
   }
   writer.line('')
 
@@ -91,28 +115,33 @@ function emitTerms(writer: Writer, model: VocabularyModelType, names: NamePlanTy
   for (const value of model.properties) {
     const name = names.properties.get(value.iri)!
     emitDoc(writer, value.comments, value.deprecated, `RDF property term for ${name}.`)
-    writer.line(`export const ${name} = namedNode(${quote(value.iri)})`)
+    writer.line(`export const ${name}: NamedNode = namedNode(${quote(value.iri)})`)
   }
   writer.line('')
 }
 
 /** Emit properties deterministically to the caller-owned output. */
-function emitProperties(writer: Writer, model: VocabularyModelType, names: NamePlanType): void {
-  const byDomain = propertiesByDomain(model)
+function emitProperties(
+  writer: Writer,
+  model: VocabularyModelType,
+  names: NamePlanType,
+  byDomain: ReadonlyMap<string, readonly PropertyType[]>,
+): void {
   for (const value of model.classes) {
     const className = names.classes.get(value.iri)!
-    const supers = value.superClasses
-      .map((iri) => names.classes.get(iri))
-      .filter((name): name is string => name !== undefined)
-      .map((name) => `${name}PropertiesType`)
-    const heritage = supers.length > 0 ? ` extends ${supers.join(', ')}` : ''
     writer.line(
-      `/** JSON-LD properties directly available to ${className}, including inherited interfaces. */`,
+      `/** JSON-LD properties directly available to ${className}, including inherited structural properties. */`,
     )
-    writer.line(`export interface ${className}PropertiesType${heritage} {`)
+    writer.line(`export interface ${names.bindings.get(`class:${value.iri}`)!.properties} {`)
     writer.indent(() => {
       for (const property of byDomain.get(value.iri) ?? []) {
         const propertyName = names.properties.get(property.iri)!
+        emitDoc(
+          writer,
+          property.comments,
+          property.deprecated,
+          `JSON-LD value for ${propertyName}.`,
+        )
         writer.line(
           `readonly ${propertyKey(propertyName)}?: ValueType<${propertyType(property, names)}>`,
         )
@@ -124,29 +153,37 @@ function emitProperties(writer: Writer, model: VocabularyModelType, names: NameP
 }
 
 /** Emit classes deterministically to the caller-owned output. */
-function emitClasses(writer: Writer, model: VocabularyModelType, names: NamePlanType): void {
-  const directProperties = propertiesByDomain(model)
+function emitClasses(
+  writer: Writer,
+  model: VocabularyModelType,
+  names: NamePlanType,
+  directProperties: ReadonlyMap<string, readonly PropertyType[]>,
+): void {
   for (const value of model.classes) {
     const name = names.classes.get(value.iri)!
-    const parents = value.superClasses
-      .map((iri) => names.classes.get(iri))
-      .filter((parent): parent is string => parent !== undefined)
     writer.line(`/** JSON-LD node typed as ${name}. */`)
-    writer.line(`export type ${name}Type = NodeType<${quote(name)}, ${name}PropertiesType>`)
+    writer.line(
+      `export type ${names.bindings.get(`class:${value.iri}`)!.type} = NodeType<${quote(name)}, ${
+        names.bindings.get(`class:${value.iri}`)!.properties
+      }>`,
+    )
     writer.line(`/** Standard Schema validator and JSON Schema converter for ${name}. */`)
-    writer.line(`export const ${name}Schema = createSchema<${name}Type>({`)
+    writer.line(
+      `export const ${
+        names.bindings.get(`class:${value.iri}`)!.schema
+      }: VocabularySchema<unknown, ${
+        names.bindings.get(`class:${value.iri}`)!.type
+      }> = createSchema<${names.bindings.get(`class:${value.iri}`)!.type}>({`,
+    )
     writer.indent(() => {
       writer.line(`types: [${quote(name)}],`)
-      if (parents.length > 0) {
-        writer.line(`parents: () => [${parents.map((parent) => `${parent}Schema`).join(', ')}],`)
-      }
       const properties = directProperties.get(value.iri) ?? []
       if (properties.length > 0) {
         writer.line('properties: {')
         writer.indent(() => {
           for (const property of properties) {
             const propertyName = names.properties.get(property.iri)!
-            writer.line(`${propertyKey(propertyName)}: ${rangeLiteral(property)},`)
+            writer.line(`${propertyKey(propertyName)}: ${rangeLiteral(property, names)},`)
           }
         })
         writer.line('},')
@@ -163,7 +200,11 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   for (const iri of model.datatypes) {
     const name = names.datatypes.get(iri)!
     writer.line(`/** JavaScript value type for the ${name} RDF datatype. */`)
-    writer.line(`export type ${name}Type = ${scalarType(iri) ?? 'unknown'}`)
+    writer.line(
+      `export type ${names.bindings.get(`datatype:${iri}`)!.type} = ${
+        scalarType(iri) ?? 'unknown'
+      }`,
+    )
   }
   writer.line('')
   writer.line(
@@ -173,7 +214,10 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   writer.indent(() => {
     for (const value of model.classes) {
       const name = names.classes.get(value.iri)!
-      writer.line(`readonly ${propertyKey(name)}: ${name}PropertiesType`)
+      writer.line(`/** Property interface contributed by ${name} nodes. */`)
+      writer.line(
+        `readonly ${propertyKey(name)}: ${names.bindings.get(`class:${value.iri}`)!.properties}`,
+      )
     }
   })
   writer.line('}')
@@ -182,20 +226,20 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   writer.line('export type ClassNameType = keyof TypeMapType')
   writer.line('/** Resolves one generated class name to its property interface. */')
   writer.line(
-    'type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never',
+    'export type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType ? TypeMapType[Type] : never',
   )
   writer.line(
     '/** Converts the selected class-property union into one intersection for multi-typed nodes. */',
   )
   writer.line(
-    'type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never',
+    'export type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends (value: infer Intersection) => void ? Intersection : never',
   )
   writer.line('')
   writer.line(
     '/** Intersects the properties contributed by every class on a multi-typed JSON-LD node. */',
   )
   writer.line(
-    'type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object',
+    'export type MergedPropertiesType<Types extends readonly ClassNameType[]> = UnionToIntersection<PropertiesForType<Types[number]>> & object',
   )
   writer.line(
     '/** JSON-LD node carrying all properties contributed by the selected generated class names. */',
@@ -203,20 +247,6 @@ function emitTypeMap(writer: Writer, model: VocabularyModelType, names: NamePlan
   writer.line(
     'export type MultiTypeType<Types extends readonly ClassNameType[]> = NodeType<Types, MergedPropertiesType<Types>>',
   )
-}
-
-/** Indexes properties by directly declared domain without treating RDFS domain as requiredness. */
-function propertiesByDomain(model: VocabularyModelType): Map<string, PropertyType[]> {
-  const result = new Map<string, PropertyType[]>()
-  for (const property of model.properties) {
-    for (const domain of property.domains) {
-      const values = result.get(domain) ?? []
-      values.push(property)
-      result.set(domain, values)
-    }
-  }
-  for (const values of result.values()) values.sort((a, b) => a.iri.localeCompare(b.iri))
-  return result
 }
 
 /** Builds the generated TypeScript value type for one ontology property range. */
@@ -228,7 +258,13 @@ function propertyType(property: PropertyType, names: NamePlanType): string {
     if (scalar) types.add(scalar)
     else {
       const className = names.classes.get(range)
-      types.add(className ? `${className}Type | IdReferenceType` : 'unknown')
+      types.add(
+        className
+          ? `string | ${
+            names.bindings.get(`class:${range}`)!.type
+          } | IdReferenceType | Readonly<Record<string, unknown>>`
+          : 'unknown',
+      )
     }
   }
   return [...types].sort().join(' | ') || 'unknown'
@@ -252,7 +288,7 @@ function scalarType(iri: string): string | undefined {
 }
 
 /** Builds the runtime range descriptor emitted into a generated Standard Schema. */
-function rangeLiteral(property: PropertyType): string {
+function rangeLiteral(property: PropertyType, names: NamePlanType): string {
   const kinds = new Set<RangeKindType>()
   if (property.ranges.length === 0) kinds.add('unknown')
   for (const range of property.ranges) {
@@ -260,7 +296,7 @@ function rangeLiteral(property: PropertyType): string {
     if (scalar === 'string') kinds.add('string')
     else if (scalar === 'number') kinds.add('number')
     else if (scalar === 'boolean') kinds.add('boolean')
-    else kinds.add('node')
+    else kinds.add(names.classes.has(range) ? 'node' : 'unknown')
   }
   const values = [...kinds].sort()
   return values.length === 1 ? quote(values[0]!) : `[${values.map(quote).join(', ')}]`
@@ -310,10 +346,27 @@ class Writer {
   #lines: string[] = []
   /** Current indentation depth applied when the writer appends a source line. */
   #depth = 0
+  #bytes = 0
+  readonly #maxBytes: number
+  readonly #signal?: AbortSignal
+  /** Owns only output admission, without external resources. */
+  constructor(maxBytes: number, signal?: AbortSignal) {
+    this.#maxBytes = maxBytes
+    this.#signal = signal
+  }
 
   /** Appends one source line at the current indentation depth. */
   line(value = ''): void {
-    this.#lines.push(`${'  '.repeat(this.#depth)}${value}`)
+    if (this.#signal?.aborted) throw this.#signal.reason
+    const line = `${'  '.repeat(this.#depth)}${value}`
+    if (line.length + this.#bytes + 1 > this.#maxBytes) {
+      throw new RangeError(`Vocabulary output exceeds maxBytes (${this.#maxBytes}).`)
+    }
+    this.#bytes += new TextEncoder().encode(line).byteLength + 1
+    if (this.#bytes > this.#maxBytes) {
+      throw new RangeError(`Vocabulary output exceeds maxBytes (${this.#maxBytes}).`)
+    }
+    this.#lines.push(line)
   }
 
   /** Runs one nested emission step and restores indentation even when it throws. */

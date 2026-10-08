@@ -56,20 +56,49 @@ export type ValueType<T> = T | readonly T[]
 
 /** Open-world generated JSON-LD node. */
 export type NodeType<Type extends string | readonly string[], Properties extends object> = Readonly<
-  Properties & {
+  & Properties
+  & {
     /** JSON-LD type discriminator used by the generated vocabulary node. */
     readonly '@type': Type
-    /** JSON-LD node identifier used by the generated vocabulary node. */
-    readonly '@id'?: string
-    /** Optional JSON-LD context retained with the generated vocabulary node. */
-    readonly '@context'?: unknown
     /** Retains vocabulary-specific JSON-LD properties not modeled by the standard fields. */
     readonly [key: string]: unknown
   }
+  & {
+    readonly [Name in keyof typeof NODE_FIELDS]?: (typeof NODE_FIELDS)[Name] extends 'string'
+      ? string
+      : unknown
+  }
 >
 
+/**
+ * Reserved JSON-LD node field classifications. Public metadata is frozen; validators stay private.
+ * @id has a string value. @context remains opaque to this structural schema layer.
+ */
+export const NODE_FIELDS: Readonly<{
+  /** Node identifiers have string values in the structural programming model. */
+  readonly '@id': 'string'
+  /** Context values remain opaque to this structural programming model. */
+  readonly '@context': 'unknown'
+}> = Object.freeze(
+  {
+    /** Node identifier; structural validation checks its string shape, not IRI resolution. */
+    '@id': 'string',
+    /** A borrowed context value retained without JSON-LD context interpretation. */
+    '@context': 'unknown',
+  } as const,
+)
+
+/**
+ * Range labels accepted by createSchema. These classifications do not impose OWL/SHACL constraints.
+ * A node range accepts a string reference or an object; unknown accepts any value.
+ */
+export const RANGE_KINDS: readonly ['string', 'number', 'boolean', 'node', 'unknown'] = Object
+  .freeze(
+    ['string', 'number', 'boolean', 'node', 'unknown'] as const,
+  )
+
 /** Runtime range classes that can be represented safely by the structural validator. */
-export type RangeKindType = 'string' | 'number' | 'boolean' | 'node' | 'unknown'
+export type RangeKindType = (typeof RANGE_KINDS)[number]
 
 /** Generated runtime schema configuration. */
 export interface SchemaConfigType {
@@ -92,6 +121,35 @@ interface SchemaStateType {
 /** Generated schema metadata indexed by the public Standard Schema object. */
 const schemaState = new WeakMap<object, SchemaStateType>()
 
+/** Each range descriptor owns both validation and its JSON Schema projection. */
+const ranges = {
+  string: {
+    valid: (value: unknown): boolean => typeof value === 'string',
+    schema: { type: 'string' },
+  },
+  number: {
+    valid: (value: unknown): boolean => typeof value === 'number' && Number.isFinite(value),
+    schema: { type: 'number' },
+  },
+  boolean: {
+    valid: (value: unknown): boolean => typeof value === 'boolean',
+    schema: { type: 'boolean' },
+  },
+  node: {
+    valid: (value: unknown): boolean => typeof value === 'string' || isRecord(value),
+    schema: { anyOf: [{ type: 'string' }, { type: 'object' }] },
+  },
+  unknown: { valid: (_value: unknown): boolean => true, schema: {} },
+} as const satisfies Record<RangeKindType, {
+  readonly valid: (value: unknown) => boolean
+  readonly schema: Readonly<Record<string, unknown>>
+}>
+
+/** Reserved field projections use the same private descriptors as declared property ranges. */
+const fields = Object.freeze(Object.fromEntries(
+  Object.entries(NODE_FIELDS).map(([name, kind]) => [name, ranges[kind]] as const),
+))
+
 /**
  * Creates an open-world structural vocabulary schema.
  *
@@ -99,17 +157,48 @@ const schemaState = new WeakMap<object, SchemaStateType>()
  * as requiredness; required/cardinality rules belong to a shape/profile layer.
  */
 export function createSchema<Output>(config: SchemaConfigType): VocabularySchema<unknown, Output> {
+  for (const name of Object.keys(config.properties ?? {})) {
+    if (name === '@type' || Object.hasOwn(fields, name)) {
+      throw new TypeError(`Reserved JSON-LD field '${name}' cannot be a vocabulary property.`)
+    }
+  }
+  if (!config.types.every((type) => typeof type === 'string')) {
+    throw new TypeError('Schema types must be strings.')
+  }
+  const types = Object.freeze([...config.types])
+  const properties: Record<string, readonly RangeKindType[]> = Object.create(null)
+  for (const [name, range] of Object.entries(config.properties ?? {})) {
+    const kinds = Array.isArray(range) ? range : [range]
+    if (!kinds.length || !kinds.every((kind) => Object.hasOwn(ranges, kind))) {
+      throw new TypeError(`Invalid range for '${name}'.`)
+    }
+    properties[name] = Object.freeze([...kinds])
+  }
+  Object.freeze(properties)
+  const typeShape = {
+    valid: (value: unknown) => hasType(value, types),
+    schema: {
+      type: 'array',
+      items: { type: 'string' },
+      ...(types.length ? { allOf: types.map((type) => ({ contains: { const: type } })) } : {}),
+    },
+  }
   const validate = (value: unknown): StandardResult<Output> => {
     const issues: StandardIssue[] = []
     if (!isRecord(value)) return { issues: [{ message: 'Expected a JSON-LD object.' }] }
 
-    if (!hasType(value['@type'], config.types)) {
+    if (!typeShape.valid(value['@type'])) {
       issues.push({
-        message: `Expected @type to include ${config.types.join(', ')}.`,
+        message: `Expected @type to include ${types.join(', ')}.`,
         path: ['@type'],
       })
     }
 
+    for (const [name, descriptor] of Object.entries(fields)) {
+      if (value[name] !== undefined && !descriptor.valid(value[name])) {
+        issues.push({ message: `Expected ${name} to be a string.`, path: [name] })
+      }
+    }
     visitProperties(schema, (name, range) => {
       const property = value[name]
       if (property === undefined) return
@@ -131,17 +220,14 @@ export function createSchema<Output>(config: SchemaConfigType): VocabularySchema
   const jsonSchema = (options: JsonSchemaOptions): Record<string, unknown> => {
     const schemaUri = getSchemaUri(options.target)
     const properties: Record<string, unknown> = {
-      '@type': {
-        anyOf: [
-          config.types.length === 1 ? { const: config.types[0] } : { enum: [...config.types] },
-          {
-            type: 'array',
-            items: { type: 'string' },
-            allOf: config.types.map((type) => ({ contains: { const: type } })),
-          },
-        ],
-      },
-      '@id': { type: 'string' },
+      '@type': types.length === 1
+        ? { anyOf: [{ const: types[0] }, structuredClone(typeShape.schema)] }
+        : structuredClone(typeShape.schema),
+      ...Object.fromEntries(
+        Object.entries(fields).map((
+          [name, descriptor],
+        ) => [name, structuredClone(descriptor.schema)]),
+      ),
     }
     visitProperties(schema, (name, range) => {
       const kinds = Array.isArray(range) ? range : [range]
@@ -166,7 +252,7 @@ export function createSchema<Output>(config: SchemaConfigType): VocabularySchema
     },
   }
   schemaState.set(schema, {
-    properties: config.properties ?? {},
+    properties,
     parents: config.parents ?? (() => []),
   })
   return schema
@@ -216,39 +302,12 @@ function hasType(value: unknown, required: readonly string[]): boolean {
 
 /** Checks one JSON-LD property value against the generated open-world range kinds. */
 function matches(value: unknown, kinds: readonly RangeKindType[]): boolean {
-  if (kinds.includes('unknown')) return true
-  return kinds.some((kind) => {
-    switch (kind) {
-      case 'string':
-        return typeof value === 'string'
-      case 'number':
-        return typeof value === 'number' && Number.isFinite(value)
-      case 'boolean':
-        return typeof value === 'boolean'
-      case 'node':
-        return typeof value === 'string' || isRecord(value)
-      case 'unknown':
-        return true
-    }
-  })
+  return kinds.some((kind) => ranges[kind].valid(value))
 }
 
-/** Converts generated vocabulary range kinds into their JSON Schema representation. */
+/** Converts the same descriptors used by runtime validation into JSON Schema. */
 function jsonRange(kinds: readonly RangeKindType[]): Record<string, unknown> {
-  const schemas = kinds.map((kind): Record<string, unknown> => {
-    switch (kind) {
-      case 'string':
-        return { type: 'string' }
-      case 'number':
-        return { type: 'number' }
-      case 'boolean':
-        return { type: 'boolean' }
-      case 'node':
-        return { anyOf: [{ type: 'string' }, { type: 'object' }] }
-      case 'unknown':
-        return {}
-    }
-  })
+  const schemas = kinds.map((kind) => structuredClone(ranges[kind].schema))
   return schemas.length === 1 ? schemas[0]! : { anyOf: schemas }
 }
 

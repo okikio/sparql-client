@@ -1,6 +1,7 @@
 /** Deterministic vocabulary symbol planning. @module */
 
 import type { SymbolType, VocabularyModelType } from './model.ts'
+import { compare } from './order.ts'
 
 /** Options that control generated identifier fallback names. */
 export interface NameOptionsType {
@@ -18,6 +19,8 @@ export interface NamePlanType {
   readonly datatypes: ReadonlyMap<string, string>
   /** Generated source symbols indexed by their vocabulary IRIs. */
   readonly symbols: readonly SymbolType[]
+  /** Complete export families indexed by role and IRI. */
+  readonly bindings: ReadonlyMap<string, SymbolType['exports']>
 }
 
 /** ECMAScript/TypeScript words that cannot be emitted unchanged as binding identifiers. */
@@ -75,24 +78,50 @@ const RESERVED = new Set([
  * Creates a byte-stable identifier plan for one vocabulary model.
  *
  * Canonical local names win when they are valid and unique. Invalid or colliding
- * names receive a deterministic vocabulary-qualified fallback. The fallback is
- * intentionally exceptional; ordinary generated APIs retain vocabulary-native
+ * names receive a deterministic vocabulary-qualified fallback. A resource can
+ * have several ontology roles; each role claims its own binding. The fallback
+ * is intentionally exceptional; ordinary generated APIs retain vocabulary-native
  * names such as `Product` and `name`.
  */
 export function plan(model: VocabularyModelType, options: NameOptionsType): NamePlanType {
-  const used = new Map<string, string>()
+  const used = new Map<string, string>([
+    'namespace',
+    'namedNode',
+    'NamedNode',
+    'createSchema',
+    'IdReferenceType',
+    'NodeType',
+    'ValueType',
+    'VocabularySchema',
+    'TypeMapType',
+    'ClassNameType',
+    'PropertiesForType',
+    'UnionToIntersection',
+    'MergedPropertiesType',
+    'MultiTypeType',
+  ].map((name) => [name, 'module']))
   const classes = new Map<string, string>()
   const properties = new Map<string, string>()
   const datatypes = new Map<string, string>()
   const symbols: SymbolType[] = []
 
-  for (const value of [...model.classes].sort((left, right) => left.iri.localeCompare(right.iri))) {
+  for (const value of [...model.classes].sort((left, right) => compare(left.iri, right.iri))) {
     const name = claim(preferred(value.names, value.iri), value.iri, options.prefix, used, 'Class')
     classes.set(value.iri, name)
-    symbols.push({ iri: value.iri, kind: 'class', name })
+    symbols.push({
+      iri: value.iri,
+      kind: 'class',
+      name,
+      exports: {
+        term: name,
+        type: `${name}Type`,
+        schema: `${name}Schema`,
+        properties: `${name}PropertiesType`,
+      },
+    })
   }
   for (
-    const value of [...model.properties].sort((left, right) => left.iri.localeCompare(right.iri))
+    const value of [...model.properties].sort((left, right) => compare(left.iri, right.iri))
   ) {
     const name = claim(
       preferred(value.names, value.iri),
@@ -102,16 +131,22 @@ export function plan(model: VocabularyModelType, options: NameOptionsType): Name
       'Property',
     )
     properties.set(value.iri, name)
-    symbols.push({ iri: value.iri, kind: 'property', name })
+    symbols.push({ iri: value.iri, kind: 'property', name, exports: { term: name } })
   }
-  for (const iri of [...model.datatypes].sort((left, right) => left.localeCompare(right))) {
+  for (const iri of [...model.datatypes].sort(compare)) {
     const name = claim(localName(iri), iri, options.prefix, used, 'Datatype')
     datatypes.set(iri, name)
-    symbols.push({ iri, kind: 'datatype', name })
+    symbols.push({ iri, kind: 'datatype', name, exports: { term: name, type: `${name}Type` } })
   }
 
-  symbols.sort((a, b) => a.iri.localeCompare(b.iri) || a.kind.localeCompare(b.kind))
-  return { classes, properties, datatypes, symbols }
+  symbols.sort((a, b) => compare(a.iri, b.iri) || compare(a.kind, b.kind))
+  return {
+    classes,
+    properties,
+    datatypes,
+    symbols,
+    bindings: new Map(symbols.map((symbol) => [`${symbol.kind}:${symbol.iri}`, symbol.exports])),
+  }
 }
 
 /** Selects the first valid non-reserved ontology name before falling back to the IRI local name. */
@@ -128,26 +163,34 @@ function claim(
   used: Map<string, string>,
   kind: 'Class' | 'Property' | 'Datatype',
 ): string {
+  const identity = `${kind}:${iri}`
   const base = isIdentifier(candidate) && !RESERVED.has(candidate)
     ? candidate
     : `${safePrefix(prefix)}${pascal(candidate || localName(iri))}`
-  const owner = used.get(base)
-  if (!owner || owner === iri) {
-    used.set(base, iri)
-    return base
+  const family = (name: string): string[] =>
+    kind === 'Class'
+      ? [name, `${name}Type`, `${name}Schema`, `${name}PropertiesType`]
+      : kind === 'Datatype'
+      ? [name, `${name}Type`]
+      : [name]
+  const reserve = (name: string): boolean => {
+    const bindings = family(name)
+    if (bindings.some((binding) => used.has(binding) && used.get(binding) !== identity)) {
+      return false
+    }
+    for (const binding of bindings) used.set(binding, identity)
+    return true
   }
-
+  if (reserve(base)) return base
   const qualified = `${safePrefix(prefix)}${pascal(base)}${kind}`
-  const qualifiedOwner = used.get(qualified)
-  if (!qualifiedOwner || qualifiedOwner === iri) {
-    used.set(qualified, iri)
-    return qualified
+  if (reserve(qualified)) return qualified
+  const digest = `${qualified}${hash(iri)}`
+  if (reserve(digest)) return digest
+  // Hashes are only naming hints, never uniqueness authority.
+  for (let suffix = 2;; suffix++) {
+    const fallback = `${digest}_${suffix}`
+    if (reserve(fallback)) return fallback
   }
-
-  // Stable short IRI digest avoids source-order-dependent numeric suffixes.
-  const fallback = `${qualified}${hash(iri)}`
-  used.set(fallback, iri)
-  return fallback
 }
 
 /** Converts an arbitrary vocabulary prefix into a valid PascalCase TypeScript identifier prefix. */

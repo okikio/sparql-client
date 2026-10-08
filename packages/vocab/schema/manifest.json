@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generator": "@okikio/vocab/0.1.0",
+  "generator": "@okikio/vocab/0.2.0",
   "vocabulary": "Schema.org bootstrap",
   "sources": [
     {
@@ -13,72 +13,130 @@
     {
       "iri": "https://schema.org/Boolean",
       "kind": "datatype",
-      "name": "Boolean"
+      "name": "Boolean",
+      "exports": {
+        "term": "Boolean",
+        "type": "BooleanType"
+      }
     },
     {
       "iri": "https://schema.org/description",
       "kind": "property",
-      "name": "description"
+      "name": "description",
+      "exports": {
+        "term": "description"
+      }
     },
     {
       "iri": "https://schema.org/Intangible",
       "kind": "class",
-      "name": "Intangible"
+      "name": "Intangible",
+      "exports": {
+        "term": "Intangible",
+        "type": "IntangibleType",
+        "schema": "IntangibleSchema",
+        "properties": "IntangiblePropertiesType"
+      }
     },
     {
       "iri": "https://schema.org/name",
       "kind": "property",
-      "name": "name"
+      "name": "name",
+      "exports": {
+        "term": "name"
+      }
     },
     {
       "iri": "https://schema.org/Number",
       "kind": "datatype",
-      "name": "Number"
+      "name": "Number",
+      "exports": {
+        "term": "Number",
+        "type": "NumberType"
+      }
     },
     {
       "iri": "https://schema.org/Offer",
       "kind": "class",
-      "name": "Offer"
+      "name": "Offer",
+      "exports": {
+        "term": "Offer",
+        "type": "OfferType",
+        "schema": "OfferSchema",
+        "properties": "OfferPropertiesType"
+      }
     },
     {
       "iri": "https://schema.org/offers",
       "kind": "property",
-      "name": "offers"
+      "name": "offers",
+      "exports": {
+        "term": "offers"
+      }
     },
     {
       "iri": "https://schema.org/price",
       "kind": "property",
-      "name": "price"
+      "name": "price",
+      "exports": {
+        "term": "price"
+      }
     },
     {
       "iri": "https://schema.org/priceCurrency",
       "kind": "property",
-      "name": "priceCurrency"
+      "name": "priceCurrency",
+      "exports": {
+        "term": "priceCurrency"
+      }
     },
     {
       "iri": "https://schema.org/Product",
       "kind": "class",
-      "name": "Product"
+      "name": "Product",
+      "exports": {
+        "term": "Product",
+        "type": "ProductType",
+        "schema": "ProductSchema",
+        "properties": "ProductPropertiesType"
+      }
     },
     {
       "iri": "https://schema.org/sku",
       "kind": "property",
-      "name": "sku"
+      "name": "sku",
+      "exports": {
+        "term": "sku"
+      }
     },
     {
       "iri": "https://schema.org/Text",
       "kind": "datatype",
-      "name": "Text"
+      "name": "Text",
+      "exports": {
+        "term": "Text",
+        "type": "TextType"
+      }
     },
     {
       "iri": "https://schema.org/Thing",
       "kind": "class",
-      "name": "Thing"
+      "name": "Thing",
+      "exports": {
+        "term": "Thing",
+        "type": "ThingType",
+        "schema": "ThingSchema",
+        "properties": "ThingPropertiesType"
+      }
     },
     {
       "iri": "https://schema.org/URL",
       "kind": "datatype",
-      "name": "URL"
+      "name": "URL",
+      "exports": {
+        "term": "URL",
+        "type": "URLType"
+      }
     }
   ],
   "diagnostics": [

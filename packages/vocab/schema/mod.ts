@@ -5,8 +5,14 @@
  * @module
  */
 
-import { namedNode } from '@okikio/rdf'
-import { createSchema, type IdReferenceType, type NodeType, type ValueType } from '../runtime.ts'
+import { type NamedNode, namedNode } from '@okikio/rdf'
+import {
+  createSchema,
+  type IdReferenceType,
+  type NodeType,
+  type ValueType,
+  type VocabularySchema,
+} from '../runtime.ts'
 
 /** Base IRI used by every generated vocabulary term in this module. */
 export const namespace = 'https://schema.org/'
@@ -15,91 +21,130 @@ export const namespace = 'https://schema.org/'
 /**
  * A compact bootstrap class used to validate the generator and direct-import API.
  */
-export const Offer = namedNode('https://schema.org/Offer')
+export const Offer: NamedNode = namedNode('https://schema.org/Offer')
 /**
  * A compact bootstrap class used to validate the generator and direct-import API.
  */
-export const Product = namedNode('https://schema.org/Product')
+export const Product: NamedNode = namedNode('https://schema.org/Product')
 /**
  * The most generic type of item in this bootstrap vocabulary slice.
  */
-export const Thing = namedNode('https://schema.org/Thing')
+export const Thing: NamedNode = namedNode('https://schema.org/Thing')
 /**
  * RDF class term for Intangible.
  */
-export const Intangible = namedNode('https://schema.org/Intangible')
+export const Intangible: NamedNode = namedNode('https://schema.org/Intangible')
 
 /** RDF datatype terms. */
 /** RDF datatype term for Boolean. */
-export const Boolean = namedNode('https://schema.org/Boolean')
+export const Boolean: NamedNode = namedNode('https://schema.org/Boolean')
 /** RDF datatype term for Number. */
-export const Number = namedNode('https://schema.org/Number')
+export const Number: NamedNode = namedNode('https://schema.org/Number')
 /** RDF datatype term for Text. */
-export const Text = namedNode('https://schema.org/Text')
+export const Text: NamedNode = namedNode('https://schema.org/Text')
 /** RDF datatype term for URL. */
-export const URL = namedNode('https://schema.org/URL')
+export const URL: NamedNode = namedNode('https://schema.org/URL')
 
 /** RDF property terms. */
 /**
  * RDF property term for description.
  */
-export const description = namedNode('https://schema.org/description')
+export const description: NamedNode = namedNode('https://schema.org/description')
 /**
  * RDF property term for name.
  */
-export const name = namedNode('https://schema.org/name')
+export const name: NamedNode = namedNode('https://schema.org/name')
 /**
  * RDF property term for offers.
  */
-export const offers = namedNode('https://schema.org/offers')
+export const offers: NamedNode = namedNode('https://schema.org/offers')
 /**
  * RDF property term for price.
  */
-export const price = namedNode('https://schema.org/price')
+export const price: NamedNode = namedNode('https://schema.org/price')
 /**
  * RDF property term for priceCurrency.
  */
-export const priceCurrency = namedNode('https://schema.org/priceCurrency')
+export const priceCurrency: NamedNode = namedNode('https://schema.org/priceCurrency')
 /**
  * RDF property term for sku.
  */
-export const sku = namedNode('https://schema.org/sku')
+export const sku: NamedNode = namedNode('https://schema.org/sku')
 
-/** JSON-LD properties directly available to Offer, including inherited interfaces. */
-export interface OfferPropertiesType extends IntangiblePropertiesType {
-  /** Offer price represented using the generated schema.org vocabulary contract. */
+/** JSON-LD properties directly available to Offer, including inherited structural properties. */
+export interface OfferPropertiesType {
+  /**
+   * JSON-LD value for description.
+   */
+  readonly description?: ValueType<string>
+  /**
+   * JSON-LD value for name.
+   */
+  readonly name?: ValueType<string>
+  /**
+   * JSON-LD value for price.
+   */
   readonly price?: ValueType<number | string>
-  /** ISO-style currency code associated with the offer price. */
+  /**
+   * JSON-LD value for priceCurrency.
+   */
   readonly priceCurrency?: ValueType<string>
 }
 
-/** JSON-LD properties directly available to Product, including inherited interfaces. */
-export interface ProductPropertiesType extends ThingPropertiesType {
-  /** Offer nodes associated with this product. */
-  readonly offers?: ValueType<OfferType | IdReferenceType>
-  /** Merchant or catalog SKU associated with this product. */
+/** JSON-LD properties directly available to Product, including inherited structural properties. */
+export interface ProductPropertiesType {
+  /**
+   * JSON-LD value for description.
+   */
+  readonly description?: ValueType<string>
+  /**
+   * JSON-LD value for name.
+   */
+  readonly name?: ValueType<string>
+  /**
+   * JSON-LD value for offers.
+   */
+  readonly offers?: ValueType<
+    string | OfferType | IdReferenceType | Readonly<Record<string, unknown>>
+  >
+  /**
+   * JSON-LD value for sku.
+   */
   readonly sku?: ValueType<string>
 }
 
-/** JSON-LD properties directly available to Thing, including inherited interfaces. */
+/** JSON-LD properties directly available to Thing, including inherited structural properties. */
 export interface ThingPropertiesType {
-  /** Human-readable description of this schema.org Thing. */
+  /**
+   * JSON-LD value for description.
+   */
   readonly description?: ValueType<string>
-  /** Schema.org `name` value for this Thing. */
+  /**
+   * JSON-LD value for name.
+   */
   readonly name?: ValueType<string>
 }
 
-/** JSON-LD properties directly available to Intangible, including inherited interfaces. */
-export interface IntangiblePropertiesType extends ThingPropertiesType {
+/** JSON-LD properties directly available to Intangible, including inherited structural properties. */
+export interface IntangiblePropertiesType {
+  /**
+   * JSON-LD value for description.
+   */
+  readonly description?: ValueType<string>
+  /**
+   * JSON-LD value for name.
+   */
+  readonly name?: ValueType<string>
 }
 
 /** JSON-LD node typed as Offer. */
 export type OfferType = NodeType<'Offer', OfferPropertiesType>
 /** Standard Schema validator and JSON Schema converter for Offer. */
-export const OfferSchema = createSchema<OfferType>({
+export const OfferSchema: VocabularySchema<unknown, OfferType> = createSchema<OfferType>({
   types: ['Offer'],
-  parents: () => [IntangibleSchema],
   properties: {
+    description: 'string',
+    name: 'string',
     price: ['number', 'string'],
     priceCurrency: 'string',
   },
@@ -108,10 +153,11 @@ export const OfferSchema = createSchema<OfferType>({
 /** JSON-LD node typed as Product. */
 export type ProductType = NodeType<'Product', ProductPropertiesType>
 /** Standard Schema validator and JSON Schema converter for Product. */
-export const ProductSchema = createSchema<ProductType>({
+export const ProductSchema: VocabularySchema<unknown, ProductType> = createSchema<ProductType>({
   types: ['Product'],
-  parents: () => [ThingSchema],
   properties: {
+    description: 'string',
+    name: 'string',
     offers: 'node',
     sku: 'string',
   },
@@ -120,7 +166,7 @@ export const ProductSchema = createSchema<ProductType>({
 /** JSON-LD node typed as Thing. */
 export type ThingType = NodeType<'Thing', ThingPropertiesType>
 /** Standard Schema validator and JSON Schema converter for Thing. */
-export const ThingSchema = createSchema<ThingType>({
+export const ThingSchema: VocabularySchema<unknown, ThingType> = createSchema<ThingType>({
   types: ['Thing'],
   properties: {
     description: 'string',
@@ -131,9 +177,14 @@ export const ThingSchema = createSchema<ThingType>({
 /** JSON-LD node typed as Intangible. */
 export type IntangibleType = NodeType<'Intangible', IntangiblePropertiesType>
 /** Standard Schema validator and JSON Schema converter for Intangible. */
-export const IntangibleSchema = createSchema<IntangibleType>({
+export const IntangibleSchema: VocabularySchema<unknown, IntangibleType> = createSchema<
+  IntangibleType
+>({
   types: ['Intangible'],
-  parents: () => [ThingSchema],
+  properties: {
+    description: 'string',
+    name: 'string',
+  },
 })
 
 /** Generated datatype value aliases. */
@@ -148,28 +199,29 @@ export type URLType = string
 
 /** Generated class-name to property-interface map used by multi-typed JSON-LD nodes. */
 export interface TypeMapType {
-  /** Property contract contributed by the generated Offer class. */
+  /** Property interface contributed by Offer nodes. */
   readonly Offer: OfferPropertiesType
-  /** Property contract contributed by the generated Product class. */
+  /** Property interface contributed by Product nodes. */
   readonly Product: ProductPropertiesType
-  /** Property contract contributed by the generated Thing class. */
+  /** Property interface contributed by Thing nodes. */
   readonly Thing: ThingPropertiesType
-  /** Property contract contributed by the generated Intangible class. */
+  /** Property interface contributed by Intangible nodes. */
   readonly Intangible: IntangiblePropertiesType
 }
 
 /** Every generated vocabulary class name accepted by multi-type nodes. */
 export type ClassNameType = keyof TypeMapType
 /** Resolves one generated class name to its property interface. */
-type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType
+export type PropertiesForType<Type extends ClassNameType> = Type extends keyof TypeMapType
   ? TypeMapType[Type]
   : never
 /** Converts the selected class-property union into one intersection for multi-typed nodes. */
-type UnionToIntersection<Value> = (Value extends unknown ? (value: Value) => void : never) extends
-  (value: infer Intersection) => void ? Intersection : never
+export type UnionToIntersection<Value> =
+  (Value extends unknown ? (value: Value) => void : never) extends
+    (value: infer Intersection) => void ? Intersection : never
 
 /** Intersects the properties contributed by every class on a multi-typed JSON-LD node. */
-type MergedPropertiesType<Types extends readonly ClassNameType[]> =
+export type MergedPropertiesType<Types extends readonly ClassNameType[]> =
   & UnionToIntersection<PropertiesForType<Types[number]>>
   & object
 /** JSON-LD node carrying all properties contributed by the selected generated class names. */

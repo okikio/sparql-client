@@ -34,6 +34,9 @@ export async function compile(
   sources: readonly OntologySourceType[],
   options: CompileOptionsType,
 ): Promise<EmitResultType> {
-  const model = await inspect(sources, options.inspect)
+  const signal = options.signal && options.inspect?.signal
+    ? AbortSignal.any([options.signal, options.inspect.signal])
+    : options.signal ?? options.inspect?.signal
+  const model = await inspect(sources, { ...options.inspect, ...(signal ? { signal } : {}) })
   return emit(model, options)
 }

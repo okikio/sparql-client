@@ -3,6 +3,7 @@
 import type {
   AssertionType as OntologyAssertionType,
   ClassType as OntologyClassType,
+  DiagnosticType as OntologyDiagnosticType,
   PropertyType as OntologyPropertyType,
   SourceType as OntologySourceType,
   TextType as OntologyTextType,
@@ -45,6 +46,10 @@ export interface VocabularyModelType {
   readonly datatypes: readonly string[]
   /** RDF assertions retained because the current semantic layer does not interpret them further. */
   readonly assertions: readonly AssertionType[]
+  /** Optional full assertion provenance supplied by the generic ontology inspector. */
+  readonly evidence?: readonly AssertionType[]
+  /** Structured source diagnostics; diagnostics retains display text for historical manifest readers. */
+  readonly problems?: readonly OntologyDiagnosticType[]
   /** Structured diagnostics retained so recoverable source information is not silently discarded. */
   readonly diagnostics: readonly string[]
 }
@@ -57,6 +62,13 @@ export interface SymbolType {
   readonly kind: 'class' | 'property' | 'datatype'
   /** Generated TypeScript export name selected for this vocabulary IRI. */
   readonly name: string
+  /** Complete reserved export family, derived once by the naming authority. */
+  readonly exports: {
+    readonly term: string
+    readonly type?: string
+    readonly schema?: string
+    readonly properties?: string
+  }
 }
 
 /** Machine-readable output manifest. */
@@ -65,6 +77,8 @@ export interface ManifestType {
   readonly version: 1
   /** Generator identity and version recorded for reproducible vocabulary output. */
   readonly generator: string
+  /** Structured source diagnostics, when available from an inspected ontology. */
+  readonly problems?: readonly OntologyDiagnosticType[]
   /** Human-readable vocabulary name recorded in the generated manifest. */
   readonly vocabulary: string
   /** Source provenance records retained by the normalized ontology or vocabulary model. */

@@ -67,6 +67,8 @@ export async function inspect(
     properties: model.properties.map(toProperty),
     datatypes: model.datatypes,
     assertions: model.assertions,
+    evidence: model.evidence,
+    problems: model.diagnostics,
     diagnostics: model.diagnostics.map((value) => value.message),
   }
 }

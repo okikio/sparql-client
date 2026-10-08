@@ -1,10 +1,19 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
-import { createSchema } from './runtime.ts'
+import { createSchema, NODE_FIELDS, RANGE_KINDS } from './runtime.ts'
 
 describe('@okikio/vocab runtime', () => {
   it('validates every required multi-type name and accepts extension fields', async () => {
+    expect(NODE_FIELDS).toEqual({ '@id': 'string', '@context': 'unknown' })
+    expect(RANGE_KINDS).toEqual(['string', 'number', 'boolean', 'node', 'unknown'])
+    expect(Object.isFrozen(NODE_FIELDS) && Object.isFrozen(RANGE_KINDS)).toBe(true)
     const schema = createSchema({ types: ['Product', 'SoftwareApplication'] })
+    for (const context of [null, 42, [], 'urn:context', { opaque: true }]) {
+      const value = { '@type': ['Product', 'SoftwareApplication'], '@context': context }
+      expect(await schema['~standard'].validate(value)).toEqual({ value })
+    }
+    expect(schema['~standard'].jsonSchema.output({ target: 'draft-2020-12' }).properties)
+      .toMatchObject({ '@id': { type: 'string' }, '@context': {} })
     expect(
       await schema['~standard'].validate({
         '@type': ['Product', 'SoftwareApplication'],
@@ -54,6 +63,8 @@ describe('@okikio/vocab runtime', () => {
     })
 
     const invalid = await left['~standard'].validate({ '@type': 'Left', left: 'ok', right: 'bad' })
-    expect('issues' in invalid).toBe(true)
+    expect(invalid).toMatchObject({ issues: [{ path: ['right', 0] }] })
+    const value = { '@type': 'Left', left: 'ok', right: 1 }
+    expect(await left['~standard'].validate(value)).toEqual({ value })
   })
 })
