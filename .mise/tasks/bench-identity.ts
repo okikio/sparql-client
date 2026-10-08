@@ -4,9 +4,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { references } from '../../conformance/modules.ts'
 import { get } from './sources.ts'
 
-/** Hash runtime source, native workload definitions and their command/configuration authority. */
-export async function identity(root = '.'): Promise<Readonly<Record<string, string>>> {
-  const paths: string[] = [
+/** Fixed runtime/configuration and conservative preparation inputs; fixtures acquire this authority without a second list. */
+export const INPUTS = Object.freeze(
+  [
     'deno.json',
     'deno.lock',
     'package.json',
@@ -22,7 +22,12 @@ export async function identity(root = '.'): Promise<Readonly<Record<string, stri
     'conformance/query.ts',
     'conformance/modules.ts',
     'conformance/ownership.ts',
-  ]
+  ] as const,
+)
+
+/** Hash runtime source, native workload definitions and their command/configuration authority. */
+export async function identity(root = '.'): Promise<Readonly<Record<string, string>>> {
+  const paths: string[] = [...INPUTS]
   // Store recovery executes the test-only memory fixture. Other test files and
   // the independently measured compiler lane do not enter native runtime evidence.
   paths.push(

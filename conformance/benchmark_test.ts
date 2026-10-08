@@ -11,7 +11,8 @@ import type { PhaseType } from '../bench/vocab/compiler.ts'
 import type { OutputType } from '../.mise/tasks/bench-command.ts'
 import { parseDiagnostics } from '../bench/vocab/diagnostics.ts'
 import { inspect, references } from '../bench/vocab/workload.ts'
-import { assertStable, identity } from '../.mise/tasks/bench-identity.ts'
+import { assertStable, identity, INPUTS } from '../.mise/tasks/bench-identity.ts'
+import { createHash } from 'node:crypto'
 
 /** Artificial nanoseconds prove the native format contract without registering or running benchmarks. */
 function native() {
@@ -250,18 +251,7 @@ describe('benchmark evidence contracts', () => {
     const root = await Deno.makeTempDir({ prefix: 'benchmark-identity-' })
     try {
       const paths = [
-        'deno.json',
-        'deno.lock',
-        'package.json',
-        '.mise/tasks/bench-report.ts',
-        '.mise/tasks/benchmarks.ts',
-        '.mise/tasks/bench.ts',
-        '.mise/tasks/bench-identity.ts',
-        '.mise/tasks/bench-command.ts',
-        '.mise/tasks/sources.ts',
-        'conformance/query.ts',
-        'conformance/modules.ts',
-        'conformance/ownership.ts',
+        ...INPUTS,
         'integration/releases.ts',
         'packages/rdf/mod.ts',
         'packages/rdf/deno.json',
@@ -297,6 +287,11 @@ describe('benchmark evidence contracts', () => {
         "import '../../integration/releases.ts'",
       )
       const before = await identity(root)
+      // Preparation helpers invalidate provenance even though they are not timed operation callbacks.
+      const authoredDigest = createHash('sha256').update('original').digest('hex')
+      expect(before['.mise/tasks/attest.mjs']).toBe(authoredDigest)
+      expect(before['.mise/tasks/attest.sh']).toBe(authoredDigest)
+
       for (
         const path of [
           'packages/rdf/parse_test.ts',
@@ -314,6 +309,8 @@ describe('benchmark evidence contracts', () => {
       for (
         const path of [
           '.mise/tasks/bench-command.ts',
+          '.mise/tasks/attest.mjs',
+          '.mise/tasks/attest.sh',
           '.mise/tasks/sources.ts',
           'conformance/query.ts',
           'integration/releases.ts',
@@ -334,6 +331,12 @@ describe('benchmark evidence contracts', () => {
         expect(() => assertStable(current, after)).toThrow()
         await Deno.writeTextFile(`${root}/${path}`, original)
       }
+
+      // Missing physical authority must reject; an incomplete fixture must never yield a partial identity.
+      await Deno.remove(`${root}/.mise/tasks/attest.mjs`)
+      await expect(identity(root)).rejects.toBeInstanceOf(Deno.errors.NotFound)
+      await Deno.writeTextFile(`${root}/.mise/tasks/attest.mjs`, 'original')
+      assertStable(before, await identity(root))
     } finally {
       await Deno.remove(root, { recursive: true })
     }
