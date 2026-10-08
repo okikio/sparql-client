@@ -1,13 +1,21 @@
+import { pending } from '@okikio/rdf/stream'
 /** Comunica QueryEngine integration for the engine-neutral SPARQL contract. @module */
 
 import { fromQuad, fromTerm, type Quad, type Term } from '@okikio/rdf'
-import { getQueryText, getUpdateText, type Queryable, type QueryOptionsType } from '@okikio/sparql'
+import {
+  acquire,
+  getQueryText,
+  getUpdateText,
+  type Queryable,
+  type QueryOptionsType,
+  result,
+} from '@okikio/sparql'
 import type { BindingType } from '@okikio/sparql'
 
 /** Async result stream shape returned by Comunica query methods. */
 export interface ResultStream<Value> extends AsyncIterable<Value> {
   /** Node-style streams expose `destroy`; the adapter uses it for early cancellation when available. */
-  destroy?(error?: Error): void
+  destroy?(error?: Error): void | PromiseLike<void>
 }
 
 /** Minimal Comunica QueryEngine surface used by this adapter. */
@@ -57,53 +65,58 @@ export function create(engine: QueryEngine, options: ComunicaOptionsType = {}): 
     /** Query bindings through the wrapped engine without transferring engine ownership. */
     async queryBindings(query, queryOptions = {}) {
       abort(queryOptions.signal)
-      const stream = await engine.queryBindings(
-        getQueryText(query),
-        options.context?.(queryOptions),
+      const stream = await acquire(
+        () => engine.queryBindings(getQueryText(query), options.context?.(queryOptions)),
+        retire,
+        queryOptions.signal,
+        queryOptions.onCleanup,
       )
-      return mapStream(stream, queryOptions.signal, decodeBinding)
+      return result(stream, {
+        ...(queryOptions.signal ? { signal: queryOptions.signal } : {}),
+        ...(stream.destroy ? { release: (reason: unknown) => retire(stream, reason) } : {}),
+      }, decodeBinding)
     },
     /** Query quads through the wrapped engine without transferring engine ownership. */
     async queryQuads(query, queryOptions = {}) {
       abort(queryOptions.signal)
-      const stream = await engine.queryQuads(getQueryText(query), options.context?.(queryOptions))
-      return mapStream(stream, queryOptions.signal, decodeQuad)
+      const stream = await acquire(
+        () => engine.queryQuads(getQueryText(query), options.context?.(queryOptions)),
+        retire,
+        queryOptions.signal,
+        queryOptions.onCleanup,
+      )
+      return result(stream, {
+        ...(queryOptions.signal ? { signal: queryOptions.signal } : {}),
+        ...(stream.destroy ? { release: (reason: unknown) => retire(stream, reason) } : {}),
+      }, decodeQuad)
     },
     /** Query boolean through the wrapped engine without transferring engine ownership. */
     async queryBoolean(query, queryOptions = {}) {
       abort(queryOptions.signal)
-      const result = await engine.queryBoolean(getQueryText(query), options.context?.(queryOptions))
+      const result = await pending(
+        () => engine.queryBoolean(getQueryText(query), options.context?.(queryOptions)),
+        queryOptions.signal,
+      )
       abort(queryOptions.signal)
       return result
     },
     /** Submits one complete SPARQL Update document through the wrapped engine. */
     async update(update, queryOptions = {}) {
       abort(queryOptions.signal)
-      await engine.queryVoid(getUpdateText(update), options.context?.(queryOptions))
+      await pending(
+        () => engine.queryVoid(getUpdateText(update), options.context?.(queryOptions)),
+        queryOptions.signal,
+      )
       abort(queryOptions.signal)
     },
   }
 }
 
-/** Maps one upstream engine stream and destroys unfinished work when consumption stops early. */
-async function* mapStream<Input, Output>(
-  stream: ResultStream<Input>,
-  signal: AbortSignal | undefined,
-  map: (value: Input) => Output,
-): AsyncGenerator<Output> {
-  let complete = false
-  const onAbort = (): void => stream.destroy?.(abortError(signal))
-  signal?.addEventListener('abort', onAbort, { once: true })
-  try {
-    for await (const value of stream) {
-      abort(signal)
-      yield map(value)
-    }
-    complete = true
-  } finally {
-    signal?.removeEventListener('abort', onAbort)
-    if (!complete) stream.destroy?.()
-  }
+/** Retires an acquired result; the engine remains caller-owned. */
+async function retire(stream: ResultStream<unknown>, reason: unknown): Promise<void> {
+  if (stream.destroy) {
+    await stream.destroy(reason instanceof Error ? reason : new Error(String(reason)))
+  } else await stream[Symbol.asyncIterator]().return?.()
 }
 
 /** Converts one engine-specific binding row into the engine-neutral RDF binding map. */
@@ -154,11 +167,5 @@ function isTerm(value: unknown): value is Term {
 
 /** Throws the caller supplied abort reason when cancellation has been requested. */
 function abort(signal?: AbortSignal): void {
-  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
-}
-
-/** Converts an abort reason into the Error shape required by upstream stream destruction. */
-function abortError(signal: AbortSignal | undefined): Error {
-  const reason = signal?.reason
-  return reason instanceof Error ? reason : new DOMException('Aborted', 'AbortError')
+  if (signal?.aborted) throw signal.reason
 }
