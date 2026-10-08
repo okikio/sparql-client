@@ -6,9 +6,35 @@ import { fileURLToPath } from 'node:url'
 import { argv } from 'node:process'
 import { attest } from './attest.mjs'
 
+/**
+ * Resolves ancestor prefix aliases only after the requested leaf is a physical private directory.
+ *
+ * macOS can spell one temporary directory below /var and /private/var. Compare confined links
+ * against the same canonical absolute root used by realpath, while native identity, ownership
+ * and modes must agree before receipt reads or ownership changes. A root-leaf alias never grants
+ * authority. These path checks do not claim an atomic defense against concurrent replacement.
+ */
+async function directory(root) {
+  const requested = resolve(root)
+  const before = await lstat(requested, { bigint: true })
+  if (!before.isDirectory() || before.isSymbolicLink() || before.dev <= 0n || before.ino <= 0n) {
+    throw new Error('Copied root must be a physical directory with native identity.')
+  }
+  const canonical = await realpath(requested)
+  const after = await lstat(canonical, { bigint: true })
+  if (
+    !after.isDirectory() || after.isSymbolicLink() || before.dev !== after.dev ||
+    before.ino !== after.ino || before.uid !== after.uid || before.gid !== after.gid ||
+    before.mode !== after.mode
+  ) {
+    throw new Error('Copied canonical root differs from its acquired physical directory.')
+  }
+  return canonical
+}
+
 /** Reads only a regular independent receipt from the already acquired private root. */
 async function receipt(root) {
-  const info = await lstat(root)
+  const info = await lstat(root, { bigint: true })
   const file = await lstat(join(root, 'admission.json'))
   if (!info.isDirectory() || info.isSymbolicLink() || !file.isFile() || file.nlink !== 1) {
     throw new Error('Copied root and receipt must be physical independent entries.')
@@ -39,19 +65,19 @@ async function receipt(root) {
       throw new Error('Copied manifest parent is not an admitted physical directory.')
     }
   }
-  return { bytes, manifest, entries }
+  return { bytes, manifest, entries, root: { dev: info.dev, ino: info.ino } }
 }
 
 /** Exact membership detects missing or extra files as well as byte, kind, link and permission changes. */
 async function verify(root, admitted, protectedMode = true, owner = { uid: 0, gid: 0 }) {
-  const info = await lstat(root)
+  const info = await lstat(root, { bigint: true })
   const receiptInfo = await lstat(join(root, 'admission.json'))
   if (
     !info.isDirectory() || info.isSymbolicLink() || !receiptInfo.isFile() ||
-    receiptInfo.nlink !== 1 ||
-    info.uid !== owner.uid || info.gid !== owner.gid ||
+    receiptInfo.nlink !== 1 || info.dev !== admitted.root.dev || info.ino !== admitted.root.ino ||
+    info.uid !== BigInt(owner.uid) || info.gid !== BigInt(owner.gid) ||
     receiptInfo.uid !== owner.uid || receiptInfo.gid !== owner.gid ||
-    (protectedMode && ((info.mode & 0o777) !== 0o555 || (receiptInfo.mode & 0o777) !== 0o444))
+    (protectedMode && ((info.mode & 0o777n) !== 0o555n || (receiptInfo.mode & 0o777) !== 0o444))
   ) {
     throw new Error('Copied root or receipt lacks readonly ordinary-user protection.')
   }
@@ -126,6 +152,7 @@ export async function admit(root, owner = { uid: 0, gid: 0 }) {
   if (![owner.uid, owner.gid].every((value) => Number.isSafeInteger(value) && value >= 0)) {
     throw new TypeError('Private copied ownership must use exact nonnegative IDs.')
   }
+  root = await directory(root)
   const admitted = await receipt(root)
   const seen = new Set()
   async function acquire(path) {
@@ -183,7 +210,7 @@ export async function admit(root, owner = { uid: 0, gid: 0 }) {
 
 /** Lane-native CLI keeps root admission and ordinary consumer authority distinct. Importing does not run it. */
 async function main() {
-  const root = dirname(fileURLToPath(import.meta.url))
+  let root = dirname(fileURLToPath(import.meta.url))
   const failures = []
   let admitted
   try {
@@ -196,6 +223,7 @@ async function main() {
     ) {
       throw new Error('Copied worker arguments contradict its independently attested authority.')
     }
+    root = await directory(root)
     admitted = await receipt(root)
     if (admitting) await admit(root)
     await verify(root, admitted)

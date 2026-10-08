@@ -642,14 +642,23 @@ describe('private packed consumer copy', () => {
           join(root, 'admission.json'),
           JSON.stringify({ version: 1, entries }),
         )
-        const info = await Deno.lstat(root)
+        const canonical = await Deno.realPath(root)
+        const prefix = join(fixture, 'prefix')
+        // A physical root under an aliased ancestor models /var versus /private/var on every POSIX host.
+        await Deno.symlink(await Deno.realPath(fixture), prefix)
+        const requested = join(prefix, 'payload')
+        expect(requested).not.toBe(canonical)
+        expect(await Deno.realPath(requested)).toBe(canonical)
+        const info = await Deno.lstat(requested)
+        expect(info.isDirectory).toBe(true)
+        expect(info.isSymlink).toBe(false)
         expect(info.uid).not.toBeNull()
         expect(info.gid).not.toBeNull()
         await Deno.chmod(child, 0)
         await Deno.chmod(nested, 0)
         await Deno.chmod(root, 0o700)
         // The private test seam acquires caller-owned entries; production CLI always requires owner0.
-        await admit(root, { uid: info.uid!, gid: info.gid! })
+        await admit(requested, { uid: info.uid!, gid: info.gid! })
         expect(await Deno.readFile(join(root, 'alias'))).toEqual(bytes)
         for (const path of [root, nested, child]) {
           expect((await Deno.lstat(path)).mode! & 0o777).toBe(0o555)
@@ -657,6 +666,32 @@ describe('private packed consumer copy', () => {
           expect((await Deno.lstat(path)).gid).toBe(info.gid)
         }
         expect((await Deno.lstat(join(child, 'data'))).mode! & 0o777).toBe(0o444)
+      }),
+  )
+
+  it(
+    'refuses a copied root-leaf alias before reading receipts or changing outside ownership and modes',
+    POSIX,
+    () =>
+      finish(async (release) => {
+        const fixture = await Deno.makeTempDir({ prefix: 'consumer-worker-root-alias-' })
+        release.push(() => Deno.remove(fixture, { recursive: true }))
+        const outside = join(fixture, 'outside'), root = join(fixture, 'alias')
+        await Deno.mkdir(outside, { mode: 0o750 })
+        const bytes = new Uint8Array([0, 255, 33])
+        await Deno.writeFile(join(outside, 'binary'), bytes, { mode: 0o640 })
+        const info = await Deno.lstat(outside), before = await tree(outside)
+        await Deno.symlink(outside, root)
+        // No admission receipt exists: physical root admission must reject before attempting its read.
+        await expect(admit(root, { uid: info.uid!, gid: info.gid! })).rejects.toThrow(
+          'Copied root must be a physical directory with native identity.',
+        )
+        expect(await tree(outside)).toEqual(before)
+        const after = await Deno.lstat(outside)
+        expect({ dev: after.dev, ino: after.ino, uid: after.uid, gid: after.gid, mode: after.mode })
+          .toEqual({ dev: info.dev, ino: info.ino, uid: info.uid, gid: info.gid, mode: info.mode })
+        expect(await Deno.readFile(join(outside, 'binary'))).toEqual(bytes)
+        expect((await Deno.lstat(root)).isSymlink).toBe(true)
       }),
   )
 
