@@ -25,9 +25,10 @@ child_stamp() {
   printf '%s' "$1"
 }
 retire() {
-  result=$?
+  pre_cleanup=$?
+  result=$pre_cleanup
   trap - EXIT HUP INT TERM
-  printf '\n{"phase":"attestation-supervisor","exit":%s}\n' "$result"
+  printf '\n{"phase":"attestation-supervisor","preCleanupExit":%s}\n' "$pre_cleanup"
   if [ -n "$child" ]; then
     # Reobserve both live parent and starttime before EACH signal; shell reaping may permit PID reuse.
     if [ -r "/proc/$child/status" ]; then cat "/proc/$child/status"; fi
@@ -38,11 +39,15 @@ retire() {
     printf '\n{"phase":"attestation-child","pid":%s,"exit":%s}\n' "$child" "$observed"
     child=
   fi
+  # A refused owner starts no rm; null is not a fabricated native cleanup exit.
+  cleanup_exit=null
+  cleanup_state=refused
   if owned_gate; then
-    rm -r -- "$gate" || result=74
-  else
-    result=74
+    rm -r -- "$gate"; cleanup_exit=$?
+    if [ "$cleanup_exit" = 0 ]; then cleanup_state=removed; else cleanup_state=failed; fi
   fi
+  if [ "$cleanup_exit" != 0 ]; then result=74; fi
+  printf '\n{"phase":"attestation-supervisor-final","preCleanupExit":%s,"cleanupExit":%s,"cleanupState":"%s","finalExit":%s}\n' "$pre_cleanup" "$cleanup_exit" "$cleanup_state" "$result"
   exit "$result"
 }
 trap retire EXIT
