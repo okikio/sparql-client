@@ -128,3 +128,8 @@ output or looping forever. This preserves binary diagnostics and split UTF-8 byt
 Reader cancellation, lock release, and file close failures remain independent evidence failures. Successful console
 output alone cannot prove useful capture: behavioral controls compare the retained bytes through three-byte file writes
 and require write rejection or zero progress to block every source gate and prepared receipt.
+
+Browser fixture servers load their TypeScript configuration natively in Deno. The bundled loader
+can emit a temporary module beside a maintained configuration file; protected source correctly
+refuses that write. Native loading keeps fixture startup inside the same readonly contract as
+the rest of preparation, without relaxing permissions or enabling live source changes.

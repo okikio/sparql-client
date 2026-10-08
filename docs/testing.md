@@ -291,3 +291,7 @@ Playwright runner artifacts, screenshots and traces live under `.tmp/reports/bro
 Browser fixtures start a fresh Vite server for each task and disable file watching and hot reload.
 Their source stays fixed for the run. This avoids watching nested OPFS dependency trees and
 report output while testing browser capabilities. Restart the task after editing a fixture.
+
+Vite loads fixture configuration through `--configLoader native`. Deno already understands the
+TypeScript source, so the loader must not emit a temporary module beside maintained configuration
+files. This keeps startup compatible with the readonly source used by release preparation.

@@ -20,7 +20,7 @@ export default defineConfig({
   use: { baseURL: origin, trace: 'retain-on-failure' },
   webServer: {
     command:
-      'deno run -A npm:vite@8.2.1 --config integration/browser/vite.config.ts --host 127.0.0.1 --port 4183 --strictPort',
+      'deno run -A npm:vite@8.2.1 --configLoader native --config integration/browser/vite.config.ts --host 127.0.0.1 --port 4183 --strictPort',
     cwd: fileURLToPath(new URL('../..', import.meta.url)),
     url: `${origin}/integration/browser/index.html`,
     reuseExistingServer: false,
