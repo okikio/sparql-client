@@ -17,13 +17,15 @@ export interface CaseType {
 }
 
 export interface ReportType {
-  readonly version: 1
+  readonly version: 2
+  /** SHA-256 identity of implementation, runner/oracles, claims, and pinned configuration. */
+  readonly inputs: string
   readonly createdAt: string
   readonly cases: readonly CaseType[]
   readonly totals: { readonly pass: number; readonly fail: number; readonly skip: number }
 }
 
-export function report(cases: readonly CaseType[]): ReportType {
+export function report(cases: readonly CaseType[], inputs: string): ReportType {
   let pass = 0
   let fail = 0
   let skip = 0
@@ -32,5 +34,30 @@ export function report(cases: readonly CaseType[]): ReportType {
     else if (value.status === 'fail') fail++
     else skip++
   }
-  return { version: 1, createdAt: new Date().toISOString(), cases, totals: { pass, fail, skip } }
+  return {
+    version: 2,
+    inputs,
+    createdAt: new Date().toISOString(),
+    cases,
+    totals: { pass, fail, skip },
+  }
+}
+
+/** Official assertion membership excludes incidental outcome, diagnostics and timing. */
+export type ExpectedCaseType = Pick<
+  CaseType,
+  'suite' | 'revision' | 'profile' | 'id' | 'kind' | 'input' | 'expected'
+>
+
+/** Frames case identity without delimiter collisions or object insertion-order dependence. */
+export function caseKey(value: ExpectedCaseType): string {
+  return JSON.stringify([
+    value.suite,
+    value.revision,
+    value.profile,
+    value.id,
+    value.kind,
+    value.input,
+    value.expected,
+  ])
 }

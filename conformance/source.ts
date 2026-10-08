@@ -1,5 +1,8 @@
 /** Pinned upstream standards suites used as release evidence. @module */
 
+import { isAbsolute, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 export interface SourceType {
   readonly id: string
   readonly standard: string
@@ -56,7 +59,8 @@ export const sources = [
     standard: 'Microdata to RDF tests',
     repository: 'https://github.com/w3c/microdata-rdf.git',
     revision: 'f4162846153dea1351194e338caff086830a7d00',
-    web: 'https://w3c.github.io/microdata-rdf/',
+    // Vectors embed this historical scheme in absolute expected IRIs.
+    web: 'http://w3c.github.io/microdata-rdf/',
     license: 'W3C Software and Document Notice and License',
   },
 ] as const satisfies readonly SourceType[]
@@ -79,4 +83,30 @@ export function sourceUrl(id: SourceIdType, path: string): string {
   const value = source(id)
   const clean = path.replace(/^\/+/, '')
   return new URL(clean, value.web).href
+}
+
+/**
+ * Replaces a checkout-local file IRI with its pinned logical web IRI.
+ *
+ * Manifest fragment identifiers remain part of the identity. External and declared
+ * non-file identifiers retain their spelling. A resource outside the selected
+ * checkout fails admission instead of embedding a machine-specific parent path.
+ * The optional root admits miniature task fixtures without changing suite authority.
+ */
+export function sourceFileUrl(
+  id: SourceIdType,
+  value: string,
+  root = sourceDir(id),
+): string {
+  if (!value.startsWith('file:')) return value
+  const url = new URL(value)
+  const local = fileURLToPath(url)
+  const roots = [resolve(root), Deno.realPathSync(root)]
+  for (const base of roots) {
+    const path = relative(base, local)
+    if (!isAbsolute(path) && path !== '..' && !path.startsWith('../') && !path.startsWith('..\\')) {
+      return sourceUrl(id, path.replaceAll('\\', '/')) + url.search + url.hash
+    }
+  }
+  throw new TypeError('Official manifest resource is outside its pinned checkout.')
 }

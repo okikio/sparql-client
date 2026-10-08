@@ -5,7 +5,7 @@ import { write as writeNQuads } from '@okikio/rdf/nquads'
 import type { Quad } from '@okikio/rdf'
 import { Store } from 'oxigraph'
 import type { CaseType } from './result.ts'
-import { source, sourceDir } from './source.ts'
+import { source, sourceDir, sourceUrl } from './source.ts'
 
 interface ManifestType {
   readonly '@graph'?: readonly TestType[]
@@ -40,7 +40,23 @@ export async function runRdfa(): Promise<CaseType[]> {
       const dir = `${sourceDir('rdfa')}/test-suite/test-cases/rdfa1.1/${host}`
       const input = `${dir}/${test.num}${extension}`
       const assertion = `${dir}/${test.num}.sparql`
-      if (!await exists(input) || !await exists(assertion)) continue
+      // A damaged checkout must not silently shrink the claimed official corpus.
+      if (!await exists(input) || !await exists(assertion)) {
+        output.push({
+          suite: 'rdfa',
+          revision: spec.revision,
+          profile: `RDFa 1.1 ${host}`,
+          id: `${test.num}:${host}`,
+          kind: 'RDFa processor test',
+          input: test.input ??
+            sourceUrl('rdfa', `test-suite/test-cases/rdfa1.1/${host}/${test.num}${extension}`),
+          expected: sourceUrl('rdfa', `test-suite/test-cases/rdfa1.1/${host}/${test.num}.sparql`),
+          status: 'fail',
+          reason: 'Declared RDFa input or ASK fixture is missing.',
+          durationMs: 0,
+        })
+        continue
+      }
       output.push(await runCase(test, host, contentType, input, assertion, spec.revision))
     }
   }
@@ -62,34 +78,57 @@ async function runCase(
     profile: `RDFa 1.1 ${host}`,
     id: `${test.num}:${host}`,
     kind: 'RDFa processor test',
-    input: test.input ?? input,
-    expected: assertion,
+    input: test.input ??
+      sourceUrl(
+        'rdfa',
+        `test-suite/test-cases/rdfa1.1/${host}/${test.num}${input.slice(input.lastIndexOf('.'))}`,
+      ),
+    expected: sourceUrl('rdfa', `test-suite/test-cases/rdfa1.1/${host}/${test.num}.sparql`),
   }
   try {
+    const base = `http://rdfa.info/test-suite/test-cases/rdfa1.1/${host}/${test.num}${
+      input.slice(input.lastIndexOf('.'))
+    }`
     const actual = await collect(parseRdfa(await Deno.readTextFile(input), {
-      base: test.input ??
-        `http://rdfa.info/test-suite/test-cases/${test.num}${input.slice(input.lastIndexOf('.'))}`,
+      base,
       contentType,
     }))
     const store = new Store()
-    store.load(writeNQuads(actual), { format: 'application/n-quads' })
-    const result = store.query(await Deno.readTextFile(assertion))
-    if (typeof result !== 'boolean') {
-      return {
-        ...common,
-        status: 'fail',
-        reason: 'RDFa suite assertion did not evaluate to a boolean.',
-        durationMs: performance.now() - started,
+    // This vector owns the Wasm Store. Its declaration omits free(), but the
+    // pinned engine exposes it; borrowed production adapter stores are separate.
+    const free: unknown = Reflect.get(store, 'free')
+    if (typeof free !== 'function') throw new TypeError('Pinned Oxigraph Store lacks free().')
+    let failed = false
+    let primary: unknown
+    try {
+      // The official relative-prefix cases resolve serialized relative IRIs against
+      // the retrieval IRI, independently of an HTML base element. Default-graph
+      // N-Quads statements are also Turtle statements, whose loader supports this.
+      store.load(writeNQuads(actual), { format: 'text/turtle', base_iri: base })
+      const result = store.query(await Deno.readTextFile(assertion))
+      if (typeof result !== 'boolean') {
+        return {
+          ...common,
+          status: 'fail',
+          reason: 'RDFa suite assertion did not evaluate to a boolean.',
+          durationMs: performance.now() - started,
+        }
       }
+      return result === (test.expectedResults ?? true)
+        ? { ...common, status: 'pass', durationMs: performance.now() - started }
+        : {
+          ...common,
+          status: 'fail',
+          reason: `Suite ASK returned ${result}, expected ${test.expectedResults ?? true}.`,
+          durationMs: performance.now() - started,
+        }
+    } catch (error) {
+      failed = true
+      primary = error
+      throw error
+    } finally {
+      retire(() => free.call(store), failed ? [primary] : [])
     }
-    return result === (test.expectedResults ?? true)
-      ? { ...common, status: 'pass', durationMs: performance.now() - started }
-      : {
-        ...common,
-        status: 'fail',
-        reason: `Suite ASK returned ${result}, expected ${test.expectedResults ?? true}.`,
-        durationMs: performance.now() - started,
-      }
   } catch (error) {
     return {
       ...common,
@@ -112,5 +151,25 @@ async function exists(path: string): Promise<boolean> {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) return false
     throw error
+  }
+}
+
+/**
+ * Retires an assertion's owned Wasm Store without replacing its original failure.
+ *
+ * The callback isolates the pinned undeclared free() capability. A captured
+ * failure may be undefined, so its presence is represented by an array. Both
+ * causes remain visible when the case boundary formats its diagnostic reason.
+ */
+function retire(close: () => unknown, primary: readonly unknown[]): void {
+  try {
+    close()
+  } catch (cleanup) {
+    const failures = [...primary, cleanup]
+    throw new AggregateError(
+      failures,
+      `RDFa assertion or owned Store cleanup failed: ${failures.map(String).join('; ')}`,
+      { cause: primary.length ? primary[0] : cleanup },
+    )
   }
 }

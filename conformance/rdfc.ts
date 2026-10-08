@@ -1,11 +1,11 @@
 /** Official RDF Dataset Canonicalization 1.0 suite runner. @module */
 
-import { canonicalize } from '@okikio/rdf/canon'
+import { canonicalize, type DigestType } from '@okikio/rdf/canon'
 import { parse as parseNQuads } from '@okikio/rdf/nquads'
 import type { Quad } from '@okikio/rdf'
 import { localPath, readTree } from './manifest.ts'
 import type { CaseType } from './result.ts'
-import { source, sourceDir } from './source.ts'
+import { source, sourceDir, sourceFileUrl } from './source.ts'
 
 export async function runRdfc(): Promise<CaseType[]> {
   const spec = source('canon')
@@ -17,12 +17,14 @@ export async function runRdfc(): Promise<CaseType[]> {
       suite: 'canon',
       revision: spec.revision,
       profile: 'RDFC-1.0',
-      id: entry.id,
+      id: sourceFileUrl('canon', entry.id),
       kind: entry.types.join(' '),
-      ...(entry.action ? { input: entry.action } : {}),
-      ...(entry.result ? { expected: entry.result } : {}),
+      ...(entry.action ? { input: sourceFileUrl('canon', entry.action) } : {}),
+      ...(entry.result ? { expected: sourceFileUrl('canon', entry.result) } : {}),
     }
-    if (!entry.action || !entry.result) {
+    const kind = entry.types.join(' ')
+    const negative = kind.includes('Negative')
+    if (!entry.action || (!entry.result && !negative)) {
       output.push({
         ...common,
         status: 'skip',
@@ -33,13 +35,15 @@ export async function runRdfc(): Promise<CaseType[]> {
     }
     try {
       const quads = await quadsFrom(localPath(entry.action))
-      const kind = entry.types.join(' ')
-      if (kind.includes('Negative')) {
+      const messageDigestAlgorithm = digest(entry.hashAlgorithm)
+      if (negative) {
         let rejected = false
         try {
-          await canonicalize(quads, { maxWorkFactor: Infinity })
-        } catch {
-          rejected = true
+          // The poison vector specifies bounded-work rejection. Removing the
+          // bound makes the test exponential instead of exercising its contract.
+          await canonicalize(quads, { messageDigestAlgorithm })
+        } catch (error) {
+          rejected = error instanceof RangeError && error.message.includes('work limit')
         }
         output.push(
           rejected ? { ...common, status: 'pass', durationMs: performance.now() - started } : {
@@ -53,9 +57,13 @@ export async function runRdfc(): Promise<CaseType[]> {
       }
       if (kind.includes('MapTest')) {
         const canonicalIdMap = new Map<string, string>()
-        await canonicalize(quads, { canonicalIdMap, maxWorkFactor: Infinity })
+        await canonicalize(quads, {
+          canonicalIdMap,
+          messageDigestAlgorithm,
+          maxWorkFactor: Infinity,
+        })
         const actual = Object.fromEntries([...canonicalIdMap].sort(([a], [b]) => codepoint(a, b)))
-        const expectedRaw = JSON.parse(await Deno.readTextFile(localPath(entry.result))) as Record<
+        const expectedRaw = JSON.parse(await Deno.readTextFile(localPath(entry.result!))) as Record<
           string,
           string
         >
@@ -75,8 +83,8 @@ export async function runRdfc(): Promise<CaseType[]> {
         )
         continue
       }
-      const actual = await canonicalize(quads, { maxWorkFactor: Infinity })
-      const expected = await Deno.readTextFile(localPath(entry.result))
+      const actual = await canonicalize(quads, { messageDigestAlgorithm, maxWorkFactor: Infinity })
+      const expected = await Deno.readTextFile(localPath(entry.result!))
       output.push(
         actual === expected
           ? { ...common, status: 'pass', durationMs: performance.now() - started }
@@ -98,6 +106,15 @@ export async function runRdfc(): Promise<CaseType[]> {
     }
   }
   return output
+}
+
+/** Manifest digest names are protocol data; an unknown value must not silently use SHA-256. */
+function digest(value: string | undefined): DigestType {
+  const normalized = (value ?? 'SHA256').toLowerCase().replaceAll('-', '')
+  if (normalized === 'sha256' || normalized === 'sha384' || normalized === 'sha512') {
+    return normalized
+  }
+  throw new TypeError(`Unsupported RDFC manifest hash algorithm '${value}'.`)
 }
 
 /** Compares strings by Unicode scalar value for specification-defined deterministic ordering. */
