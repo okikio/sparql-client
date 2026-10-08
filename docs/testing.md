@@ -122,8 +122,22 @@ directories, and never follows aliases for ownership or permission changes. Regu
 ownership changes. It verifies complete bytes/kinds/contained links before final readonly modes. Only `CHOWN`
 is retained for root setup; no DAC override is added. Production ownership is fixed to UID/GID zero.
 The import-safe worker has an explicit current-owner seam for task-owned host tests, with no CLI/environment
-owner override; that seam is not proof of root Docker admission. These checks set copied ownership;
-the actual consumer runs as UID/GID 1000 with zero inheritable, effective, permitted and ambient sets.
+owner override; that seam is not proof of root Docker admission.
+
+The host fixture first establishes the declared Linux alias mode. Darwin creates symbolic links
+with permissions affected by the process mask, while ordinary Linux links have fixed `0777` modes.
+The macOS control changes only its newly created fixture link with native `/bin/chmod -h 777`, then
+checks the observed link mode, physical identity and unchanged target bytes and permissions before
+admission. Deno's `node:fs` link-chmod API is not implemented. Required attestation-gate modes are
+also set explicitly after creating the test-owned directories. Preservation assertions compare
+acquired native metadata; a requested creation mode alone is not that metadata. The actual Linux
+manifest and worker still require `0777` aliases and unchanged complete input identity. These host
+fixture controls do not supply Docker or Linux proof. See Apple's
+[link creation implementation](https://github.com/apple-oss-distributions/xnu/blob/xnu-10063.121.3/bsd/vfs/vfs_syscalls.c#L5495),
+[native chmod contract](https://github.com/apple-oss-distributions/file_cmds/blob/main/chmod/chmod.1),
+and [Deno's link-chmod limitation](https://docs.deno.com/api/node/fs/).
+
+The copied ownership checks protect the payload; the actual consumer runs as UID/GID 1000 with zero inheritable, effective, permitted and ambient sets.
 The native supervisor verifies those values through the actual runtime child's `/proc/<pid>/status`, before approval.
 Its bounding set retains CHOWN and NoNewPrivs=1 prevents privilege gains through exec. Source hardlinks are copied into independent files; contained aliases become private relative
 links. Escaped aliases, Git metadata, special files and changed complete membership fail admission. The actual

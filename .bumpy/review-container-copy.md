@@ -66,6 +66,14 @@ The copied worker now acquires one canonical physical root before receipt reads 
 ownership changes. This admits macOS ancestor spellings such as `/var` and
 `/private/var` only when their native directory identity, owner and mode agree.
 Root-leaf aliases still reject, and contained links use that same canonical root.
+The macOS host admission control now explicitly establishes Linux's declared `0777`
+mode on its own fixture link with `/bin/chmod -h 777`. Darwin applies the process
+mask when creating a link; observing that native mode is different from declaring
+Linux input permissions. The control checks link identity and mode, unchanged
+target bytes and permissions, and final exact admission. It does not change borrowed
+inputs or allow different alias modes in the production worker. Required private
+attestation-fixture directory permissions are established explicitly too. Host
+controls remain separate from actual root/ordinary Linux-container proof.
 Artifact identity controls establish opposite English/Swedish Unicode ordering in
 separate processes before requiring identical ordinal hashes; they no longer infer
 an ICU locale change from environment variables alone.

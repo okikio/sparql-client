@@ -27,6 +27,8 @@ async function fixture(action: (root: string) => Promise<void>): Promise<void> {
 async function gate(root: string) {
   const directory = join(root, 'gate')
   await mkdir(directory, { mode: 0o700 })
+  // Required gate permissions are established on this owned fixture, not inferred from mkdir and umask.
+  await chmod(directory, 0o700)
   const identity = await lstat(directory)
   const expected = {
     pid: 123,
@@ -126,6 +128,7 @@ describe('independent native runtime attestation gate', () => {
         const value = await gate(root)
         await rename(value.directory, join(root, 'acquired'))
         await mkdir(value.directory, { mode: 0o700 })
+        await chmod(value.directory, 0o700)
         await writeFile(join(value.directory, 'approval'), value.bytes, { mode: 0o400 })
         await expect(approval(value.directory, value.identity, value.expected)).rejects.toThrow()
         expect(await readFile(join(value.directory, 'approval'), 'utf8')).toBe(value.bytes)

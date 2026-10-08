@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { prepare, run, tree } from './container.ts'
 import { finish } from '../../integration/releases.ts'
 import { admit } from './container-worker.mjs'
+import { collect } from './command.ts'
 import type { ObservationType, OutputType } from './container.ts'
 
 /** Aggregate nesting is not a contract; independent original reasons must all survive. */
@@ -612,8 +613,45 @@ describe('private packed consumer copy', () => {
           for (const path of [root, nested, child]) await Deno.chmod(path, 0o700)
         })
         const bytes = new Uint8Array([0, 255, 128, 17])
-        await Deno.writeFile(join(child, 'data'), bytes, { mode: 0o600 })
-        await Deno.symlink('nested/child/data', join(root, 'alias'))
+        const data = join(child, 'data'), alias = join(root, 'alias')
+        await Deno.writeFile(data, bytes, { mode: 0o600 })
+        await Deno.symlink('nested/child/data', alias)
+        const targetBefore = await Deno.lstat(data), linkBefore = await Deno.lstat(alias)
+        expect(linkBefore.isSymlink).toBe(true)
+        expect(await Deno.readLink(alias)).toBe('nested/child/data')
+        expect(await Deno.realPath(alias)).toBe(await Deno.realPath(data))
+        if (Deno.build.os === 'darwin') {
+          // Darwin applies umask to new links. This owned fixture models Linux's fixed 0777 link mode.
+          // chmod -h changes the link itself; Deno's node:fs lchmod is not implemented.
+          // https://github.com/apple-oss-distributions/file_cmds/blob/main/chmod/chmod.1
+          const output = await collect('/bin/chmod', ['-h', '777', alias], {
+            timeoutMs: 30_000,
+            quotaBytes: 65536,
+          })
+          expect(output).toMatchObject({
+            code: 0,
+            signal: null,
+            success: true,
+            failures: [],
+            streams: { stdout: { complete: true }, stderr: { complete: true } },
+          })
+        }
+        const targetAfter = await Deno.lstat(data), linkAfter = await Deno.lstat(alias)
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'nlink'] as const) {
+          expect(linkAfter[field]).toBe(linkBefore[field])
+          expect(targetAfter[field]).toBe(targetBefore[field])
+        }
+        expect(targetAfter.mode).toBe(targetBefore.mode)
+        expect(await Deno.readFile(data)).toEqual(bytes)
+        expect(await Deno.readLink(alias)).toBe('nested/child/data')
+        expect(linkAfter.mode! & 0o777).toBe(0o777)
+        console.log(JSON.stringify({
+          phase: 'host-link-fixture',
+          host: Deno.build.os,
+          createdMode: linkBefore.mode! & 0o777,
+          admittedMode: linkAfter.mode! & 0o777,
+          targetMode: targetAfter.mode! & 0o777,
+        }))
         const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
         const hash = Array.from(digest, (part) => part.toString(16).padStart(2, '0')).join('')
         const entries = [
@@ -660,6 +698,7 @@ describe('private packed consumer copy', () => {
         // The private test seam acquires caller-owned entries; production CLI always requires owner0.
         await admit(requested, { uid: info.uid!, gid: info.gid! })
         expect(await Deno.readFile(join(root, 'alias'))).toEqual(bytes)
+        expect((await Deno.lstat(alias)).mode! & 0o777).toBe(0o777)
         for (const path of [root, nested, child]) {
           expect((await Deno.lstat(path)).mode! & 0o777).toBe(0o555)
           expect((await Deno.lstat(path)).uid).toBe(info.uid)
