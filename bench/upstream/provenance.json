@@ -1,0 +1,345 @@
+{
+  "format": 1,
+  "acquired": "2026-10-07",
+  "scope": "Pinned source snapshots; adapted subset is enumerated separately. Neither current upstream HEAD nor a full engine conformance claim.",
+  "projects": [
+    {
+      "repository": "rdfjs-base/dataset",
+      "commit": "1a62b216c6ce76c809c40e9f1f62126947763808",
+      "files": [
+        {
+          "path": "LICENSE.md",
+          "url": "https://raw.githubusercontent.com/rdfjs-base/dataset/1a62b216c6ce76c809c40e9f1f62126947763808/LICENSE.md",
+          "sha256": "6b6f77846a6c8f60f456517661d8724f2894d89390f005c6a4c58dc4532f5087",
+          "bytes": 1073,
+          "local": "bench/upstream/sources/rdfjs-base-dataset/LICENSE.md"
+        },
+        {
+          "path": "test/DatasetCore.test.js",
+          "url": "https://raw.githubusercontent.com/rdfjs-base/dataset/1a62b216c6ce76c809c40e9f1f62126947763808/test/DatasetCore.test.js",
+          "sha256": "4f0769fdd31a8371b1efe01521bef6bcb9f3a059595d42eaf3c4d7cd170ba3be",
+          "bytes": 13164,
+          "local": "bench/upstream/sources/rdfjs-base-dataset/test/DatasetCore.test.js.txt"
+        }
+      ],
+      "license": "MIT"
+    },
+    {
+      "repository": "oxigraph/oxigraph",
+      "commit": "fda67930e1765261d77ef453dd4aa93e8d3e608f",
+      "files": [
+        {
+          "path": "LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/oxigraph/oxigraph/fda67930e1765261d77ef453dd4aa93e8d3e608f/LICENSE-MIT",
+          "sha256": "1f4f6736adc52ebfda18bb84947e0ef492bd86a408c0e83872efb75ed5e02838",
+          "bytes": 1063,
+          "local": "bench/upstream/sources/oxigraph-oxigraph/LICENSE-MIT"
+        },
+        {
+          "path": "LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/oxigraph/oxigraph/fda67930e1765261d77ef453dd4aa93e8d3e608f/LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+          "bytes": 10847,
+          "local": "bench/upstream/sources/oxigraph-oxigraph/LICENSE-APACHE"
+        },
+        {
+          "path": "js/test/store.test.ts",
+          "url": "https://raw.githubusercontent.com/oxigraph/oxigraph/fda67930e1765261d77ef453dd4aa93e8d3e608f/js/test/store.test.ts",
+          "sha256": "ab9d7a77529b9dad7ddcf99cbd2ca1fcbdb2224f73b8951d26da0420a57094f1",
+          "bytes": 11592,
+          "local": "bench/upstream/sources/oxigraph-oxigraph/js/test/store.test.ts.txt"
+        },
+        {
+          "path": "js/test/store.bench.ts",
+          "url": "https://raw.githubusercontent.com/oxigraph/oxigraph/fda67930e1765261d77ef453dd4aa93e8d3e608f/js/test/store.bench.ts",
+          "sha256": "975417836d529ea1000f4f2343b597acca01709fdeafbac1986a9a29d9e4bf2e",
+          "bytes": 1705,
+          "local": "bench/upstream/sources/oxigraph-oxigraph/js/test/store.bench.ts.txt"
+        }
+      ],
+      "license": "MIT OR Apache-2.0"
+    },
+    {
+      "repository": "apache/jena",
+      "commit": "1424185059e563504d6d615f06788f6661cdc63f",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/apache/jena/1424185059e563504d6d615f06788f6661cdc63f/LICENSE",
+          "sha256": "4a18f6460eb65e959207ab9dac6f7aac979cec6630fdd38fb49582c4a04ffb28",
+          "bytes": 13065,
+          "local": "bench/upstream/sources/apache-jena/LICENSE"
+        },
+        {
+          "path": "NOTICE",
+          "url": "https://raw.githubusercontent.com/apache/jena/1424185059e563504d6d615f06788f6661cdc63f/NOTICE",
+          "sha256": "edca5a9b30916c53f8f0debbae783cc544e6fa6b4281d015bbe1698addbcb4a0",
+          "bytes": 950,
+          "local": "bench/upstream/sources/apache-jena/NOTICE"
+        },
+        {
+          "path": "jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/TestGraphFindByMatchAndCount.java",
+          "url": "https://raw.githubusercontent.com/apache/jena/1424185059e563504d6d615f06788f6661cdc63f/jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/TestGraphFindByMatchAndCount.java",
+          "sha256": "21586788d583777ad1082ee036028aa280530f47abca399a0a7d97368362721b",
+          "bytes": 12495,
+          "local": "bench/upstream/sources/apache-jena/jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/TestGraphFindByMatchAndCount.java.txt"
+        },
+        {
+          "path": "jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/helper/Context.java",
+          "url": "https://raw.githubusercontent.com/apache/jena/1424185059e563504d6d615f06788f6661cdc63f/jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/helper/Context.java",
+          "sha256": "891a011c5438f9d64552b6c67bcc8ea17ac5ce067e0984479c5a846fb6cde733",
+          "bytes": 5290,
+          "local": "bench/upstream/sources/apache-jena/jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/helper/Context.java.txt"
+        },
+        {
+          "path": "jena-benchmarks/testing/cheeses-0.1.ttl",
+          "url": "https://raw.githubusercontent.com/apache/jena/1424185059e563504d6d615f06788f6661cdc63f/jena-benchmarks/testing/cheeses-0.1.ttl",
+          "sha256": "44cf69aa5193b0039001b2d842190dae43855505fe6347e45a3be9a6d50f1ec3",
+          "bytes": 315148,
+          "local": "bench/upstream/sources/apache-jena/jena-benchmarks/testing/cheeses-0.1.ttl"
+        }
+      ],
+      "license": "Apache-2.0 code; corpus retains its embedded CC-BY-SA-3.0 Italy attribution"
+    },
+    {
+      "repository": "eclipse-rdf4j/rdf4j",
+      "commit": "fdbf6e57796009a64c4e0ce76a5d0840ed9a5e02",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/eclipse-rdf4j/rdf4j/fdbf6e57796009a64c4e0ce76a5d0840ed9a5e02/LICENSE",
+          "sha256": "ddbc15d6df4f36620507eebb4575f91888d234490f89eca8757e89abacfd3319",
+          "bytes": 1586,
+          "local": "bench/upstream/sources/eclipse-rdf4j-rdf4j/LICENSE"
+        },
+        {
+          "path": "testsuites/model/src/main/java/org/eclipse/rdf4j/testsuite/model/ModelTest.java",
+          "url": "https://raw.githubusercontent.com/eclipse-rdf4j/rdf4j/fdbf6e57796009a64c4e0ce76a5d0840ed9a5e02/testsuites/model/src/main/java/org/eclipse/rdf4j/testsuite/model/ModelTest.java",
+          "sha256": "79a4224a5e11d83b8686bcfa9675c6a12d1afa134bdb5cdd79d95808a192966d",
+          "bytes": 17526,
+          "local": "bench/upstream/sources/eclipse-rdf4j-rdf4j/testsuites/model/src/main/java/org/eclipse/rdf4j/testsuite/model/ModelTest.java.txt"
+        }
+      ],
+      "license": "BSD-3-Clause"
+    },
+    {
+      "repository": "comunica/comunica",
+      "commit": "111004be81e47e1ecf9c1eb6d19dd1bfe33894cb",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/comunica/comunica/111004be81e47e1ecf9c1eb6d19dd1bfe33894cb/LICENSE.txt",
+          "sha256": "7c6f33b3c960b881ce046c056fa6fd5221149342d39d3811e5effd41d4fadf68",
+          "bytes": 1167,
+          "local": "bench/upstream/sources/comunica-comunica/LICENSE.txt"
+        },
+        {
+          "path": "packages/actor-query-source-identify-rdfjs/test/QuerySourceRdfJs-test.ts",
+          "url": "https://raw.githubusercontent.com/comunica/comunica/111004be81e47e1ecf9c1eb6d19dd1bfe33894cb/packages/actor-query-source-identify-rdfjs/test/QuerySourceRdfJs-test.ts",
+          "sha256": "f8717fa02efad1b3d9019c16ef13e0a25b9183482125ec058644d6d8ffaf43f3",
+          "bytes": 47440,
+          "local": "bench/upstream/sources/comunica-comunica/packages/actor-query-source-identify-rdfjs/test/QuerySourceRdfJs-test.ts.txt"
+        },
+        {
+          "path": "performance/benchmark-bsbm-file-10k/README.md",
+          "url": "https://raw.githubusercontent.com/comunica/comunica/111004be81e47e1ecf9c1eb6d19dd1bfe33894cb/performance/benchmark-bsbm-file-10k/README.md",
+          "sha256": "9f798135ca255cd4ae450e6a79ced28800907be357c05aed277b6dcb379eb0fc",
+          "bytes": 868,
+          "local": "bench/upstream/sources/comunica-comunica/performance/benchmark-bsbm-file-10k/README.md"
+        }
+      ],
+      "license": "MIT"
+    },
+    {
+      "repository": "RDFLib/rdflib",
+      "commit": "6942a87ec253220e77c27977e64ba431dbe5b043",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/RDFLib/rdflib/6942a87ec253220e77c27977e64ba431dbe5b043/LICENSE",
+          "sha256": "53a705e51bfd199e8c97d0442376cb4bbd4ffcf13ba4f2c4c2794211400e4012",
+          "bytes": 1524,
+          "local": "bench/upstream/sources/RDFLib-rdflib/LICENSE"
+        },
+        {
+          "path": "test/test_dataset/test_dataset_add.py",
+          "url": "https://raw.githubusercontent.com/RDFLib/rdflib/6942a87ec253220e77c27977e64ba431dbe5b043/test/test_dataset/test_dataset_add.py",
+          "sha256": "5c9468bf9661a9122ef25b5f937fd18e25f04fb5e51817ae8a317e465011b595",
+          "bytes": 7115,
+          "local": "bench/upstream/sources/RDFLib-rdflib/test/test_dataset/test_dataset_add.py.txt"
+        }
+      ],
+      "license": "BSD-3-Clause"
+    }
+  ],
+  "adaptations": [
+    {
+      "local": "integration/upstream/dataset_core_test.ts",
+      "repository": "rdfjs-base/dataset",
+      "sourcePath": "test/DatasetCore.test.js",
+      "disposition": "36 supported original DatasetCore leaf cases plus one explicit RDF 1.2 profile boundary test",
+      "leafCases": 37,
+      "originalCaseNames": [
+        "should be a function",
+        "should add the given Quads",
+        "should be a number property",
+        "should be 0 if there are no Quads in the Dataset",
+        "should be equal to the number of Quads in the Dataset",
+        "should be updated after Quads are added",
+        "should be updated after Quads are deleted",
+        "should be a function",
+        "should return itself",
+        "should add the given Quad",
+        "should not add duplicate Quads",
+        "should support Quads with Blank Nodes",
+        "should support Quads with Literals",
+        "should support Quads with language Literals",
+        "should support Quads with directional language Literals",
+        "should support Quads with directional and non-directional Literals using the same language",
+        "should support Quads with datatype Literals",
+        "should support Quads having a Quad as subject",
+        "should support Quads having a Quad as object",
+        "should be a function",
+        "should return itself",
+        "should remove the given Quad",
+        "should remove only the given Quad",
+        "should remove the Quad with the same SPOG as the given Quad",
+        "should ignore an unknown Quad",
+        "should be a function",
+        "should return false if the given Quad is not in the Dataset",
+        "should return true if the given Quad is in the Dataset",
+        "should be a function",
+        "should use the given subject to select Quads",
+        "should use the given predicate to select Quads",
+        "should use the given object to select Quads",
+        "should use the given graph to select Quads",
+        "should return an empty Dataset if there are no matches",
+        "should be a function",
+        "should return an iterator",
+        "should iterate over all Quads"
+      ],
+      "changes": [
+        "node:test describe/it instead of injected Mocha",
+        "repository RDF term factory and native Dataset",
+        "explicit namespace records instead of @rdfjs/namespace",
+        "@std/expect.toBe replaces node assert.strictEqual without changing equality assertions",
+        "Original Quad-subject positive assertion is a legacy RDF-star profile; mapped local boundary test explicitly requires TypeError under current object-only RDF 1.2 term profile."
+      ],
+      "exclusions": "Original positive case should support Quads having a Quad as subject is unsupported: current RDF 1.2 triple terms occur only in object positions (packages/rdf/term.ts, docs/conformance.md). Its original identity remains listed and its local replacement tests explicit rejection, without a skip or weakened factory. Other upstream files are outside this selected suite.",
+      "boundaryAdaptations": [
+        {
+          "originalCaseName": "should support Quads having a Quad as subject",
+          "localCaseName": "rejects the upstream legacy Quad-subject case outside the RDF 1.2 profile",
+          "reason": "Legacy RDF-star Quad subjects are outside the documented native RDF 1.2 object-term profile; unsupported call must reject TypeError."
+        }
+      ]
+    },
+    {
+      "local": "integration/upstream/store_test.ts",
+      "repositories": [
+        "rdfjs-base/dataset",
+        "eclipse-rdf4j/rdf4j",
+        "RDFLib/rdflib"
+      ],
+      "sourcePaths": [
+        "test/DatasetCore.test.js",
+        "testsuites/model/src/main/java/org/eclipse/rdf4j/testsuite/model/ModelTest.java",
+        "test/test_dataset/test_dataset_add.py"
+      ],
+      "leafCases": 20,
+      "selection": [
+        "RDF/JS matching semantics expanded to all 16 bound/wildcard SPOG masks",
+        "duplicate add, equal-object delete and unknown delete",
+        "RDFLib append same named graph without ambient source graph copy",
+        "RDF4J literal/default/named graph filtering",
+        "independent oracle missing/duplicate/wrong-graph/wrong-literal mutations"
+      ],
+      "localExtensions": [
+        "Store delta reopen and compacted snapshot reopen with borrowed MemoryFileSystem",
+        "RDF4J live-view mutation deliberately differs: native Dataset.match returns detached Dataset"
+      ],
+      "exclusions": "No RDF4J/Python API compatibility or disk durability claim."
+    },
+    {
+      "local": "integration/upstream/engine_test.ts",
+      "repositories": [
+        "oxigraph/oxigraph",
+        "comunica/comunica"
+      ],
+      "sourcePaths": [
+        "js/test/store.test.ts",
+        "packages/actor-query-source-identify-rdfjs/test/QuerySourceRdfJs-test.ts"
+      ],
+      "leafCases": 12,
+      "selection": [
+        "ASK true/false",
+        "default graph SELECT",
+        "same-variable subject/object SELECT",
+        "named graph SELECT",
+        "CONSTRUCT default graph",
+        "INSERT DATA/DELETE WHERE named graph"
+      ],
+      "changes": [
+        "Run selected scenarios through public native adapters with actual pinned engines",
+        "Absolute urn IRIs replace upstream relative test identifiers",
+        "Independent hand-authored expected term/quad records",
+        "Fixture owns explicit Oxigraph result-wrapper release and engine teardown"
+      ],
+      "exclusions": "No full engine evaluator or upstream internal actor protocol coverage; these are correctness scenarios, not BSBM performance workloads."
+    },
+    {
+      "local": "bench/upstream/store_bench.ts",
+      "repository": "apache/jena",
+      "sourcePath": "jena-benchmarks/jena-benchmarks-jmh/src/test/java/org/apache/jena/mem/graph/TestGraphFindByMatchAndCount.java",
+      "corpus": "jena-benchmarks/testing/cheeses-0.1.ttl",
+      "disposition": "actual match-and-count workload port over one complete upstream corpus",
+      "families": [
+        "findAndCountS__",
+        "findAndCount_P_",
+        "findAndCount__O",
+        "findAndCountSP_",
+        "findAndCountS_O",
+        "findAndCount_PO"
+      ],
+      "timedCases": 18,
+      "lanes": [
+        "native Dataset synchronous iterator/count",
+        "N3 synchronous iterator/count baseline",
+        "Store asynchronous iterator/count over borrowed MemoryFileSystem warm index"
+      ],
+      "changes": [
+        "Mitata instead of Java/JMH",
+        "Independent exact quad/multiplicity preflight for every selector in every lane",
+        "Plain public RDF identity tuple grouping instead of Java NodeSet/NodeTupleSet",
+        "Parsing, corpus/index construction, persistence writes and delta reopen outside timing"
+      ],
+      "exclusions": [
+        "Only cheeses-0.1.ttl; pizza.owl.rdf/data.nt.gz not adopted",
+        "No Jena JVM implementation or JMH measurements",
+        "No disk/OS I/O, fsync, cold recovery, network or hosted services"
+      ]
+    },
+    {
+      "local": "bench/upstream/sources/oxigraph-oxigraph/js/test/store.bench.ts.txt",
+      "repository": "oxigraph/oxigraph",
+      "disposition": "evaluated, not adopted",
+      "reason": "Full BSBM explore1000 data, 300-operation mix, query/update evolving state and XML-result serialization are not equivalent to the small adapter correctness fixture. Data/generator/result oracle are not retained, so no BSBM timing is claimed."
+    },
+    {
+      "local": "bench/upstream/sources/comunica-comunica/performance/benchmark-bsbm-file-10k/README.md",
+      "repository": "comunica/comunica",
+      "disposition": "evaluated, not adopted",
+      "reason": "External 10k BSBM data and benchmark runner are outside the bounded adopted match/count workload. No full BSBM performance claim."
+    }
+  ],
+  "additionalLicenses": [
+    {
+      "name": "CC-BY-SA-3.0",
+      "url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode.txt",
+      "local": "bench/upstream/sources/apache-jena/CC-BY-SA-3.0.txt",
+      "bytes": 22240,
+      "sha256": "3f941b3b89cf7b8370ceb83cc76d2120d471b58735d8ca60238a751a48d7f72f",
+      "scope": "Original cheeses-0.1.ttl embeds this license for kasabi:italy; attribution metadata is unchanged. This is separate from Jena code license."
+    }
+  ]
+}

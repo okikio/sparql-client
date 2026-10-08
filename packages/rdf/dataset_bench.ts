@@ -3,6 +3,7 @@
 import { bench, do_not_optimize, group } from 'mitata'
 import { Store as N3Store } from 'n3'
 import { report } from '../../bench/report.ts'
+import { expectQuads } from '../../bench/oracle.ts'
 import { Dataset } from './dataset.ts'
 import { literal, namedNode, quad } from './factory.ts'
 import type {
@@ -18,15 +19,17 @@ const quads = Array.from({ length: SIZE }, (_, index) =>
   quad(
     namedNode(`https://example.com/s/${index % 10_000}`),
     namedNode(`https://example.com/p/${index % 16}`),
-    literal(`value-${index % 1000}`),
+    literal(`value-${index}`),
     namedNode(`https://example.com/g/${index % 8}`),
   ))
 const dataset = new Dataset(quads)
 const n3 = new N3Store(quads)
+expectQuads(dataset, quads, 'Dataset construction')
+expectQuads(n3, quads, 'N3 construction')
 const target = 1729
 const subject = namedNode(`https://example.com/s/${target % 10_000}`)
 const predicate = namedNode(`https://example.com/p/${target % 16}`)
-const object = literal(`value-${target % 1000}`)
+const object = literal(`value-${target}`)
 const graph = namedNode(`https://example.com/g/${target % 8}`)
 
 interface PatternType {
@@ -47,7 +50,19 @@ const patterns: readonly PatternType[] = [
 ]
 
 for (const pattern of patterns) {
-  const expected = scan(quads, pattern)
+  const matches = quads.filter((value) => scan([value], pattern) === 1)
+  expectQuads(dataset.matchIter(pattern), matches, `${pattern.name}/Dataset`)
+  expectQuads(
+    n3.getQuads(
+      pattern.subject ?? null,
+      pattern.predicate ?? null,
+      pattern.object ?? null,
+      pattern.graph ?? null,
+    ),
+    matches,
+    `${pattern.name}/N3`,
+  )
+  const expected = matches.length
   const own = count(dataset.matchIter(pattern))
   const baseline = n3.getQuads(
     pattern.subject ?? null,

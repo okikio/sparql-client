@@ -4,6 +4,7 @@ import { bench, do_not_optimize, group } from 'mitata'
 import { QueryEngine } from '@comunica/query-sparql-rdfjs'
 import { DataFactory, Store } from 'n3'
 import { report } from '../../bench/report.ts'
+import { expectTerm } from '../../bench/oracle.ts'
 import { create } from './mod.ts'
 
 const engine = new QueryEngine()
@@ -25,9 +26,15 @@ if (!await engine.queryBoolean(ask, context) || !await client.queryBoolean(ask))
 }
 const direct = await engine.queryBindings(select, context)
 let directCount = 0
-for await (const _ of direct) directCount++
+for await (const row of direct) {
+  expectTerm(row.get('o'), DataFactory.literal('v1729'), 'Comunica direct binding')
+  directCount++
+}
 let wrappedCount = 0
-for await (const _ of await client.queryBindings(select)) wrappedCount++
+for await (const row of await client.queryBindings(select)) {
+  expectTerm(row.get('o'), DataFactory.literal('v1729'), 'Comunica adapted binding')
+  wrappedCount++
+}
 if (directCount !== 1 || wrappedCount !== directCount) {
   throw new Error('Comunica binding benchmark oracle failed.')
 }
@@ -35,13 +42,13 @@ if (directCount !== 1 || wrappedCount !== directCount) {
 group('Comunica adapter: 10k-quad RDF/JS source', () => {
   bench('direct ASK', async () => do_not_optimize(await engine.queryBoolean(ask, context)))
   bench('@okikio ASK adapter', async () => do_not_optimize(await client.queryBoolean(ask)))
-  bench('direct SELECT materialize', async () => {
+  bench('direct SELECT consume bindings', async () => {
     const stream = await engine.queryBindings(select, context)
     let count = 0
     for await (const _ of stream) count++
     do_not_optimize(count)
   })
-  bench('@okikio SELECT materialize', async () => {
+  bench('@okikio SELECT consume bindings', async () => {
     let count = 0
     for await (const _ of await client.queryBindings(select)) count++
     do_not_optimize(count)
