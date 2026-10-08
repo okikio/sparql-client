@@ -1,4 +1,4 @@
-/** Minimal durable file contract required by the triplestore. @module */
+/** Minimal process-visible file contract required by the triplestore. @module */
 
 /** File metadata required for bounded recovery reads. */
 export interface FileStatType {
@@ -32,12 +32,14 @@ export interface SignalOptionsType {
 export interface FileSystemType {
   /** Returns whether the requested file or directory currently exists. */
   exists(path: string, options?: SignalOptionsType): Promise<boolean>
-  /** Ensures the requested directory and its parents exist before a durable write. */
+  /** Ensures the requested directory and its parents exist before a write. */
   ensureDir(path: string, options?: SignalOptionsType): Promise<void>
   /** Iterates direct directory entries without requiring the store to materialize the complete tree. */
   readDir(path: string, options?: SignalOptionsType): AsyncIterable<DirectoryEntryType>
-  /** Reads one durable store record as UTF-8 text. Segment size checks happen before this call. */
+  /** Reads UTF-8 text. This buffered boundary is capped after materialization; openReadStream enables consumption-time caps. */
   readText(path: string, options?: SignalOptionsType): Promise<string>
+  /** Optional bounded consumption. Buffered adapters may allocate before exposing their stream. */
+  openReadStream?(path: string, options?: SignalOptionsType): Promise<ReadableStream<Uint8Array>>
   /** Returns file metadata used for recovery checks and segment validation. */
   stat(path: string, options?: SignalOptionsType): Promise<
     FileStatType | {
@@ -45,7 +47,7 @@ export interface FileSystemType {
       readonly kind: 'directory'
     }
   >
-  /** Writes one complete durable file while preserving the caller-owned filesystem lifecycle. */
+  /** Writes one complete file without promising persistence barriers or conditional publication; preserves the caller-owned filesystem lifecycle. */
   writeFile(
     path: string,
     data: string | Uint8Array,

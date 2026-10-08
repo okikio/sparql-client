@@ -28,7 +28,7 @@ describe('@okikio/triplestore format records', () => {
         operation: 'add',
         segment: 'segments/0000000000000002.nq',
       }))
-    ).toThrow('must not declare')
+    ).toThrow(TypeError)
   })
 
   it('uses lexicographically sortable generation names and rejects invalid generations', () => {

@@ -1,3 +1,6 @@
+import { finish } from '../../integration/releases.ts'
+import { open } from './mod.ts'
+
 import type {
   DirectoryEntryType,
   FileStatType,
@@ -5,14 +8,14 @@ import type {
   SignalOptionsType,
 } from './storage.ts'
 
-/** Injected write fault used by durability tests to simulate a crash during publication. */
+/** Injected write fault used by publication tests to simulate an interrupted write. */
 export type WriteFaultType = (
   path: string,
   text: string,
   fs: MemoryFileSystem,
 ) => void | Promise<void>
 
-/** Minimal in-memory filesystem for package-local durability tests. */
+/** Minimal in-memory filesystem for package-local recovery tests. */
 export class MemoryFileSystem implements FileSystemType {
   readonly files = new Map<string, string>()
   readonly directories = new Set<string>(['/'])
@@ -75,7 +78,9 @@ export class MemoryFileSystem implements FileSystemType {
     abort(options.signal)
     const normalized = normalize(path)
     const file = this.files.get(normalized)
-    if (file !== undefined) return Promise.resolve({ kind: 'file', size: new TextEncoder().encode(file).byteLength })
+    if (file !== undefined) {
+      return Promise.resolve({ kind: 'file', size: new TextEncoder().encode(file).byteLength })
+    }
     if (this.directories.has(normalized)) return Promise.resolve({ kind: 'directory' })
     throw new Error(`ENOENT ${path}`)
   }
@@ -108,5 +113,17 @@ function dirname(path: string): string {
 
 /** Applies cooperative cancellation consistently across fixture operations. */
 function abort(signal?: AbortSignal): void {
-  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+  if (signal?.aborted) throw signal.reason
+}
+
+/** Registers every opened store before test work and retains all release failures. */
+export function use(body: (create: typeof open) => Promise<void>): Promise<void> {
+  return finish(async (releases) => {
+    const owned: typeof open = async (...options) => {
+      const store = await open(...options)
+      releases.push(() => store.close())
+      return store
+    }
+    await body(owned)
+  })
 }
