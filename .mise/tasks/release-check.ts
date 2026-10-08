@@ -6,6 +6,7 @@ export const tasks = [
   'conformance',
   'support',
   'integration',
+  'test:upstream',
   'browser',
   'package',
   'distribution',

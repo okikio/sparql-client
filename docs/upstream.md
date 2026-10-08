@@ -3,7 +3,11 @@
 Run `deno task test:upstream` to exercise the adopted parser, dataset, store and engine cases.
 The parser cases also run with the normal `deno task test` command. The integration cases have
 their own task because they initialize real external engines. These runtime commands use
-`--no-check`; type checking remains a separate CI gate.
+`--no-check`; type checking remains a separate CI gate. Release preparation also runs this
+upstream task before browser and package gates. Its narrow environment permission includes
+the pinned engine dependencies’ shell, locale and terminal probes, including `ZSH_NAME`;
+reading an absent key still requires permission in Deno. The task does not grant network access
+or shell execution to the adopted suites.
 
 Run `deno task bench:upstream:check` for the Jena workload correctness preflight and
 `deno task bench:upstream` for timing. `BENCH_FORMAT=json` retains Mitata's structured output;

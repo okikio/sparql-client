@@ -110,6 +110,7 @@ async function fixture(
         conformance: 'deno run --allow-read check.ts',
         support: 'deno run --allow-read check.ts',
         integration: 'deno run --allow-read check.ts',
+        'test:upstream': 'deno run --allow-read check.ts',
         browser: 'deno run --allow-read check.ts',
         package: 'deno task pack:npm',
         distribution: 'deno task verify:npm:artifact .tmp/packages/okikio-rdf-0.1.0.tgz',
