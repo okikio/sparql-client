@@ -270,6 +270,34 @@ interface RegistryType {
   archive: string
 }
 
+/**
+ * Fixture commands inherit only platform lookup and locale settings. Release inputs,
+ * registry credentials, Git redirection and runtime flags belong to the fixture.
+ * Clearing the parent environment makes deleting an optional input mean absence.
+ */
+function environment(overrides: Record<string, string>): Record<string, string> {
+  const parent = Deno.env.toObject()
+  const selected: Record<string, string> = {}
+  for (
+    const name of [
+      'PATH',
+      'HOME',
+      'USERPROFILE',
+      'SystemRoot',
+      'SYSTEMROOT',
+      'COMSPEC',
+      'PATHEXT',
+      'LANG',
+      'LC_ALL',
+      'TZ',
+    ]
+  ) {
+    const value = parent[name]
+    if (value !== undefined) selected[name] = value
+  }
+  return { ...selected, ...overrides }
+}
+
 /** Bounds a real subprocess and always releases its deadline timer. */
 async function run(root: string, file: string, args: string[], env: Record<string, string> = {}) {
   const controller = new AbortController()
@@ -284,7 +312,8 @@ async function run(root: string, file: string, args: string[], env: Record<strin
     return await new Deno.Command(file, {
       args: command,
       cwd: root,
-      env,
+      clearEnv: true,
+      env: environment(env),
       stdin: 'null',
       signal: controller.signal,
     })
@@ -293,6 +322,68 @@ async function run(root: string, file: string, args: string[], env: Record<strin
     clearTimeout(timer)
   }
 }
+
+describe('release fixture environment', () => {
+  it('keeps optional inputs absent and uses explicit fixture overrides in a real child', async () => {
+    const poison = {
+      OPFS_ARCHIVE_SHA256: 'foreign-digest',
+      OPFS_SOURCE: '/foreign/source',
+      GITHUB_ACTIONS: 'true',
+      GIT_DIR: '/foreign/git',
+      NODE_OPTIONS: '--require=/foreign/module',
+      RELEASE_FIXTURE_SENTINEL: 'foreign-value',
+    }
+    if (Deno.env.get('RELEASE_FIXTURE_ENV_CHILD') !== 'true') {
+      const cache = Deno.env.get('DENO_DIR')
+      // Select poison explicitly for this owned outer child, without changing the parent.
+      // Its inner run must remove real inherited values; mocking a map cannot prove that.
+      await reportFixture(async (root) => {
+        const output = join(root, 'observed.json')
+        success(
+          await run(Deno.cwd(), Deno.execPath(), [
+            'test',
+            '--no-check',
+            '--cached-only',
+            '--frozen',
+            '-A',
+            '--filter=release fixture environment',
+            fileURLToPath(import.meta.url),
+          ], {
+            ...poison,
+            RELEASE_FIXTURE_ENV_CHILD: 'true',
+            RELEASE_FIXTURE_ENV_RESULT: output,
+            ...(cache ? { DENO_DIR: cache } : {}),
+          }),
+        )
+        // A successful test runner can select zero cases. Only the admitted inner
+        // body writes this owned record, after observing its actual child output.
+        expect(await read(output)).toEqual({
+          parent: poison,
+          child: [null, '/owned/source', 'false', null, null, null],
+        })
+      })
+      return
+    }
+    for (const [name, value] of Object.entries(poison)) expect(Deno.env.get(name)).toBe(value)
+    const result = await run(Deno.cwd(), Deno.execPath(), [
+      'eval',
+      `console.log(JSON.stringify(['OPFS_ARCHIVE_SHA256','OPFS_SOURCE','GITHUB_ACTIONS','GIT_DIR','NODE_OPTIONS','RELEASE_FIXTURE_SENTINEL'].map(name => Deno.env.get(name) ?? null)))`,
+    ], { OPFS_SOURCE: '/owned/source', GITHUB_ACTIONS: 'false' })
+    success(result)
+    const observed: unknown = JSON.parse(new TextDecoder().decode(result.stdout))
+    expect(observed).toEqual([
+      null,
+      '/owned/source',
+      'false',
+      null,
+      null,
+      null,
+    ])
+    const output = Deno.env.get('RELEASE_FIXTURE_ENV_RESULT')
+    if (!output) throw new Error('Missing owned environment observation path.')
+    await json(output, { parent: poison, child: observed })
+  })
+})
 
 /** Test manifests and registry state are inspectable data, while Bumpy owns all release decisions. */
 async function json(path: string, value: unknown): Promise<void> {
@@ -645,7 +736,7 @@ async function fixture(
 
 /** Resolves real build tools before controlled registry commands are placed on PATH. */
 async function executable(name: string): Promise<string> {
-  const result = await new Deno.Command('which', { args: [name] }).output()
+  const result = await run(Deno.cwd(), 'which', [name])
   success(result)
   return new TextDecoder().decode(result.stdout).trim()
 }

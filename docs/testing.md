@@ -433,3 +433,10 @@ The supervisor's exact Git attribute pins its working-tree bytes to LF, includin
 Retirement first records `preCleanupExit`, then reports `cleanupExit`, `cleanupState` and `finalExit` after the gate cleanup attempt. `cleanupExit` is the actual `rm` result; it is `null` when changed ownership refuses to start removal. Cleanup refusal or failure makes the final supervisor code 74 while retaining the earlier result and child exit. For example, an illustrative pre-cleanup exit 9 and cleanup exit 1 produce final exit 74 with both failures visible. The native CLI's observed code and signal remain the authority for whether the command itself completed.
 
 The installed-package jobs run the maintained tooling controls on Linux, macOS, and Windows before importing the archives. This exercises native host copy retirement, including Windows readonly attributes, on the host that supplies those filesystem semantics. A Linux skip of that Windows control is not Windows coverage.
+
+Release subprocess fixtures clear their inherited environment and select only platform lookup,
+locale settings and explicit scenario inputs. Deleting an optional scenario variable therefore
+means absence, even inside a composed OPFS/RDF preparation run. Nested fixture gates retain
+the selected registry doubles and owned cache/temporary paths. An owned outer child supplies
+foreign parent configuration to its inner fixture command without mutating the parent environment.
+These controls exercise release admission; they do not change production environment handling.
