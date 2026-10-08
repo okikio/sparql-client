@@ -1,25 +1,192 @@
-name: Release
+name: Publish Registries
 
 on:
   workflow_dispatch:
     inputs:
-      publish:
-        description: Publish after all release gates pass
+      revision:
+        description: Exact reviewed 40-character Git commit containing release versions and changelogs
         required: true
-        default: false
-        type: boolean
+        type: string
+      opfs_revision:
+        description: Exact published OPFS source commit to exercise the borrowed filesystem contract
+        required: true
+        type: string
+      opfs_archive_sha256:
+        description: Retained tested OPFS archive SHA-256 to reproduce before direct npm is available
+        required: false
+        type: string
+        default: ''
+      target:
+        description: Registry to publish; rerun failed jobs to retain the prepared archives
+        required: true
+        type: choice
+        default: both
+        options: [both, jsr, npm]
+      prepared_run:
+        description: Existing preparation run to reuse without rebuilding archives
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
+concurrency:
+  group: publish-${{ inputs.revision }}
+  cancel-in-progress: false
+
 jobs:
-  release:
-    if: inputs.publish
+  prepare:
+    if: inputs.prepared_run == ''
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v3
-      - run: mise run release-check
-      - name: Publish JSR workspaces
-        run: deno publish
+      - name: Validate source revision
+        env:
+          REVISION: ${{ inputs.revision }}
+          OPFS_REVISION: ${{ inputs.opfs_revision }}
+          OPFS_ARCHIVE_SHA256: ${{ inputs.opfs_archive_sha256 }}
+        run: '[[ "$REVISION" =~ ^[a-f0-9]{40}$ && "$OPFS_REVISION" =~ ^[a-f0-9]{40}$ && ( -z "$OPFS_ARCHIVE_SHA256" || "$OPFS_ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ) ]]'
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: '2026.8.6'
+          install_args: deno node bun npm:npm
+      - run: deno ci
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: okikio/opfs
+          ref: ${{ inputs.opfs_revision }}
+          path: .tmp/opfs-source
+          persist-credentials: false
+      - name: Reproduce the reviewed OPFS archive
+        if: inputs.opfs_archive_sha256 != ''
+        working-directory: .tmp/opfs-source
+        run: |
+          deno ci
+          deno task pack:npm
+      - name: Select the exact OPFS archive for borrowed-filesystem checks
+        env:
+          OPFS_ARCHIVE_SHA256: ${{ inputs.opfs_archive_sha256 }}
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('.tmp/opfs-source/deno.json', 'utf8')).version")
+          mkdir -p .tmp/opfs-package
+          archive=".tmp/opfs-package/okikio-opfs-$version.tgz"
+          if [[ -n "$OPFS_ARCHIVE_SHA256" ]]; then
+            cp ".tmp/opfs-source/.release/npm/okikio-opfs-$version.tgz" "$archive"
+            actual=$(sha256sum "$archive" | cut -d ' ' -f 1)
+            test "$actual" = "$OPFS_ARCHIVE_SHA256"
+          else
+            npm pack "@okikio/opfs@$version" --ignore-scripts --pack-destination .tmp/opfs-package
+          fi
+          actual=$(sha256sum "$archive" | cut -d ' ' -f 1)
+          echo "OPFS_ARCHIVE_SHA256=$actual" >> "$GITHUB_ENV"
+          echo "OPFS_SOURCE=$PWD/.tmp/opfs-source" >> "$GITHUB_ENV"
+          echo "OPFS_TARBALL=$PWD/$archive" >> "$GITHUB_ENV"
+      - name: Install browser engines
+        run: deno task browser:install
+      - name: Prepare the exact tested release
+        run: deno task release:prepare
+      - name: Preserve package paths in the prepared artifact
+        run: |
+          mkdir -p .tmp/release-bundle/.tmp/releases .tmp/release-bundle/.tmp/packages
+          cp .tmp/releases/*.json .tmp/release-bundle/.tmp/releases/
+          for evidence in .tmp/releases/snapshot-*/dependencies; do
+            if [[ -d "$evidence" ]]; then
+              mkdir -p ".tmp/release-bundle/$(dirname "$evidence")"
+              cp -R "$evidence" ".tmp/release-bundle/$(dirname "$evidence")/"
+            fi
+          done
+          cp .tmp/packages/*.tgz .tmp/release-bundle/.tmp/packages/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: prepared-${{ inputs.revision }}
+          path: .tmp/release-bundle/
+          include-hidden-files: true
+          retention-days: 30
+
+  publish:
+    needs: prepare
+    if: ${{ !cancelled() && (needs.prepare.result == 'success' || inputs.prepared_run != '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate immutable publication inputs
+        env:
+          REVISION: ${{ inputs.revision }}
+          PREPARED_RUN: ${{ inputs.prepared_run }}
+        run: '[[ "$REVISION" =~ ^[a-f0-9]{40}$ && ( -z "$PREPARED_RUN" || "$PREPARED_RUN" =~ ^[1-9][0-9]*$ ) ]]'
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: '2026.8.6'
+          install_args: deno node bun npm:npm
+      - run: deno ci
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: prepared-${{ inputs.revision }}
+          run-id: ${{ inputs.prepared_run || github.run_id }}
+          github-token: ${{ github.token }}
+          path: .
+      - name: Restore receipts from the selected preparation run
+        if: inputs.prepared_run != '' && github.run_attempt == 1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: publication-${{ inputs.revision }}-*
+          run-id: ${{ inputs.prepared_run }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: .tmp/releases
+      - name: Find receipts from the preceding attempt
+        id: receipts
+        if: github.run_attempt > 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          REVISION: ${{ inputs.revision }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          id=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/artifacts" --paginate --jq ".artifacts | map(select(.name == \"publication-$REVISION-$((ATTEMPT - 1))\")) | .[0].id // empty")
+          test -n "$id"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: github.run_attempt > 1
+        with:
+          artifact-ids: ${{ steps.receipts.outputs.id }}
+          merge-multiple: true
+          path: .tmp/releases
+      - name: Publish the requested registries
+        env:
+          TARGET: ${{ inputs.target }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$REVISION"
+          env GITHUB_SHA="$REVISION" deno task release:publish "$TARGET"
+      - name: Select current verification controls
+        # Verification controls can be repaired after a partial publication. The
+        # prepared source and archive remain in the immutable root checkout.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: .tmp/release-controls
+          persist-credentials: false
+      - name: Verify exact public package consumers
+        env:
+          TARGET: ${{ inputs.target }}
+        run: deno run -A .tmp/release-controls/.mise/tasks/release-consumer.ts "$TARGET"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: publication-${{ inputs.revision }}-${{ github.run_attempt }}
+          path: .tmp/releases/
+          include-hidden-files: true
+          retention-days: 30

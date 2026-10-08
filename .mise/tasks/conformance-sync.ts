@@ -1,5 +1,6 @@
 /** Synchronizes immutable upstream conformance suite revisions into `.tmp`. @module */
 
+import { checkCache } from '../../conformance/cache.ts'
 import { dirname } from '@std/path'
 import { sourceDir, sources } from '../../conformance/source.ts'
 
@@ -12,18 +13,41 @@ async function sync(
 ): Promise<void> {
   const dir = sourceDir(id)
   const marker = `${dir}/.revision`
-  if (await text(marker) === `${revision}\n`) return
-  await Deno.remove(dir, { recursive: true }).catch(() => undefined)
+  if (await text(marker) === `${revision}\n`) {
+    await checkCache(dir, revision)
+    return
+  }
+  try {
+    await Deno.stat(dir)
+    throw new Error(
+      `Conformance cache ${dir} has no matching revision marker. Preserve needed edits and remove the cache directory before resyncing.`,
+    )
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) throw error
+  }
   await Deno.mkdir(dirname(dir), { recursive: true })
   await run(['git', 'init', '--quiet', dir])
   await run(['git', '-C', dir, 'remote', 'add', 'origin', repository])
   await run(['git', '-C', dir, 'fetch', '--quiet', '--depth=1', 'origin', revision])
-  await run(['git', '-C', dir, 'checkout', '--quiet', '--detach', 'FETCH_HEAD'])
+  await run([
+    'git',
+    '-c',
+    'core.autocrlf=false',
+    '-c',
+    'core.eol=lf',
+    '-C',
+    dir,
+    'checkout',
+    '--quiet',
+    '--detach',
+    'FETCH_HEAD',
+  ])
   const head = (await command(['git', '-C', dir, 'rev-parse', 'HEAD'])).trim()
   if (head !== revision) {
     throw new Error(`Conformance source ${id} resolved ${head}, expected ${revision}.`)
   }
   await Deno.writeTextFile(marker, `${revision}\n`)
+  await checkCache(dir, revision)
 }
 
 async function run(args: readonly string[]): Promise<void> {
