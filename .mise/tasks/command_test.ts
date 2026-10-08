@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { collect } from './command.ts'
+import { terminate } from './termination_fixture.ts'
 
 /** Every real child writes accepted suffixes; native writes are not assumed to consume a whole chunk. */
 const WRITE = `async function write(file, bytes) {
@@ -64,6 +65,7 @@ await write(Deno.${stream}, new Uint8Array(4097).fill(23));`,
   })
 
   it('expires only after actual pipe admission and observes child termination without an elapsed threshold', async () => {
+    const native = await terminate()
     let expire: (() => void) | undefined
     let disarmed = false
     const result = await collect(Deno.execPath(), [
@@ -84,13 +86,17 @@ await new Promise(() => setInterval(() => {}, 1000));`,
     })
     expect(result.success).toBe(false)
     expect(result.code).not.toBeNull()
-    expect(result.signal).toBe('SIGKILL')
+    expect({ code: result.code, signal: result.signal }).toEqual({
+      code: native.code,
+      signal: native.signal,
+    })
     expect(result.failures).toContainEqual(expect.objectContaining({ stage: 'deadline' }))
     expect([...result.streams.stdout.bytes]).toEqual([41])
     expect(disarmed).toBe(true)
   })
 
   it('preserves undefined/null capture failures and independent watchdog retirement failure', async () => {
+    const native = await terminate()
     for (const reason of [undefined, null]) {
       const retirement = new Error('watchdog retirement')
       const result = await collect(Deno.execPath(), [
@@ -109,7 +115,10 @@ await new Promise(() => setInterval(() => {}, 1000));`,
         },
       })
       expect(result.success).toBe(false)
-      expect(result.signal).toBe('SIGKILL')
+      expect({ code: result.code, signal: result.signal }).toEqual({
+        code: native.code,
+        signal: native.signal,
+      })
       expect(result.failures).toContainEqual({ stage: 'read', stream: 'stdout', reason })
       expect(result.failures).toContainEqual({ stage: 'deadline', reason: retirement })
       expect([...result.streams.stdout.bytes]).toEqual([43])
@@ -117,6 +126,7 @@ await new Promise(() => setInterval(() => {}, 1000));`,
   })
 
   it('retires a real acquired child after watchdog setup failure and rejects invalid admission before spawn', async () => {
+    const native = await terminate()
     const admission = new Error('watchdog setup')
     const result = await collect(Deno.execPath(), [
       'eval',
@@ -127,7 +137,10 @@ await new Promise(() => setInterval(() => {}, 1000));`,
       },
     })
     expect(result.success).toBe(false)
-    expect(result.signal).toBe('SIGKILL')
+    expect({ code: result.code, signal: result.signal }).toEqual({
+      code: native.code,
+      signal: native.signal,
+    })
     expect(result.code).not.toBeNull()
     expect(result.failures).toContainEqual({ stage: 'deadline', reason: admission })
     for (const timeoutMs of [0, NaN, Infinity, 1.5, 2 ** 31]) {

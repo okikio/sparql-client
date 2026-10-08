@@ -57,6 +57,23 @@ CLI diagnostics retain at most 32 MiB of bytes independently per output stream.
 Overflow rejects capture and retains its prefix; actual process exit and signal stay
 separate from capture failure. This is a maintainer diagnostic limit, not a workload
 performance budget. Exact daemon cleanup is separately attempted after a CLI failure.
+Native termination controls now compare actual child status and pipe retirement with
+an independent native process. A requested `SIGKILL` can yield a numeric Windows exit
+and `signal: null`; diagnostics retain the reported fields. Node's close status and
+Deno's native status have separate controls.
+
+The copied worker now acquires one canonical physical root before receipt reads or
+ownership changes. This admits macOS ancestor spellings such as `/var` and
+`/private/var` only when their native directory identity, owner and mode agree.
+Root-leaf aliases still reject, and contained links use that same canonical root.
+Artifact identity controls establish opposite English/Swedish Unicode ordering in
+separate processes before requiring identical ordinal hashes; they no longer infer
+an ICU locale change from environment variables alone.
+Artifact and maintained-source task fixtures now retire through explicit ownership
+scopes instead of compatibility-layer teardown hooks. Removal is registered before
+setup can fail. Undefined/null primary failures and independent cleanup failures
+remain visible, and one failed retirement does not prevent another acquired root
+from receiving its own attempt.
 The private payload shares one cleanup promise, including rejection, and checks both
 the private and retained admission receipt bytes.
 Every CLI command records actual exit/signal and independent pipe/capture observations

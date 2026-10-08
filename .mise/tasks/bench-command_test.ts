@@ -3,6 +3,7 @@ import { expect } from '@std/expect'
 import { createHash } from 'node:crypto'
 import { finish } from '../../integration/releases.ts'
 import { collect, read, spool } from './bench-command.ts'
+import { nodeTerminate, terminate } from './termination_fixture.ts'
 
 describe('benchmark child lifetime', () => {
   it('retains complete output after the actual child exits', async () => {
@@ -41,13 +42,14 @@ describe('benchmark child lifetime', () => {
     expect(result.error).toBeInstanceOf(Error)
   })
   it('terminates a child that never finishes, without treating elapsed time as performance', async () => {
+    const native = await nodeTerminate()
     const result = await collect(Deno.execPath(), [
       'eval',
       'await new Promise(() => setInterval(() => {}, 1000))',
     ], { timeoutMs: 250 })
     expect(result.success).toBe(false)
-    expect(result.code).toBeNull()
-    expect(result.error).toMatchObject({ killed: true, signal: 'SIGKILL' })
+    expect(result.code).toBe(native.code)
+    expect(result.error).toMatchObject({ killed: true, signal: native.signal })
   })
 })
 
@@ -191,6 +193,7 @@ await write(Deno.stderr, new Uint8Array([0,255,7])); Deno.exit(7);`,
   })
   it('expires only after real output admission, retires the child and disarms the watchdog', async () => {
     await fixture(async (paths) => {
+      const native = await terminate()
       let expire: (() => void) | undefined
       let disarmed = false
       const result = await spool(
@@ -223,7 +226,10 @@ await new Promise(() => setInterval(() => {}, 1000));`,
         },
       )
       expect(result.success).toBe(false)
-      expect(result.signal).toBe('SIGKILL')
+      expect({ code: result.code, signal: result.signal }).toEqual({
+        code: native.code,
+        signal: native.signal,
+      })
       expect(result.code).not.toBeNull()
       expect(result.failures).toContainEqual(expect.objectContaining({ stage: 'deadline' }))
       expect([...await read(paths.stdout, result.stdout.quotaBytes)]).toEqual([41])
@@ -272,6 +278,7 @@ await write(Deno.stderr, new Uint8Array([8,7,6,5,4,3,2,1]));`,
     })
   })
   it('rejects disk failure and zero progress while retaining both independent close failures', async () => {
+    const native = await terminate()
     for (const mode of ['zero', 'invalid', 'undefined', 'error'] as const) {
       await fixture(async (paths) => {
         const failure = mode === 'error' ? new Error('owned write rejected') : undefined
@@ -309,7 +316,10 @@ await new Promise(() => setInterval(() => {}, 1000));`,
           },
         )
         expect(result.success).toBe(false)
-        expect(result.signal).toBe('SIGKILL')
+        expect({ code: result.code, signal: result.signal }).toEqual({
+          code: native.code,
+          signal: native.signal,
+        })
         expect(result.failures).toContainEqual(
           expect.objectContaining({ stage: 'write', stream: 'stdout' }),
         )
@@ -414,6 +424,7 @@ await new Promise(() => setInterval(() => {}, 1000));`,
   })
   it('retires the acquired child and both native files after watchdog admission throws', async () => {
     await fixture(async (paths) => {
+      const native = await terminate()
       const failure = new Error('watchdog admission failed')
       const closed: string[] = []
       const opened: Deno.FsFile[] = []
@@ -442,7 +453,10 @@ await new Promise(() => setInterval(() => {}, 1000));`,
         },
       )
       expect(result.success).toBe(false)
-      expect(result.signal).toBe('SIGKILL')
+      expect({ code: result.code, signal: result.signal }).toEqual({
+        code: native.code,
+        signal: native.signal,
+      })
       expect(result.code).not.toBeNull()
       expect(result.failures.find((item) => item.stage === 'deadline')?.reason).toBe(failure)
       expect(closed.toSorted()).toEqual([paths.stderr, paths.stdout].toSorted())

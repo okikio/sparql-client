@@ -134,6 +134,22 @@ primary, diagnostic and cleanup causes. CLI diagnostics have independent 32 MiB 
 stderr. This maintainer admission limit is not a benchmark or consumer performance budget. Output overflow
 retains the admitted prefix, cancels the acquired readers and stops the exact CLI child; actual child exit and
 signal remain separate from capture failures. Daemon container removal remains a separate bounded operation.
+Termination controls compare the collector with an independently acquired native child, its actual failed exit and
+both pipe EOFs. The requested `SIGKILL` does not require the reported signal to have that name; Windows can report
+a numeric code and `signal: null`. Node's child `close` observation is tested separately from Deno's native status.
+No signal label is substituted into retained diagnostics.
+
+Copied workers acquire an absolute canonical root after checking that its requested leaf is a physical directory.
+The native device/inode, owner and mode observations must agree before receipt reads or ownership changes.
+An ancestor alias such as macOS `/var` versus `/private/var` can name that same directory; a root-leaf alias cannot
+grant ownership. Contained links are compared with the canonical root, and root identity remains checked afterward.
+Artifact collation controls use independently realized English and Swedish collators in isolated subprocesses.
+They prove opposite Unicode ordering before importing the receipt authority and require the same ordinal hashes.
+Changing `LANG` alone is not proof that a host's ICU default locale changed.
+Artifact and maintained-source fixture roots register removal immediately after native acquisition and retire
+through the existing `finish` scope, including partial setup and failed assertions. Their correctness does not
+depend on `TestContext.after` running in a compatibility layer. An undefined or null primary rejection remains a
+failure, and a second cleanup rejection cannot suppress it or prevent other acquired roots from retiring.
 Payload cleanup returns one shared promise, including an earlier retirement failure, and verification checks
 the retained receipt as well as its private copied counterpart. Retained report roots and each observation directory
 have separately acquired physical ownership, admitted before evidence writes. Their ownership receipt preserves
