@@ -1,10 +1,236 @@
 import process from 'node:process'
+import { CaptureError, copy as copyReports } from './reports.ts'
+import { createHash } from 'node:crypto'
+import { Buffer } from 'node:buffer'
 import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { ceiling } from './ceiling.ts'
+
+/** Real diagnostic files use a separately acquired writable namespace and guarded retirement. */
+async function reportFixture(action: (root: string) => Promise<void>): Promise<void> {
+  const created = await Deno.makeTempDir({ prefix: 'report-capture-control-' })
+  let root = created, canonical = false
+  let owner: Deno.FileInfo | undefined
+  const errors: unknown[] = []
+  try {
+    // Acquire physical identity before canonicalization or any fixture action can fail.
+    owner = await Deno.lstat(created)
+    if (!owner.isDirectory || owner.isSymlink || !owner.dev || !owner.ino) {
+      throw new Error('Report fixture requires observable physical ownership.')
+    }
+    root = await Deno.realPath(created)
+    canonical = true
+    await action(root)
+  } catch (reason) {
+    errors.push(reason)
+  }
+  try {
+    if (!owner?.isDirectory || owner.isSymlink || !owner.dev || !owner.ino) {
+      throw new Error(
+        `Report fixture ownership was not acquired; created path retained at ${created}.`,
+      )
+    }
+    const current = await Deno.lstat(root)
+    if (
+      !current.isDirectory || current.isSymlink || current.dev !== owner.dev ||
+      current.ino !== owner.ino ||
+      (canonical && await Deno.realPath(root) !== root)
+    ) throw new Error('Report fixture acquired root changed.')
+    await Deno.remove(root, { recursive: true })
+  } catch (reason) {
+    errors.push(reason)
+  }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length) {
+    throw new AggregateError(errors, 'Report fixture behavior and retirement failed.', {
+      cause: errors[0],
+    })
+  }
+}
+
+/** Parses actual retained journal bytes; alias targets remain inert byte observations. */
+async function reportCatalog(path: string): Promise<Array<Record<string, unknown>>> {
+  return (await Deno.readTextFile(path)).trimEnd().split('\n').map((line: string) =>
+    JSON.parse(line) as Record<string, unknown>
+  )
+}
+
+describe('diagnostic report capture', () => {
+  it('retains dangling/internal/escaped aliases as inert bytes beside independent binary reports', async () => {
+    await reportFixture(async (root) => {
+      const source = join(root, 'source'),
+        target = join(root, 'reports'),
+        outside = join(root, 'outside.bin')
+      await Deno.mkdir(join(source, 'nested'), { recursive: true })
+      const bytes = Uint8Array.from({ length: 192 * 1024 + 7 }, (_, index) => index % 251)
+      await Deno.writeFile(join(source, 'nested/raw.bin'), bytes)
+      await Deno.writeTextFile(
+        join(source, 'report-catalog-retained.ndjson'),
+        'ordinary report with a catalog-like name',
+      )
+      await Deno.writeFile(outside, new Uint8Array([255, 0, 17, 128]))
+      const before = await Deno.lstat(outside)
+      const links = {
+        dangling: 'missing-lock-owner',
+        internal: 'nested/raw.bin',
+        escaped: '../outside.bin',
+        absolute: outside,
+        cycle: 'cycle',
+        unicode: '../répertoire/锁-🦊',
+      }
+      for (const [name, value] of Object.entries(links)) {
+        await Deno.symlink(value, join(source, name), { type: 'file' })
+      }
+      const captured = await copyReports(source, target)
+      expect(captured.failures).toEqual([])
+      expect(dirname(captured.catalog.path)).toBe(root)
+      expect(captured.catalog.sha256).toBe(
+        createHash('sha256').update(await Deno.readFile(captured.catalog.path)).digest('hex'),
+      )
+      expect(await Deno.readFile(join(target, 'nested/raw.bin'))).toEqual(bytes)
+      expect(await Deno.readTextFile(join(target, 'report-catalog-retained.ndjson'))).toBe(
+        'ordinary report with a catalog-like name',
+      )
+      const rows = await reportCatalog(captured.catalog.path)
+      for (const [name, value] of Object.entries(links)) {
+        const row = rows.find((entry) => entry.path === name)
+        expect(row?.kind).toBe('link')
+        expect(row?.representation).toBe('inert')
+        expect(Uint8Array.from(Buffer.from(String(row?.rawTargetBase64), 'base64'))).toEqual(
+          new TextEncoder().encode(value),
+        )
+        await expect(Deno.lstat(join(target, name))).rejects.toThrow(Deno.errors.NotFound)
+      }
+      expect(rows.filter((entry) => typeof entry.path === 'string').map((entry) => entry.path))
+        .toEqual([
+          'absolute',
+          'cycle',
+          'dangling',
+          'escaped',
+          'internal',
+          'nested',
+          'nested/raw.bin',
+          'report-catalog-retained.ndjson',
+          'unicode',
+        ])
+      expect(await Deno.readFile(outside)).toEqual(new Uint8Array([255, 0, 17, 128]))
+      const after = await Deno.lstat(outside)
+      expect({ dev: after.dev, ino: after.ino, mode: after.mode, size: after.size }).toEqual({
+        dev: before.dev,
+        ino: before.ino,
+        mode: before.mode,
+        size: before.size,
+      })
+    })
+  })
+  it('continues sibling reports after one native read fails and durably journals the original failure', async () => {
+    await reportFixture(async (root) => {
+      const source = join(root, 'source'), target = join(root, 'reports')
+      await Deno.mkdir(join(source, 'nested'), { recursive: true })
+      await Deno.writeTextFile(join(source, 'a-failed.bin'), 'unread report')
+      await Deno.writeFile(join(source, 'nested/raw.bin'), new Uint8Array([0, 255, 128, 1, 17]))
+      await Deno.writeTextFile(join(source, 'z-sibling.json'), '{"observed":9}')
+      const primary = new Error('controlled native report read failure')
+      const captured = await copyReports(source, target, async (path, file, bytes, position) => {
+        if (path === join(source, 'a-failed.bin')) throw primary
+        return (await file.read(bytes, 0, bytes.length, position)).bytesRead
+      })
+      expect(captured.failures).toHaveLength(1)
+      expect(captured.failures[0]).toBeInstanceOf(CaptureError)
+      if (!(captured.failures[0] instanceof CaptureError)) {
+        throw new Error('Actual read failure was not retained.')
+      }
+      expect(captured.failures[0].cause).toBe(primary)
+      expect(await Deno.readFile(join(target, 'nested/raw.bin'))).toEqual(
+        new Uint8Array([0, 255, 128, 1, 17]),
+      )
+      expect(await Deno.readTextFile(join(target, 'z-sibling.json'))).toBe('{"observed":9}')
+      const rows = await reportCatalog(captured.catalog.path)
+      expect(rows.at(-1)).toMatchObject({
+        phase: 'entries-complete',
+        entryState: 'partial',
+        failures: 1,
+      })
+      expect(rows.find((entry) => entry.path === 'a-failed.bin')).toMatchObject({
+        kind: 'file',
+        sha256: null,
+        failures: [{
+          name: 'CaptureError',
+          capture: { path: 'a-failed.bin', phase: 'file-read' },
+          cause: { name: 'Error', message: primary.message },
+        }],
+      })
+    })
+  })
+  it('refuses recursive or overlapping source/destination trees before creating capture entries', async () => {
+    await reportFixture(async (root) => {
+      const source = join(root, 'source')
+      await Deno.mkdir(source)
+      await Deno.writeFile(join(source, 'binary'), new Uint8Array([0, 255, 128]))
+      await expect(copyReports(source, join(source, 'nested-capture'))).rejects.toThrow()
+      await expect(copyReports(source, root)).rejects.toThrow()
+      expect(await Deno.readFile(join(source, 'binary'))).toEqual(new Uint8Array([0, 255, 128]))
+      await expect(Deno.lstat(join(source, 'nested-capture'))).rejects.toThrow(Deno.errors.NotFound)
+    })
+  })
+  it('records an actual Unix socket as inert metadata without opening or cloning it', {
+    skip: Deno.build.os === 'windows',
+  }, async () => {
+    await reportFixture(async (root) => {
+      const source = join(root, 'source'), target = join(root, 'reports')
+      await Deno.mkdir(source)
+      const listener = Deno.listen({ transport: 'unix', path: join(source, 'socket') })
+      const errors: unknown[] = []
+      try {
+        const captured = await copyReports(source, target)
+        expect(captured.failures).toEqual([])
+        expect(
+          (await reportCatalog(captured.catalog.path)).find((entry) => entry.path === 'socket'),
+        ).toMatchObject({ kind: 'socket', representation: 'inert' })
+        await expect(Deno.lstat(join(target, 'socket'))).rejects.toThrow(Deno.errors.NotFound)
+      } catch (reason) {
+        errors.push(reason)
+      }
+      try {
+        listener.close()
+      } catch (reason) {
+        errors.push(reason)
+      }
+      if (errors.length === 1) throw errors[0]
+      if (errors.length) {
+        throw new AggregateError(errors, 'Socket observation and retirement failed.', {
+          cause: errors[0],
+        })
+      }
+    })
+  })
+  it('refuses preexisting destination and parent aliases without changing outside bytes or modes', async () => {
+    await reportFixture(async (root) => {
+      const source = join(root, 'source'),
+        outside = join(root, 'outside'),
+        borrowed = join(root, 'borrowed')
+      await Deno.mkdir(source)
+      await Deno.mkdir(outside)
+      await Deno.mkdir(borrowed)
+      await Deno.writeTextFile(join(outside, 'sentinel'), 'outside remains')
+      await Deno.writeTextFile(join(borrowed, 'sentinel'), 'borrowed destination remains')
+      const before = await Deno.lstat(outside), borrowedBefore = await Deno.lstat(borrowed)
+      await Deno.symlink(outside, join(root, 'parent-alias'), { type: 'dir' })
+      await expect(copyReports(source, join(root, 'parent-alias/reports'))).rejects.toThrow()
+      await expect(copyReports(source, borrowed)).rejects.toThrow()
+      expect(await Deno.readTextFile(join(outside, 'sentinel'))).toBe('outside remains')
+      expect(await Deno.readTextFile(join(borrowed, 'sentinel'))).toBe(
+        'borrowed destination remains',
+      )
+      expect((await Deno.lstat(outside)).mode).toBe(before.mode)
+      expect((await Deno.lstat(borrowed)).mode).toBe(borrowedBefore.mode)
+      await expect(Deno.lstat(join(outside, 'reports'))).rejects.toThrow(Deno.errors.NotFound)
+    })
+  })
+})
 
 /** Native Git separator admission is pure and remains testable on every host. */
 describe('Git discovery ceiling', () => {
@@ -203,6 +429,10 @@ async function fixture(
     await Deno.copyFile(
       new URL('.mise/tasks/release.ts', source),
       join(root, '.mise/tasks/release.ts'),
+    )
+    await Deno.copyFile(
+      new URL('.mise/tasks/reports.ts', source),
+      join(root, '.mise/tasks/reports.ts'),
     )
     await Deno.copyFile(new URL('.bumpy/format.ts', source), join(root, '.bumpy/format.ts'))
     await Deno.copyFile(
@@ -1300,6 +1530,8 @@ interface AuthorityEvidenceType {
     readonly source: string
     readonly revision: string
     readonly copyState: 'partial' | 'complete'
+    readonly catalog?: { readonly path: string; readonly sha256: string | null }
+    readonly entries?: number
     readonly outcome: 'pending' | 'passed' | 'failed'
     readonly sourceIdentity: 'expected' | 'verified'
   }
@@ -1499,7 +1731,7 @@ describe('Release source authority outcomes', { skip: Deno.build.os === 'windows
       })
     })
   }
-  it('retains report-copy rejection independently from gate failure and still retires the snapshot', async () => {
+  it('retains escaped diagnostic metadata without replacing the actual gate failure', async () => {
     await fixture(async (value) => {
       const config = await read<{ tasks: Record<string, string> }>(join(value.root, 'deno.json'))
       config.tasks['verify'] = 'deno run -A escaped-report.ts'
@@ -1512,6 +1744,8 @@ describe('Release source authority outcomes', { skip: Deno.build.os === 'windows
         await Deno.writeTextFile('.tmp/outside-report.txt','outside report authority');
         await Deno.mkdir('.tmp/reports',{recursive:true});
         await Deno.symlink('../outside-report.txt','.tmp/reports/escaped');
+        await Deno.symlink('missing-firefox-lock-owner','.tmp/reports/dangling');
+        await Deno.writeFile('.tmp/reports/after-alias.bin',new Uint8Array([0,255,128,17]));
         Deno.exit(9);
       `,
       )
@@ -1521,14 +1755,29 @@ describe('Release source authority outcomes', { skip: Deno.build.os === 'windows
       const journal = await authorityJournal(value, 'gates-')
       expect(journal.passed).toBe(false)
       reportFaultExit(journal, 'verify', result)
-      expect(journal.reports!.copyState).toBe('partial')
+      expect(journal.reports!.copyState).toBe('complete')
       expect(journal.reports!.outcome).toBe('failed')
       expect(journal.reports!.sourceIdentity).toBe('expected')
       expect(
         authorityFailures(journal.diagnostics ?? []).some((row) =>
           row.name === 'ReportError' && row.report?.stage === 'copy'
         ),
-      ).toBe(true)
+      ).toBe(false)
+      expect(journal.reports!.catalog).toBeDefined()
+      const catalog = await reportCatalog(join(value.root, journal.reports!.catalog!.path))
+      expect(catalog.find((entry) => entry.path === 'escaped')).toMatchObject({
+        kind: 'link',
+        representation: 'inert',
+      })
+      expect(catalog.find((entry) => entry.path === 'dangling')).toMatchObject({
+        kind: 'link',
+        representation: 'inert',
+      })
+      expect(await Deno.readFile(join(value.root, journal.reports!.path, 'after-alias.bin')))
+        .toEqual(new Uint8Array([0, 255, 128, 17]))
+      await expect(Deno.lstat(join(value.root, journal.reports!.path, 'escaped'))).rejects.toThrow(
+        Deno.errors.NotFound,
+      )
       const snapshot = await snapshotPath(
         value,
         await Deno.readTextFile(join(value.root, '.tmp/report-snapshot')),

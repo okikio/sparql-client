@@ -133,3 +133,19 @@ Browser fixture servers load their TypeScript configuration natively in Deno. Th
 can emit a temporary module beside a maintained configuration file; protected source correctly
 refuses that write. Native loading keeps fixture startup inside the same readonly contract as
 the rest of preparation, without relaxing permissions or enabling live source changes.
+
+### Retain browser-profile diagnostics without borrowing their targets
+
+Release preparation now distinguishes executable input admission from diagnostic report capture. A retained Firefox
+profile lock could be dangling after the browser closed, causing report copying to stop at `realpath` and discard later
+independent reports. Report links now remain inert metadata with their exact raw target bytes; contained, escaped,
+absolute, cyclic and dangling targets are never followed or recreated. Native sockets, FIFOs and devices likewise remain
+metadata. Strict source, dependency and cache copying is unchanged.
+
+Each attempt exclusively acquires `.tmp/releases/reports-<revision>-<attempt>/reports` and a uniquely named sibling
+JSON-lines catalog. Inspect the actual paths and catalog SHA in the gate journal's `reports` fields; previous journals
+remain readable, and dependency logs retain their existing snapshot namespace. Regular binary files copy independently.
+One file failure retains its original cause and partial observation while sibling reports continue. Catalog-write,
+handle-close, hashing and cleanup failures remain distinct. The original failed gate still fails preparation, and
+partial diagnostics do not authorize publication. Root/parent alias and destination collision guards remain mandatory.
+There is no change to browser assertions, profile ownership, library APIs or public task commands.

@@ -245,7 +245,7 @@ nested aliases before reading. Canonical OS prefix aliases such as `/var` and `/
 a later gate-created alias does not acquire the outside tree.
 
 The report root and its `.tmp` parent must be physical directories under that admitted source root. A regular file or
-an outside parent/root alias rejects before capture. Child report aliases retain the existing confined copy rule.
+an outside parent/root alias rejects before capture. Child report aliases are inert diagnostic metadata; executable inputs keep their stricter confined copy rule.
 Serialized failures use `ReportError` with `report.stage:admission` for owner/root admission, or `report.stage:copy` for
 capture after admission. The original cause is retained separately. Consumers can inspect these stable fields without
 matching human diagnostic wording.
@@ -290,3 +290,42 @@ The restoration scan adds metadata work per owned entry, including private cache
 handle-based permission-and-deletion transaction. Checks cannot prevent hostile concurrent same-user replacement between
 admission and a syscall, nor promise cleanup after abrupt process termination. These limits do not relax source admission,
 Git trust checks or successful-receipt requirements.
+
+### Report metadata survives browser-profile aliases
+
+Report retention uses a separate diagnostic copier. A closed Firefox persistent profile can retain a dangling lock
+alias under Playwright's artifacts directory. Diagnostics do not require that alias to name a currently existing file.
+Internal, escaped, absolute, cyclic and dangling aliases are recorded with their physical metadata and exact raw target
+bytes as `rawTargetBase64`. The copier never resolves their target, reads outside bytes or recreates a live alias.
+Sockets, FIFOs and devices are also recorded as inert metadata, rather than opened or cloned. An explicit Unix-socket
+control requires that host capability; binary, alias, collision and fault-retention controls keep their normal coverage.
+Browser fixtures keep their existing profile lifetimes and behavioral oracles.
+
+The journal's `reports.path` names the actual exclusive `.tmp/releases/reports-<revision>-<attempt>/reports` capture.
+Its `reports.catalog.path` names a uniquely allocated `report-catalog-<nonce>.ndjson` sibling, with an independently
+computed SHA-256 when hashing succeeds. It cannot collide with a report filename. Dependency logs retain their existing
+snapshot namespace; older journals and report paths remain readable. Read the catalog as JSON lines. Its header explains
+the regular-byte/inert-metadata representation, each entry records original kind and observable metadata, and its
+`entries-complete` row records entry capture state. This row is not a successful release or catalog-close certificate.
+The enclosing gate journal includes catalog retirement/hash faults and controls overall `copyState`, `outcome` and
+source-identity status.
+
+Regular files are independent exclusive copies, read through acquired handles with native no-follow flags where
+available. Before reading, their physical kind/device/inode must match the admitted observation; EOF rechecks identity,
+size and modification timestamps. Parents and roots retain physical acquired authority before reads or writes. Existing
+destination leaves, substituted ancestors and source/destination overlap reject. No chmod or cleanup follows a borrowed
+target. These native observations do not promise atomic protection from hostile concurrent same-UID namespace changes;
+unobservable native identities refuse admission rather than becoming invented ownership proof.
+
+A failed file or directory records its path, capture phase and original cause and does not stop independent sibling
+reports. Rows stream to the separate catalog even when regular-file capture fails. Each file/capture/catalog retirement
+fault is retained separately. Failed file hashes are null; observed retained sizes are separate from completed read
+bytes. If catalog persistence or hashing itself fails, the release journal retains that independent failure and partial
+state. Snapshot retirement continues, and the original gate failure remains a failure. This diagnostic capability does
+not weaken dependency/source/cache alias admission or authorize publication.
+
+File and catalog streams use 64 KiB buffers; acquired directory identities, sorted listings and retained failures use
+memory proportional to their count. Copying and hashing cost diagnostic disk space and setup time. The outer command
+and owned-container deadlines remain the final boundary for a stalled native filesystem. These costs are not timed
+library operations or a performance regression budget. The native [readlink API](https://nodejs.org/api/fs.html#fspromisesreadlinkpath-options)
+provides raw target bytes without resolving the aliased object.

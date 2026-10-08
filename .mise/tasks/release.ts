@@ -1,5 +1,6 @@
 /** Uses Bumpy's release model with Deno manifests and independently resumable registry uploads. @module */
 import process from 'node:process'
+import { CaptureError, copy as copyReports } from './reports.ts'
 import { ceiling } from './ceiling.ts'
 import { createHash } from 'node:crypto'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
@@ -79,7 +80,7 @@ class SnapshotError extends Error {
     this.name = 'SnapshotError'
   }
 }
-/** Report diagnostics distinguish root admission from confined tree capture without relying on wording. */
+/** Report diagnostics distinguish root admission from inert diagnostic capture without relying on wording. */
 class ReportError extends Error {
   readonly report: { readonly stage: 'admission' | 'copy' }
   constructor(stage: 'admission' | 'copy', cause: unknown) {
@@ -102,6 +103,7 @@ interface FailureType {
   readonly name: string
   readonly message: string
   readonly git?: GitObservationType
+  readonly capture?: { readonly path: string; readonly phase: string }
   readonly report?: { readonly stage: 'admission' | 'copy' }
   readonly snapshot?: { readonly stage: 'admission' }
   readonly selection?: { readonly variable: string }
@@ -119,6 +121,7 @@ function failure(reason: unknown, seen = new Set<unknown>()): FailureType {
     ...(reason instanceof GitError ? { git: reason.git } : {}),
     ...(reason instanceof SnapshotError ? { snapshot: reason.snapshot } : {}),
     ...(reason instanceof ReportError ? { report: reason.report } : {}),
+    ...(reason instanceof CaptureError ? { capture: reason.capture } : {}),
     ...(reason instanceof SourceSelectionError ? { selection: reason.selection } : {}),
     ...(Object.hasOwn(reason, 'cause') ? { cause: failure(reason.cause, seen) } : {}),
     ...(reason instanceof AggregateError
@@ -1239,10 +1242,17 @@ async function prepareSnapshot(): Promise<{
   const steps: GateType[] = []
   const attempt = crypto.randomUUID()
   const evidence = `${STORE}/gates-${commit}-${attempt}.json`
-  const reportDirectory = `${STORE}/snapshot-${commit}-${attempt}/reports`
+  const reportDirectory = `${STORE}/reports-${commit}-${attempt}/reports`
   let inputs: InputsType | undefined
   let reports:
-    | { path: string; source: string; revision: string; copyState: 'partial' | 'complete' }
+    | {
+      path: string
+      source: string
+      revision: string
+      copyState: 'partial' | 'complete'
+      catalog?: { path: string; sha256: string | null }
+      entries?: number
+    }
     | undefined
   let result: { candidate: CandidateType; manifests: Record<string, string> } | undefined
   try {
@@ -1487,7 +1497,7 @@ async function prepareSnapshot(): Promise<{
   result.candidate.gates.sha256 = await hash(await Deno.readFile(evidence))
   return result
 
-  /** One attempt copies report bytes once, using the same confined alias contract as successful evidence. */
+  /** One attempt retains regular report bytes and inert entry metadata without granting input authority. */
   async function retainReports(): Promise<void> {
     if (reports) return
     await admitSnapshot()
@@ -1517,16 +1527,64 @@ async function prepareSnapshot(): Promise<{
       ) {
         throw new Error('Release report root must be a physical directory.')
       }
-      // Canonical ownership admits OS prefix aliases while keeping child alias mapping confined.
+      // Canonical ownership admits OS prefix aliases; child report aliases remain inert metadata.
       reportSource = resolve(physical, '.tmp/reports')
     } catch (reason) {
       if (reason instanceof Deno.errors.NotFound) return
       throw reason
     }
-    const target = resolve(ROOT, reportDirectory)
-    // Partial is recorded before copy so failure never silently relabels incomplete output as complete.
+    const canonicalRoot = await Deno.realPath(ROOT)
+    const store = resolve(canonicalRoot, STORE)
+    const storeInfo = await Deno.lstat(store)
+    const storeIdentity = physicalIdentity(storeInfo)
+    if (!storeInfo.isDirectory || storeInfo.isSymlink || await Deno.realPath(store) !== store) {
+      throw new Error('Release report store must be a physical canonical directory.')
+    }
+    const checkStore = async (): Promise<void> => {
+      const actual = await Deno.lstat(store)
+      if (
+        physicalIdentity(actual) !== storeIdentity || actual.uid !== storeInfo.uid ||
+        actual.gid !== storeInfo.gid ||
+        actual.mode !== storeInfo.mode || await Deno.realPath(store) !== store
+      ) {
+        throw new Error('Acquired report store changed.')
+      }
+    }
+    const target = resolve(canonicalRoot, reportDirectory)
+    // This report-only attempt namespace is distinct from dependency logs and never reuses an existing leaf.
+    await checkStore()
+    await Deno.mkdir(dirname(target), { mode: 0o700 })
+    const parentInfo = await Deno.lstat(dirname(target))
+    const parentIdentity = physicalIdentity(parentInfo)
+    await checkStore()
+    // Partial records the actual acquired namespace before file or metadata capture can fail.
     reports = { path: reportDirectory, source, revision: commit, copyState: 'partial' }
-    await copyTree(reportSource, target, [[reportSource, target]])
+    const captured = await copyReports(reportSource, target)
+    reports = {
+      ...reports,
+      catalog: { ...captured.catalog, path: relative(canonicalRoot, captured.catalog.path) },
+      entries: captured.entries,
+    }
+    const errors = [...captured.failures]
+    try {
+      await checkStore()
+      const parent = await Deno.lstat(dirname(target))
+      if (
+        physicalIdentity(parent) !== parentIdentity ||
+        await Deno.realPath(dirname(target)) !== dirname(target)
+      ) {
+        throw new Error('Acquired report attempt namespace changed.')
+      }
+    } catch (reason) {
+      errors.push(reason)
+    }
+    if (errors.length) {
+      throw new AggregateError(
+        errors,
+        'Report entries or catalog could not be completely retained.',
+        { cause: errors[0] },
+      )
+    }
     reports = { ...reports, copyState: 'complete' }
   }
 
