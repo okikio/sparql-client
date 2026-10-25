@@ -1,24 +1,20 @@
 # RDF and SPARQL for TypeScript
 
-This repository is the home of a small RDF and SPARQL package family for Deno, Node.js, Bun, browsers, and Workers.
+Use these TypeScript packages to read RDF data, build and send SPARQL queries, generate vocabulary types, or store an RDF dataset. Each package has a separate entrypoint, so an application can select the capabilities it needs.
 
-The packages are library-first. Importing a package describes or creates values. It does not open files, start query engines, initialize WebAssembly, perform network requests, or configure global state.
+RDF describes facts as a subject, predicate, and object. A quad also identifies the graph that contains the fact. SPARQL is the query language used to select or change RDF data.
 
-```text
-@okikio/rdf
-    │
-    ├── @okikio/sparql
-    │       ├── @okikio/oxigraph
-    │       └── @okikio/comunica
-    │
-    ├── @okikio/vocab
-    ├── @okikio/triplestore
-    ├── @okikio/rdf/jsonld
-    ├── @okikio/rdf/canon
-    ├── @okikio/rdf/xml
-    ├── @okikio/rdf/rdfa
-    └── @okikio/rdf/microdata
-```
+| What you need to do | Start here |
+| --- | --- |
+| Create RDF terms or match facts in memory | `@okikio/rdf` |
+| Parse or write RDF syntax | A format subpath such as `@okikio/rdf/turtle` or `@okikio/rdf/nquads` |
+| Build a query | `@okikio/sparql` |
+| Send a query to a server | `@okikio/sparql/http` |
+| Query through an engine your application owns | `@okikio/oxigraph` or `@okikio/comunica` |
+| Generate TypeScript vocabulary definitions | `@okikio/vocab` |
+| Persist a dataset through a supplied filesystem | `@okikio/triplestore` |
+
+The packages target Deno, Node.js, Bun, browsers, and Workers where the selected capability is available. Importing a package does not open files, start a query engine, initialize WebAssembly, send a network request, or configure global state. Your application starts that work explicitly.
 
 The repository targets the RDF 1.2 syntax profiles listed in `support.json` while keeping draft-dependent behavior explicit. A profile is not a release claim until its pinned conformance suite passes without failures or skips. SPARQL and SHACL 1.2 features remain separately scoped because those specifications are still evolving.
 
