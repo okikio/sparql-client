@@ -201,7 +201,7 @@ export class Store implements AsyncDisposable {
   ): Promise<this> {
     const batchSize = positive(options.batchSize ?? DEFAULT_BATCH_SIZE, 'batchSize')
     let batch: Quad[] = []
-    for await (const quad of iterate(source)) {
+    for await (const quad of iterate(source, options)) {
       abort(options.signal)
       batch.push(quad)
       if (batch.length < batchSize) continue

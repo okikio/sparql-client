@@ -1,22 +1,36 @@
 /** Verifies that project-owned core packages do not import third-party runtime implementations. @module */
 
+import { fromFileUrl, toFileUrl } from '@std/path'
+import { ownedModule, repository } from '../../conformance/ownership.ts'
+import { allowed, dependencyErrors, references } from '../../conformance/modules.ts'
+
 /** Core package directories that must remain independent of third-party runtime implementations. */
 const CORE = ['rdf', 'sparql', 'vocab', 'triplestore'] as const
-/** Project package specifiers that core code can import directly. */
-const ALLOWED = ['@okikio/rdf', '@okikio/sparql', '@okikio/vocab', '@okikio/triplestore'] as const
-
 /** Dependency-policy failures collected across package manifests and production source files. */
 const errors: string[] = []
 
 for (const name of CORE) {
   for await (const file of files(`packages/${name}`)) {
     const source = await Deno.readTextFile(file)
-    if (/\bimport\s*\(\s*['"`]/u.test(source)) {
-      errors.push(`${file}: dynamic imports are not allowed in the core production graph`)
-    }
-    for (const specifier of imports(source)) {
-      if (allowed(specifier)) continue
-      errors.push(`${file}: core runtime import '${specifier}' is not allowed`)
+    for (const error of dependencyErrors(source, file)) errors.push(`${file}: ${error}`)
+    for (const reference of references(source, file)) {
+      if (
+        reference.kind !== 'runtime' || !reference.specifier ||
+        !(reference.specifier.startsWith('./') || reference.specifier.startsWith('../'))
+      ) continue
+      try {
+        const target = new URL(reference.specifier, new URL(file, repository))
+        const physical = toFileUrl(await Deno.realPath(fromFileUrl(target))).href
+        if (!ownedModule(physical)) {
+          errors.push(`${file}: relative import escapes owned core source: ${reference.specifier}`)
+        }
+      } catch (error) {
+        errors.push(
+          `${file}: cannot establish relative import ownership for '${reference.specifier}': ${
+            String(error)
+          }`,
+        )
+      }
     }
   }
 
@@ -39,12 +53,6 @@ if (errors.length > 0) {
 }
 console.log(`Verified ${CORE.length} dependency-free core package graphs.`)
 
-/** Returns true when a specifier is relative or addresses one of the project-owned core packages. */
-function allowed(specifier: string): boolean {
-  if (specifier.startsWith('./') || specifier.startsWith('../')) return true
-  return ALLOWED.some((name) => specifier === name || specifier.startsWith(`${name}/`))
-}
-
 /** Yields production TypeScript files while excluding tests and benchmark definitions. */
 async function* files(root: string): AsyncGenerator<string> {
   for await (const entry of Deno.readDir(root)) {
@@ -54,42 +62,6 @@ async function* files(root: string): AsyncGenerator<string> {
       entry.isFile && entry.name.endsWith('.ts') && !/_(?:test|bench)\.ts$/u.test(entry.name)
     ) yield path
   }
-}
-
-/** Returns static module specifiers from formatted TypeScript import and re-export declarations. */
-function imports(source: string): string[] {
-  const output: string[] = []
-  let statement = ''
-
-  for (const raw of source.split(/\r?\n/u)) {
-    const line = raw.trim()
-    if (!statement) {
-      if (!line.startsWith('import ') && !line.startsWith('export ')) continue
-      statement = line
-    } else {
-      statement += ` ${line}`
-    }
-
-    const sideEffect = statement.match(/^import\s+(['"])([^'"]+)\1/u)
-    const from = statement.match(/\bfrom\s+(['"])([^'"]+)\1/u)
-    if (sideEffect) {
-      output.push(sideEffect[2]!)
-      statement = ''
-      continue
-    }
-    if (from) {
-      output.push(from[2]!)
-      statement = ''
-      continue
-    }
-
-    // Formatted multiline import/export declarations continue while braces remain open.
-    if (!/[{,]\s*$/u.test(line) && !line.startsWith('export {') && !line.startsWith('import {')) {
-      statement = ''
-    }
-  }
-
-  return output
 }
 
 export {}

@@ -3,7 +3,24 @@
 import { key } from '../term.ts'
 import type { ObjectTermType, Quad, SubjectTermType, Term } from '../term.ts'
 
-/** Subject/predicate index used by the SHACL inspector and property-path parser. */
+/**
+ * Mutable, caller-owned index for one materialized SHACL shapes graph.
+ *
+ * Add a bounded collection of quads before calling `getPath`. The index retains
+ * the supplied term and quad objects; it does not consume a source, copy terms,
+ * acquire resources, or require disposal. Do not mutate supplied RDF objects or
+ * the readonly lookup results. Further `add` calls affect subsequent lookups.
+ * Duplicate additions remain duplicate statements, so add each quad once.
+ *
+ * Lookups combine all supplied graph names by subject and predicate. Graph
+ * names remain on returned quads, but do not partition the index. Select the
+ * intended shapes graph, or intentional union, before adding statements.
+ *
+ * Construction has no implicit quad cap. Bound ingestion yourself, or use
+ * `inspect` for bounded whole-graph inspection. `getPath` bounds only list and
+ * recursive traversal of the already-materialized index. This index performs
+ * no SHACL validation, entailment, or path evaluation against a data graph.
+ */
 export class ShapeIndex {
   /** SHACL index of materialized subject terms discovered in the shapes graph. */
   readonly #subjects = new Map<string, SubjectTermType>()
@@ -12,7 +29,7 @@ export class ShapeIndex {
   /** Primary semantic-key map containing the quads currently owned by this dataset. */
   readonly #quads = new Map<string, Quad[]>()
 
-  /** Adds one quad to the index. */
+  /** Retains one quad in the caller-owned index, including repeated additions. */
   add(quad: Quad): void {
     const subjectKey = key(quad.subject)
     this.#subjects.set(subjectKey, quad.subject)

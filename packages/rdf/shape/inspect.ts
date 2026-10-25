@@ -139,13 +139,13 @@ const SHACL_12_PREDICATES = new Set([
 
 /** Inspector resource limits and draft-version interpretation. */
 export interface InspectOptionsType {
-  /** Core vocabulary generation to interpret. Default is the current 1.2 draft. */
+  /** Core vocabulary interpretation. Default is the implemented 1.2 draft subset. */
   readonly version?: VersionType
-  /** Maximum number of quads to materialize. Default is 1,000,000. */
+  /** Positive safe-integer maximum quads to materialize. Default is 1,000,000. */
   readonly maxQuads?: number
-  /** Maximum members followed from one SHACL list. Default is 100,000. */
+  /** Positive safe-integer maximum members followed from one SHACL list. Default is 100,000. */
   readonly maxListItems?: number
-  /** Maximum nested property-path depth. Default is 256. */
+  /** Positive safe-integer maximum nested property-path depth. Default is 256. */
   readonly maxPathDepth?: number
   /** Caller-owned abort signal checked before expensive work and between long-running steps. */
   readonly signal?: AbortSignal
@@ -188,11 +188,13 @@ export async function inspect(
   if (version !== '1.0' && version !== '1.2') {
     throw new TypeError(`Unsupported SHACL version '${String(version)}'.`)
   }
-  const maxQuads = options.maxQuads ?? 1_000_000
+  const maxQuads = positive(options.maxQuads ?? 1_000_000, 'maxQuads')
+  const maxListItems = positive(options.maxListItems ?? 100_000, 'maxListItems')
+  const maxPathDepth = positive(options.maxPathDepth ?? 256, 'maxPathDepth')
   const index = new ShapeIndex()
   const quads: Quad[] = []
 
-  for await (const quad of iterate(source)) {
+  for await (const quad of iterate(source, options)) {
     if (options.signal?.aborted) {
       throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
     }
@@ -208,8 +210,8 @@ export async function inspect(
     version,
     index,
     diagnostics,
-    maxListItems: options.maxListItems ?? 100_000,
-    maxPathDepth: options.maxPathDepth ?? 256,
+    maxListItems,
+    maxPathDepth,
   }
   const candidates = discoverShapes(index)
   const shapes: ShapeType[] = []
@@ -234,6 +236,14 @@ export async function inspect(
   graphAssertions.sort(compareAssertion)
   diagnostics.sort(compareDiagnostic)
   return { version, shapes, diagnostics, assertions: graphAssertions }
+}
+
+/** Rejects disabled or ambiguous bounds before acquiring the source iterator. */
+function positive(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive safe integer.`)
+  }
+  return value
 }
 
 /** Discovers resources with SHACL type, target, path, or constraint evidence without treating arbitrary labelled ontology resources as shapes. */

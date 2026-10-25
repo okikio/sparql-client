@@ -22,6 +22,29 @@ test('query builder emits SPARQL accepted by an independent parser', () => {
         const parsed = new Parser().parse(query)
         expect(parsed.type).toBe('query')
         expect(parsed.subType).toBe('select')
+        expect(parsed).toMatchObject({
+          variables: [{ value: subject }, { value: object }],
+          where: {
+            patterns: [{
+              triples: [{
+                subject: { subType: 'variable', value: subject },
+                predicate: { subType: 'namedNode', value: `https://example.com/${predicate}` },
+                object: { subType: 'variable', value: object },
+              }],
+            }],
+          },
+          solutionModifiers: { limitOffset: { limit } },
+        })
+        if (parsed.type !== 'query' || parsed.subType !== 'select') {
+          throw new TypeError('Expected SELECT query.')
+        }
+        expect(parsed.variables).toHaveLength(2)
+        expect(parsed.where?.patterns).toHaveLength(1)
+        const pattern = parsed.where?.patterns[0]
+        if (!pattern || !('triples' in pattern)) {
+          throw new TypeError('Expected basic graph pattern.')
+        }
+        expect(pattern.triples).toHaveLength(1)
       },
     ),
     { seed: 20260817, numRuns: 500 },

@@ -9,17 +9,57 @@ const first = quad(namedNode('https://example.com/a'), predicate, literal('one')
 const second = quad(namedNode('https://example.com/b'), predicate, literal('two'))
 
 describe('@okikio/triplestore', () => {
+  it(
+    'cancels a stalled import and admits the next mutation on the same store',
+    { timeout: 5_000 },
+    async () => {
+      const fs = new MemoryFileSystem()
+      const store = await open(fs, { path: '/db' })
+      const controller = new AbortController()
+      let returned = 0
+      let entered!: () => void
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const source: AsyncIterable<typeof first> = {
+        [Symbol.asyncIterator]() {
+          return {
+            next() {
+              entered()
+              return new Promise<IteratorResult<typeof first>>(() => {})
+            },
+            return() {
+              returned++
+              return Promise.resolve({ done: true as const, value: undefined })
+            },
+          }
+        },
+      }
+      const pending = store.import(source, { signal: controller.signal })
+      await started
+      const reason = new Error('stop stalled store import')
+      controller.abort(reason)
+      await expect(pending).rejects.toBe(reason)
+      expect(returned).toBe(1)
+      expect(store.generation).toBe(0)
+      await store.add(first)
+      expect(store.generation).toBe(1)
+      expect(store.has(first)).toBe(true)
+      await store.close()
+    },
+  )
   it('recovers the newest complete committed generation after an interrupted commit publication', async () => {
     const fs = new MemoryFileSystem()
     const store = await open(fs, { path: '/db' })
     await store.add(first)
 
+    const fault = new Error('simulated publication crash')
     fs.writeFault = (path, text, target) => {
       if (!path.endsWith('/commits/0000000000000002.json')) return
       target.files.set(path, text.slice(0, Math.max(1, Math.floor(text.length / 2))))
-      throw new Error('simulated publication crash')
+      throw fault
     }
-    await expect(store.add(second)).rejects.toThrow('simulated publication crash')
+    await expect(store.add(second)).rejects.toBe(fault)
     fs.writeFault = undefined
 
     const reopened = await open(fs, { path: '/db' })
@@ -33,15 +73,16 @@ describe('@okikio/triplestore', () => {
     const fs = new MemoryFileSystem()
     const store = await open(fs, { path: '/db' })
     let faulted = false
+    const fault = new Error('simulated torn commit')
 
     fs.writeFault = (path, text, target) => {
       if (faulted || !path.endsWith('/commits/0000000000000001.json')) return
       faulted = true
       target.files.set(path, text.slice(0, Math.max(1, Math.floor(text.length / 2))))
-      throw new Error('simulated torn commit')
+      throw fault
     }
 
-    await expect(store.add(first)).rejects.toThrow('simulated torn commit')
+    await expect(store.add(first)).rejects.toBe(fault)
     fs.writeFault = undefined
     await store.add(first)
 

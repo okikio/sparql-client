@@ -24,9 +24,19 @@ const validate = (values: readonly unknown[]): number => {
   return issues
 }
 
-if (validate(valid) !== 0) throw new Error('Vocabulary runtime benchmark valid-data oracle failed.')
-if (validate(invalid) !== PRODUCTS) {
-  throw new Error('Vocabulary runtime benchmark invalid-data oracle failed.')
+/** Inspect every result independently: issue multiplicity and prose are not the validation contract. */
+for (let index = 0; index < PRODUCTS; index++) {
+  const positive = ProductSchema['~standard'].validate(valid[index]!)
+  const negative = ProductSchema['~standard'].validate(invalid[index])
+  if (positive instanceof Promise || negative instanceof Promise) {
+    throw new Error('Generated bootstrap schema unexpectedly became async.')
+  }
+  if (positive.issues !== undefined || positive.value.name !== valid[index]!.name) {
+    throw new Error(`Vocabulary runtime benchmark valid Product ${index} differs.`)
+  }
+  if (!negative.issues?.some((issue) => issue.path?.includes('name'))) {
+    throw new Error(`Vocabulary runtime benchmark invalid Product ${index} lost its name issue.`)
+  }
 }
 
 group('vocab generated Standard Schema: 10k Product objects', () => {

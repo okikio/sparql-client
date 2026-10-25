@@ -57,7 +57,9 @@ describe('@okikio/sparql/syntax', () => {
     expect(values.some((value) => value.kind === 'whitespace')).toBe(true)
   })
 
-  it('cancels a pending Web Stream read when the consumer returns early', async () => {
+  it('cancels upstream work and releases the reader when the consumer returns early', {
+    timeout: 5_000,
+  }, async () => {
     let cancelled = false
     const source = new ReadableStream<Uint8Array>({
       pull(controller) {
@@ -70,9 +72,35 @@ describe('@okikio/sparql/syntax', () => {
     })
 
     for await (const _token of tokens(source)) break
-    await Promise.resolve()
     expect(cancelled).toBe(true)
+    expect(source.locked).toBe(false)
   })
+
+  it(
+    'aborts an active scanner refill and preserves the caller reason',
+    { timeout: 2_000 },
+    async () => {
+      const reading = Promise.withResolvers<void>()
+      let cancelled = 0
+      const source = new ReadableStream<Uint8Array>({
+        pull() {
+          reading.resolve()
+          return new Promise<void>(() => {})
+        },
+        cancel() {
+          cancelled++
+        },
+      }, { highWaterMark: 0 })
+      const controller = new AbortController()
+      const reason = new Error('stop pending syntax input')
+      const pending = tokens(source, { signal: controller.signal }).next()
+      await reading.promise
+      controller.abort(reason)
+      await expect(pending).rejects.toBe(reason)
+      expect(cancelled).toBe(1)
+      expect(source.locked).toBe(false)
+    },
+  )
 
   it('keeps malformed tokens observable in tolerant mode', async () => {
     const values = await collect(events('SELECT * WHERE { ?s :p @-- }', { tolerant: true }))

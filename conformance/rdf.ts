@@ -1,7 +1,7 @@
 /** Official RDF syntax conformance runner. @module */
 
-import { parse as parseNQuads } from '@okikio/rdf/nquads'
-import { parse as parseNTriples } from '@okikio/rdf/ntriples'
+import { parse as parseNQuads, write as writeNQuads } from '@okikio/rdf/nquads'
+import { parse as parseNTriples, write as writeNTriples } from '@okikio/rdf/ntriples'
 import { parse as parseTriG } from '@okikio/rdf/trig'
 import { parse as parseTurtle } from '@okikio/rdf/turtle'
 import { parse as parseXml } from '@okikio/rdf/xml'
@@ -26,13 +26,18 @@ export async function runRdf(): Promise<CaseType[]> {
   for (const [profile, manifest] of profiles) {
     const path = `${sourceDir('rdf')}/${manifest}`
     for (const entry of await readTree(path)) {
-      output.push(await runCase(entry, profile, spec.revision))
+      output.push(await runRdfCase(entry, profile, spec.revision))
     }
   }
   return output
 }
 
-async function runCase(entry: EntryType, profile: string, revision: string): Promise<CaseType> {
+/** Runs one syntax vector while keeping fixture acquisition outside its rejection oracle. */
+export async function runRdfCase(
+  entry: EntryType,
+  profile: string,
+  revision: string,
+): Promise<CaseType> {
   const started = performance.now()
   const action = entry.action
   const base = action ? logical(action) : undefined
@@ -52,12 +57,14 @@ async function runCase(entry: EntryType, profile: string, revision: string): Pro
       durationMs: performance.now() - started,
     }
   }
-  const kind = entry.types.join(' ').toLowerCase()
   try {
-    if (kind.includes('negative')) {
+    const kind = testKind(entry, profile)
+    const text = await Deno.readTextFile(localPath(action))
+    const input = parseInput(text, profile, base!)
+    if (kind === 'NegativeSyntax') {
       let failed = false
       try {
-        await parseInput(localPath(action), profile, base!)
+        await collect(input)
       } catch {
         failed = true
       }
@@ -68,10 +75,38 @@ async function runCase(entry: EntryType, profile: string, revision: string): Pro
         durationMs: performance.now() - started,
       }
     }
-    const actual = await parseInput(localPath(action), profile, base!)
-    if (!entry.result || !kind.includes('eval')) {
+    const actual = await collect(input)
+    if (kind === 'PositiveC14N') {
+      // These vectors specify exact canonical line bytes. Parse acceptance or
+      // dataset isomorphism cannot detect an incorrect writer layout/escaping.
+      if (!entry.result) throw new TypeError('Canonical syntax vector lacks its expected result.')
+      const expected = await Deno.readTextFile(localPath(entry.result))
+      const serialized = profile.startsWith('ntriples')
+        ? writeNTriples(actual)
+        : profile.startsWith('nquads')
+        ? writeNQuads(actual)
+        : (() => {
+          throw new TypeError(`Unsupported canonical syntax profile '${profile}'.`)
+        })()
+      return serialized === expected
+        ? {
+          ...common,
+          status: 'pass',
+          expected: logical(entry.result),
+          durationMs: performance.now() - started,
+        }
+        : {
+          ...common,
+          status: 'fail',
+          expected: logical(entry.result),
+          reason: 'Canonical syntax bytes differ.',
+          durationMs: performance.now() - started,
+        }
+    }
+    if (kind === 'PositiveSyntax') {
       return { ...common, status: 'pass', durationMs: performance.now() - started }
     }
+    if (!entry.result) throw new TypeError('Evaluation vector lacks its expected result.')
     const expected = await parseExpected(localPath(entry.result))
     return isomorphic(actual, expected)
       ? {
@@ -98,13 +133,33 @@ async function runCase(entry: EntryType, profile: string, revision: string): Pro
   }
 }
 
-async function parseInput(path: string, profile: string, base: string): Promise<Quad[]> {
-  const text = await Deno.readTextFile(path)
-  if (profile.startsWith('ntriples')) return collect(parseNTriples(text))
-  if (profile.startsWith('nquads')) return collect(parseNQuads(text))
-  if (profile.startsWith('turtle')) return collect(parseTurtle(text, { baseIri: base }))
-  if (profile.startsWith('trig')) return collect(parseTriG(text, { baseIri: base }))
-  if (profile.startsWith('rdfxml')) return collect(parseXml(text, { base, strict: true }))
+/** Maps declared vector semantics explicitly; an unknown future kind must not pass as parse-only. */
+function testKind(entry: EntryType, profile: string): string {
+  const format = ({
+    'ntriples-1.2': 'NTriples',
+    'nquads-1.2': 'NQuads',
+    'turtle-1.2': 'Turtle',
+    'trig-1.2': 'Trig',
+    'rdfxml-1.2': 'XML',
+  } as Record<string, string>)[profile]
+  const prefix = `http://www.w3.org/ns/rdftest#Test${format}`
+  const kind = entry.types.length === 1 && entry.types[0]?.startsWith(prefix)
+    ? entry.types[0].slice(prefix.length)
+    : undefined
+  if (
+    !format || !kind || !['NegativeSyntax', 'PositiveSyntax', 'Eval', 'PositiveC14N'].includes(kind)
+  ) {
+    throw new TypeError(`Unsupported RDF test kind '${entry.types.join(' ')}' for '${profile}'.`)
+  }
+  return kind
+}
+
+function parseInput(text: string, profile: string, base: string): AsyncIterable<Quad> {
+  if (profile.startsWith('ntriples')) return parseNTriples(text)
+  if (profile.startsWith('nquads')) return parseNQuads(text)
+  if (profile.startsWith('turtle')) return parseTurtle(text, { baseIri: base })
+  if (profile.startsWith('trig')) return parseTriG(text, { baseIri: base })
+  if (profile.startsWith('rdfxml')) return parseXml(text, { base, strict: true })
   throw new TypeError(`Unsupported RDF profile '${profile}'.`)
 }
 

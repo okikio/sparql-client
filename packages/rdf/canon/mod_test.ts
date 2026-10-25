@@ -6,6 +6,68 @@ import { canonicalize, canonicalizeQuads, hash, isomorphic } from './mod.ts'
 const ex = 'http://example.com/#'
 
 describe('@okikio/rdf/canon', () => {
+  it('cancels canonicalization while its source is stalled', { timeout: 5_000 }, async () => {
+    const controller = new AbortController()
+    let returned = 0
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const source: AsyncIterable<ReturnType<typeof quad>> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            entered()
+            return new Promise<IteratorResult<ReturnType<typeof quad>>>(() => {})
+          },
+          return() {
+            returned++
+            return Promise.resolve({ done: true as const, value: undefined })
+          },
+        }
+      },
+    }
+    const pending = canonicalize(source, { signal: controller.signal })
+    await started
+    const reason = new Error('stop stalled canonicalization')
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
+    expect(returned).toBe(1)
+  })
+  it('canonicalizes duplicate input as a dataset while bounding all admitted input work', async () => {
+    const value = quad(blankNode('a'), namedNode('urn:p'), literal('quoted " 雪'))
+    expect(await canonicalize([value, value])).toBe(await canonicalize([value]))
+    await expect(canonicalize([value, value], { maxQuads: 1 })).rejects.toThrow(RangeError)
+  })
+
+  it('honors SHA-384 independently of the default SHA-256 blank-node ordering', async () => {
+    const input = [
+      quad(
+        namedNode('http://example.org/vocab#test'),
+        namedNode('http://example.org/vocab#A'),
+        blankNode('e0'),
+      ),
+      quad(
+        namedNode('http://example.org/vocab#test'),
+        namedNode('http://example.org/vocab#B'),
+        blankNode('e1'),
+      ),
+      quad(blankNode('e0'), namedNode('http://example.org/vocab#next'), blankNode('e2')),
+      quad(blankNode('e1'), namedNode('http://example.org/vocab#next'), blankNode('e2')),
+    ]
+    const ids = new Map<string, string>()
+    const actual = await canonicalize(input, {
+      messageDigestAlgorithm: 'sha384',
+      canonicalIdMap: ids,
+    })
+    expect(actual).toBe(
+      '<http://example.org/vocab#test> <http://example.org/vocab#A> _:c14n0 .\n' +
+        '<http://example.org/vocab#test> <http://example.org/vocab#B> _:c14n2 .\n' +
+        '_:c14n0 <http://example.org/vocab#next> _:c14n1 .\n' +
+        '_:c14n2 <http://example.org/vocab#next> _:c14n1 .\n',
+    )
+    expect(Object.fromEntries(ids)).toEqual({ e0: 'c14n0', e2: 'c14n1', e1: 'c14n2' })
+  })
   it('canonicalizes a dataset with uniquely hashed blank nodes', async () => {
     const input = [
       quad(namedNode(`${ex}p`), namedNode(`${ex}q`), blankNode('e0')),
@@ -46,7 +108,10 @@ describe('@okikio/rdf/canon', () => {
     const values = await canonicalizeQuads(input)
     expect(values).toHaveLength(1)
     expect(values[0]?.subject.value).toBe('c14n0')
-    expect(await hash(input)).toMatch(/^[0-9a-f]{64}$/u)
+    // Independent SHA-256 golden value for _:c14n0 <http://example.com/#p> "value" .\n.
+    expect(await hash(input)).toBe(
+      '2e00de7ec5197d61472c941e23adbf785feaaed24d5e052f180ccdccacff959e',
+    )
     expect(
       await isomorphic(input, [quad(blankNode('other'), namedNode(`${ex}p`), literal('value'))]),
     ).toBe(true)
@@ -59,12 +124,12 @@ describe('@okikio/rdf/canon', () => {
         namedNode(`${ex}p`),
         literal('bonjour', { language: 'fr', direction: 'ltr' }),
       ),
-    ])).rejects.toThrow('directional')
+    ])).rejects.toThrow(TypeError)
 
     const input = [
       quad(blankNode('a'), namedNode(`${ex}p`), blankNode('b')),
       quad(blankNode('b'), namedNode(`${ex}p`), blankNode('a')),
     ]
-    await expect(canonicalize(input, { maxDeepIterations: 0 })).rejects.toThrow('work limit')
+    await expect(canonicalize(input, { maxDeepIterations: 0 })).rejects.toThrow(RangeError)
   })
 })

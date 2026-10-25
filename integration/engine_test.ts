@@ -13,39 +13,47 @@ const name = namedNode('https://schema.org/name')
 describe('real SPARQL engine adapters', () => {
   it('adapts Oxigraph 0.5 query, graph, boolean, and update results', async () => {
     const store = new OxigraphStore()
-    store.load('<https://example.com/alice> <https://schema.org/name> "Alice" .', {
-      format: 'application/n-triples',
-    })
-    const client = oxigraph.create(store)
+    const free: unknown = Reflect.get(store, 'free')
+    if (typeof free !== 'function') throw new TypeError('Pinned Oxigraph Store lacks free().')
+    try {
+      store.load('<https://example.com/alice> <https://schema.org/name> "Alice" .', {
+        format: 'application/n-triples',
+      })
+      const client = oxigraph.create(store)
 
-    const rows = await collect(
-      await client.queryBindings(
-        'SELECT ?name WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
-      ),
-    )
-    expect(rows[0]?.get('name')?.value).toBe('Alice')
-    expect(
-      await client.queryBoolean(
-        'ASK { <https://example.com/alice> <https://schema.org/name> "Alice" }',
-      ),
-    ).toBe(true)
+      const rows = await collect(
+        await client.queryBindings(
+          'SELECT ?name WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
+        ),
+      )
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.get('name')?.equals(literal('Alice'))).toBe(true)
+      expect(
+        await client.queryBoolean(
+          'ASK { <https://example.com/alice> <https://schema.org/name> "Alice" }',
+        ),
+      ).toBe(true)
 
-    const values = await collect(
-      await client.queryQuads(
-        'CONSTRUCT { <https://example.com/alice> <https://schema.org/name> ?name } WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
-      ),
-    )
-    expect(values).toHaveLength(1)
-    expect(values[0]?.object.value).toBe('Alice')
+      const values = await collect(
+        await client.queryQuads(
+          'CONSTRUCT { <https://example.com/alice> <https://schema.org/name> ?name } WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
+        ),
+      )
+      expect(values).toHaveLength(1)
+      expect(values[0]?.equals(quad(subject, name, literal('Alice')))).toBe(true)
 
-    await client.update(
-      'DELETE WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
-    )
-    expect(
-      await client.queryBoolean(
-        'ASK { <https://example.com/alice> <https://schema.org/name> ?name }',
-      ),
-    ).toBe(false)
+      await client.update(
+        'DELETE WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
+      )
+      expect(
+        await client.queryBoolean(
+          'ASK { <https://example.com/alice> <https://schema.org/name> ?name }',
+        ),
+      ).toBe(false)
+    } finally {
+      // This fixture created the Wasm Store; the adapter only borrows it.
+      free.call(store)
+    }
   })
 
   it('adapts a real Comunica RDF/JS query engine without taking source ownership', async () => {
@@ -58,7 +66,8 @@ describe('real SPARQL engine adapters', () => {
         'SELECT ?name WHERE { <https://example.com/alice> <https://schema.org/name> ?name }',
       ),
     )
-    expect(rows[0]?.get('name')?.value).toBe('Alice')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.get('name')?.equals(literal('Alice'))).toBe(true)
     expect(
       await client.queryBoolean(
         'ASK { <https://example.com/alice> <https://schema.org/name> "Alice" }',
@@ -71,8 +80,9 @@ describe('real SPARQL engine adapters', () => {
       ),
     )
     expect(values).toHaveLength(1)
-    expect(values[0]?.object.value).toBe('Alice')
+    expect(values[0]?.equals(quad(subject, name, literal('Alice')))).toBe(true)
     expect(source.size).toBe(1)
+    expect(source.has(quad(subject, name, literal('Alice')))).toBe(true)
   })
 })
 

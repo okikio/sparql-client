@@ -127,7 +127,7 @@
       "id": "graph-store",
       "package": "@okikio/sparql/graph-store",
       "kind": "protocol",
-      "claim": "SPARQL GraphTermType Store GET, PUT, POST, and DELETE for default and named graphs."
+      "claim": "SPARQL Graph Store GET, PUT, POST, and DELETE for default and named graphs."
     },
     {
       "id": "shacl",

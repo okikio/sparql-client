@@ -3527,8 +3527,8 @@ The exact patch should be planned after a fresh repository checkout, but the cur
 | `scripts/ttl-to-ts.ts`          | delete after `@okikio/vocab` replacement                                 | starter generator violates target parsing/model/codegen structure                       |
 | `docs/*`                        | migrate and rewrite around package family                                | current docs describe one monolithic package                                            |
 | `examples/*`                    | split by package/use case                                                | examples should prove public packages independently                                     |
-| historical `infra/qlever`       | removed                                                                  | endpoint interoperability now belongs to Testcontainers-owned service tests             |
-| historical `infra/blazegraph`   | removed                                                                  | no active compatibility target justified retaining fixed-port deployment files          |
+| historical `infra/qlever`       | retained deployment examples                                             | canonical endpoint interoperability belongs to Testcontainers-owned service tests       |
+| historical `infra/blazegraph`   | retained playground examples                                             | historical notebook/deployment material is separate from canonical engine fixtures      |
 | `.github/workflows/publish.yml` | review against actual release policy                                     | generated multi-package release will change publishing needs; do not preserve blindly   |
 | historical `deno.jsonc`         | removed                                                                  | `deno.json` is the single workspace authority                                           |
 | `mise.toml`                     | expand repository tasks through `.mise/tasks/`                           | complex test/bench/gen work should not accumulate shell strings in one TOML             |

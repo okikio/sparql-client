@@ -18,7 +18,7 @@ import {
 import { Node } from './objects.ts'
 
 /** Predicate values accepted inside a cypher relationship placeholder. */
-type CypherTermType = SparqlTermType | RdfNamedNode
+export type CypherTermType = SparqlTermType | RdfNamedNode
 
 /**
  * Builds graph patterns from `node-[predicate]->node` visual relationships.

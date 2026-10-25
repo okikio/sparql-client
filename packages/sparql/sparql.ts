@@ -1658,7 +1658,7 @@ function escapeIriForQuery(value: string): string {
   let output = ''
   for (const char of value) {
     const point = char.codePointAt(0)!
-    if (point <= 0x20 || '<>\"{}|^`\\'.includes(char)) {
+    if (point <= 0x20 || '<>"{}|^`\\'.includes(char)) {
       output += point <= 0xffff
         ? `\\u${point.toString(16).padStart(4, '0').toUpperCase()}`
         : `\\U${point.toString(16).padStart(8, '0').toUpperCase()}`

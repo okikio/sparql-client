@@ -75,7 +75,9 @@ export class MemoryFileSystem implements FileSystemType {
     abort(options.signal)
     const normalized = normalize(path)
     const file = this.files.get(normalized)
-    if (file !== undefined) return Promise.resolve({ kind: 'file', size: new TextEncoder().encode(file).byteLength })
+    if (file !== undefined) {
+      return Promise.resolve({ kind: 'file', size: new TextEncoder().encode(file).byteLength })
+    }
     if (this.directories.has(normalized)) return Promise.resolve({ kind: 'directory' })
     throw new Error(`ENOENT ${path}`)
   }

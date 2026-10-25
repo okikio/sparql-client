@@ -1,6 +1,7 @@
 /** Incremental RDF source and sink contracts. @module */
 
 import type { Quad } from './term.ts'
+import { consume } from './iteration.ts'
 
 /** Synchronous RDF quad source. */
 export interface Source extends Iterable<Quad> {}
@@ -17,11 +18,20 @@ export interface Sink<Result = void> {
   }): Promise<Result>
 }
 
-/** Converts sync or async quad input into one async iteration contract. */
-export async function* iterate(source: Iterable<Quad> | AsyncIterable<Quad>): AsyncGenerator<Quad> {
-  if (Symbol.asyncIterator in Object(source)) {
-    for await (const quad of source as AsyncIterable<Quad>) yield quad
-    return
-  }
-  for (const quad of source as Iterable<Quad>) yield quad
+/**
+ * Converts quad input into one incremental, cancellable iteration contract.
+ *
+ * Abort also rejects a pending `next()` call. Early return, input failure and
+ * abort call the source iterator's `return()` once. The source must implement
+ * cooperative cleanup; this cannot interrupt arbitrary synchronous JavaScript.
+ * The iterator is scoped to this consumption, while its owning resource remains
+ * borrowed. A cleanup failure retains an earlier failure as its cause.
+ */
+export async function* iterate(
+  source: Iterable<Quad> | AsyncIterable<Quad>,
+  options: {
+    /** Cancellation for pending reads and the next admitted quad. */ readonly signal?: AbortSignal
+  } = {},
+): AsyncGenerator<Quad> {
+  yield* consume(source, options.signal)
 }

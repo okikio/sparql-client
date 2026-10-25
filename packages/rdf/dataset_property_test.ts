@@ -17,8 +17,36 @@ describe('Dataset properties', () => {
           )
           const dataset = new Dataset(values)
           const target = namedNode(`urn:s:${subject}`)
-          const expected = new Dataset(values.filter((value) => value.subject.equals(target)))
-          expect([...dataset.match(target)]).toEqual([...expected])
+          // Independent set oracle: neither indexing nor Dataset deduplication builds expectations.
+          const expected = [
+            ...new Set(
+              rows.filter(([s]) => s === subject).map(([, o]) =>
+                JSON.stringify([
+                  ['NamedNode', `urn:s:${subject}`],
+                  ['NamedNode', 'urn:p'],
+                  ['Literal', String(o), '', 'http://www.w3.org/2001/XMLSchema#string'],
+                  ['DefaultGraph', ''],
+                ])
+              ),
+            ),
+          ]
+          const actual = [...dataset.match(target)]
+          const projected = actual.map((value) =>
+            JSON.stringify([
+              [value.subject.termType, value.subject.value],
+              [value.predicate.termType, value.predicate.value],
+              value.object.termType === 'Literal'
+                ? [
+                  value.object.termType,
+                  value.object.value,
+                  value.object.language,
+                  value.object.datatype.value,
+                ]
+                : [value.object.termType, value.object.value],
+              [value.graph.termType, value.graph.value],
+            ])
+          )
+          expect(projected.sort()).toEqual(expected.sort())
         },
       ),
     )

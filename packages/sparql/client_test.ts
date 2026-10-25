@@ -9,6 +9,9 @@ describe('@okikio/sparql client document inputs', () => {
 
     expect(getQueryText('ASK {}')).toBe('ASK {}')
     expect(getQueryText(query)).toBe(query.build().value)
+    expect(getQueryText(query.build())).toBe(query.build().value)
+    expect(getUpdateText('DELETE WHERE { ?s ?p ?o }')).toBe('DELETE WHERE { ?s ?p ?o }')
+    expect(getUpdateText(change.build())).toBe(change.build().value)
     expect(getUpdateText(change)).toBe(change.build().value)
   })
 })

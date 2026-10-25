@@ -2,11 +2,12 @@
 
 import { bench, do_not_optimize, group } from 'mitata'
 import jsonld from 'jsonld'
-import * as rdfCanonize from 'rdf-canonize'
+import rdfCanonize from 'rdf-canonize'
 import { RdfXmlParser } from 'rdfxml-streaming-parser'
 import { RdfaParser } from 'rdfa-streaming-parser'
 import { MicrodataRdfParser } from 'microdata-rdf-streaming-parser'
 import { report } from '../../bench/report.ts'
+import { expectQuads } from '../../bench/oracle.ts'
 import * as canon from './canon/mod.ts'
 import * as nativeJsonLd from './jsonld/mod.ts'
 import * as microdata from './microdata/mod.ts'
@@ -38,14 +39,14 @@ for (const count of scales) {
   const canonicalInput = canonicalFixture(count)
   const canonicalQuads = await collectNQuads(canonicalInput)
   const expectedCanonical = await canon.canonicalize(canonicalQuads)
-  const externalCanonical = await rdfCanonize.canonize(canonicalInput, {
-    algorithm: 'RDFC-1.0',
-    inputFormat: 'application/n-quads',
+  const canonicalOptions = {
+    algorithm: 'RDFC-1.0' as const,
     format: 'application/n-quads',
     messageDigestAlgorithm: 'sha256',
     maxWorkFactor: 8,
     rejectURDNA2015: true,
-  })
+  }
+  const externalCanonical = await rdfCanonize.canonize(canonicalQuads, canonicalOptions)
   if (externalCanonical !== expectedCanonical) {
     throw new Error(
       `rdf-canonize oracle differs for ${count.toLocaleString()} blank-node subjects.`,
@@ -59,11 +60,7 @@ for (const count of scales) {
     ).gc('inner')
     bench('rdf-canonize', async () =>
       do_not_optimize(
-        await rdfCanonize.canonize(canonicalInput, {
-          algorithm: 'RDFC-1.0',
-          inputFormat: 'application/n-quads',
-          format: 'application/n-quads',
-        }),
+        await rdfCanonize.canonize(canonicalQuads, canonicalOptions),
       )).gc('inner')
   })
 
@@ -259,55 +256,7 @@ function sameQuads(
   native: Iterable<unknown>,
   external: Iterable<unknown>,
 ): void {
-  if (quadKeys(native) !== quadKeys(external)) {
-    throw new Error(`${label} competitor oracle differs for ${count.toLocaleString()} resources.`)
-  }
-}
-
-/** Returns a deterministic RDF/JS-style quad digest independent of implementation object identity. */
-function quadKeys(values: Iterable<unknown>): string {
-  return [...values].map((value) => quadKey(value)).sort().join('\n')
-}
-
-/** Serializes one RDF/JS-style quad for semantic benchmark preflight comparisons. */
-function quadKey(value: unknown): string {
-  if (typeof value !== 'object' || value === null) return String(value)
-  const quad = value as {
-    readonly subject?: unknown
-    readonly predicate?: unknown
-    readonly object?: unknown
-    readonly graph?: unknown
-  }
-  return `${termKey(quad.subject)} ${termKey(quad.predicate)} ${termKey(quad.object)} ${
-    termKey(quad.graph)
-  }`
-}
-
-/** Serializes RDF/JS terms, including RDF-star triple terms, without depending on one implementation class. */
-function termKey(value: unknown): string {
-  if (typeof value !== 'object' || value === null) return String(value)
-  const term = value as {
-    readonly termType?: string
-    readonly value?: string
-    readonly language?: string
-    readonly direction?: string
-    readonly datatype?: unknown
-    readonly subject?: unknown
-    readonly predicate?: unknown
-    readonly object?: unknown
-    readonly graph?: unknown
-  }
-  if (term.termType === 'Literal') {
-    return `L${term.value ?? ''}@${term.language ?? ''}~${term.direction ?? ''}^^${
-      termKey(term.datatype)
-    }`
-  }
-  if (term.termType === 'Quad') {
-    return `Q(${termKey(term.subject)},${termKey(term.predicate)},${termKey(term.object)},${
-      termKey(term.graph)
-    })`
-  }
-  return `${term.termType ?? '?'}:${term.value ?? ''}`
+  expectQuads(native, external, `${label}: ${count} resources`)
 }
 
 /** Deterministically serializes JSON-compatible values for competitor preflight comparison. */

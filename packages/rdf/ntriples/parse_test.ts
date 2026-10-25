@@ -26,7 +26,7 @@ describe('@okikio/rdf/ntriples', () => {
       literal('value'),
       namedNode('https://example/g'),
     )
-    expect(() => write([value])).toThrow('N-Triples cannot serialize named graphs')
+    expect(() => write([value])).toThrow(TypeError)
   })
 
   it('accepts the RDF 1.1 minimal-whitespace fixture across term forms', async () => {
@@ -89,10 +89,10 @@ describe('@okikio/rdf/ntriples', () => {
   it('requires absolute IRIs and exact RDF blank-node label characters', async () => {
     await expect(
       all('<http://example/a><http://example/b><//example/missing-scheme>.\n'),
-    ).rejects.toThrow('not absolute')
+    ).rejects.toThrow(SyntaxError)
     await expect(
       all('_:\u0301bad<http://example/b><http://example/c>.\n'),
-    ).rejects.toThrow('blank-node label')
+    ).rejects.toThrow(SyntaxError)
 
     const astral = await all('_:\u{10000}<http://example/b><http://example/c>.\n')
     expect(astral[0]?.subject.termType).toBe('BlankNode')

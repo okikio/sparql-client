@@ -20,9 +20,9 @@ const PATH_PREDICATES = [
 
 /** Limits and diagnostics shared by recursive path parsing. */
 export interface PathOptionsType {
-  /** Maximum recursive SHACL property-path depth followed before inspection reports a limit. */
+  /** Positive safe-integer maximum recursive SHACL property-path depth. */
   readonly maxDepth: number
-  /** Maximum RDF-list members followed from one list before inspection reports a limit. */
+  /** Positive safe-integer maximum RDF-list members followed from one list. */
   readonly maxListItems: number
   /** Structured diagnostics retained so recoverable source information is not silently discarded. */
   readonly diagnostics: DiagnosticType[]
@@ -32,12 +32,29 @@ export interface PathOptionsType {
   readonly predicate?: string
 }
 
-/** Parses one RDF term as a SHACL Core property path. */
+/**
+ * Inspects one RDF term as a SHACL Core property path in a caller-owned index.
+ *
+ * Populate `ShapeIndex` from the public `/shape` entry point before calling this
+ * function. The index is read without mutation. `maxDepth` and `maxListItems`
+ * must be positive safe integers; invalid bounds throw `RangeError` before
+ * lookup. They limit traversal, not ingestion or the index's stored quad count.
+ *
+ * Cyclic, malformed, unsupported, or over-limit paths retain unknown records
+ * and append structured diagnostics to the caller's `diagnostics` array.
+ * Inspect those diagnostics before relying on a compound path. This operation
+ * decodes the shapes graph; it does not evaluate the path or validate data.
+ */
 export function getPath(
   index: ShapeIndex,
   value: ObjectTermType,
   options: PathOptionsType,
 ): PathType {
+  for (const value of [options.maxDepth, options.maxListItems]) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new RangeError('SHACL path bounds must be positive safe integers.')
+    }
+  }
   return getPathAt(index, value, options, new Set(), 0)
 }
 

@@ -12,8 +12,6 @@ import type {
   StandardSchemaV1,
 } from './standard.ts'
 
-/** Compile-time assertion that generated schemas satisfy both local and official contracts. */
-
 /** Compile-time proof that local Standard Typed inference preserves the generated schema output type. */
 function acceptInference(
   _input: StandardInferInput<typeof ProductSchema>,
@@ -22,6 +20,7 @@ function acceptInference(
   return output
 }
 
+/** Compile-time assertion that generated schemas satisfy both local and official contracts. */
 function acceptSchema(
   schema:
     & StandardSchemaV1<unknown, ProductType>

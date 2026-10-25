@@ -5,6 +5,7 @@ import { parse as parseNQuads } from '@okikio/rdf/nquads'
 import type { Quad } from '@okikio/rdf'
 import type { CaseType } from './result.ts'
 import { isomorphic } from './equal.ts'
+import { isomorphicGeneralized, readGeneralized } from './generalized.ts'
 import { matchJson } from './json.ts'
 import { source, sourceDir } from './source.ts'
 
@@ -166,6 +167,8 @@ function optionsFor(
     maxRedirects: 16,
     ...(typeof value.processingMode === 'string'
       ? { processingMode: value.processingMode as jsonld.ProcessingModeType }
+      : value.specVersion === 'json-ld-1.0'
+      ? { processingMode: 'json-ld-1.0' as const }
       : {}),
     ...(typeof value.compactArrays === 'boolean' ? { compactArrays: value.compactArrays } : {}),
     ...(typeof value.compactToRelative === 'boolean'
@@ -220,7 +223,7 @@ function suiteFetch(test: TestType, base: string): typeof fetch {
     if (redirectTo) {
       return new Response(null, {
         status: typeof option.httpStatus === 'number' ? option.httpStatus : 302,
-        headers: { location: new URL(redirectTo, url).href },
+        headers: { location: new URL(redirectTo, base).href },
       })
     }
     const local = localJsonLd(url)
@@ -268,6 +271,11 @@ async function compare(
 ): Promise<boolean> {
   if (!test.expect) return true
   if (operation === 'toRdf') {
+    if (test.option?.produceGeneralizedRdf === true) {
+      const expected = await readGeneralized(await Deno.readTextFile(file(test.expect)))
+      return Array.isArray(actual) &&
+        isomorphicGeneralized(actual as jsonld.GeneralizedQuadType[], expected)
+    }
     const expected = await quadsFrom(file(test.expect))
     return Array.isArray(actual) && isomorphic(actual as Quad[], expected)
   }

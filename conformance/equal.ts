@@ -4,6 +4,10 @@ import { type Quad, type TermType } from '@okikio/rdf'
 
 /** Compares datasets modulo blank-node labels, including blank nodes nested in RDF 1.2 triple terms. */
 export function isomorphic(actual: readonly Quad[], expected: readonly Quad[]): boolean {
+  // RDF datasets are sets. A parser may emit the same statement more than once
+  // without changing the graph, so the oracle compares unique statements.
+  actual = unique(actual)
+  expected = unique(expected)
   if (actual.length !== expected.length) return false
   const left = blanks(actual)
   const right = blanks(expected)
@@ -81,9 +85,12 @@ function signature(
 }
 
 function colorQuad(value: Quad, self: string, colors: ReadonlyMap<string, string>): string {
-  return `Q${colorTerm(value.subject, self, colors)}|${colorTerm(value.predicate, self, colors)}|${
-    colorTerm(value.object, self, colors)
-  }|${colorTerm(value.graph, self, colors)}`
+  return JSON.stringify([
+    colorTerm(value.subject, self, colors),
+    colorTerm(value.predicate, self, colors),
+    colorTerm(value.object, self, colors),
+    colorTerm(value.graph, self, colors),
+  ])
 }
 
 function colorTerm(value: TermType, self: string, colors: ReadonlyMap<string, string>): string {
@@ -94,11 +101,20 @@ function colorTerm(value: TermType, self: string, colors: ReadonlyMap<string, st
   if (value.termType === 'Variable') return `V:${value.value}`
   if (value.termType === 'DefaultGraph') return 'D:'
   if (value.termType === 'Literal') {
-    return `L:${value.value}|${value.language.toLowerCase()}|${value.direction}|${value.datatype.value}`
+    return JSON.stringify([
+      'L',
+      value.value,
+      value.language.toLowerCase(),
+      value.direction,
+      value.datatype.value,
+    ])
   }
-  return `T:${colorTerm(value.subject, self, colors)}|${colorTerm(value.predicate, self, colors)}|${
-    colorTerm(value.object, self, colors)
-  }`
+  return JSON.stringify([
+    'T',
+    colorTerm(value.subject, self, colors),
+    colorTerm(value.predicate, self, colors),
+    colorTerm(value.object, self, colors),
+  ])
 }
 
 function partitions(
@@ -229,9 +245,12 @@ function mappedKeys(quads: readonly Quad[], map: ReadonlyMap<string, string>): s
 }
 
 function mapQuad(value: Quad, map: ReadonlyMap<string, string>): string {
-  return `Q${mapTerm(value.subject, map)}|${mapTerm(value.predicate, map)}|${
-    mapTerm(value.object, map)
-  }|${mapTerm(value.graph, map)}`
+  return JSON.stringify([
+    mapTerm(value.subject, map),
+    mapTerm(value.predicate, map),
+    mapTerm(value.object, map),
+    mapTerm(value.graph, map),
+  ])
 }
 
 function mapTerm(value: TermType, map: ReadonlyMap<string, string>): string {
@@ -240,9 +259,25 @@ function mapTerm(value: TermType, map: ReadonlyMap<string, string>): string {
   if (value.termType === 'Variable') return `V:${value.value}`
   if (value.termType === 'DefaultGraph') return 'D:'
   if (value.termType === 'Literal') {
-    return `L:${value.value}|${value.language.toLowerCase()}|${value.direction}|${value.datatype.value}`
+    return JSON.stringify([
+      'L',
+      value.value,
+      value.language.toLowerCase(),
+      value.direction,
+      value.datatype.value,
+    ])
   }
-  return `T:${mapTerm(value.subject, map)}|${mapTerm(value.predicate, map)}|${
-    mapTerm(value.object, map)
-  }`
+  return JSON.stringify([
+    'T',
+    mapTerm(value.subject, map),
+    mapTerm(value.predicate, map),
+    mapTerm(value.object, map),
+  ])
+}
+
+/** Collision-free term tuples prevent literal and IRI punctuation from becoming oracle separators. */
+function unique(values: readonly Quad[]): Quad[] {
+  const entries = new Map<string, Quad>()
+  for (const value of values) entries.set(mapQuad(value, new Map()), value)
+  return [...entries.values()]
 }

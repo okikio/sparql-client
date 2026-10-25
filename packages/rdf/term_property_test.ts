@@ -10,6 +10,7 @@ describe('RDF term properties', () => {
       const right = namedNode(`urn:a:${encodeURIComponent(b)}`)
       expect(left.equals(left)).toBe(true)
       expect(left.equals(right)).toBe(right.equals(left))
+      expect(left.equals(right)).toBe(a === b)
     }))
   })
 

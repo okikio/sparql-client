@@ -71,26 +71,40 @@ const scales = Deno.env.get('BENCH_LARGE') === '1'
   ? [100, 10_000, 100_000, 1_000_000]
   : [100, 10_000, 100_000]
 const chunkSizes = [64, 1024, 4096, 65_536] as const
+/** Workspace tasks isolate each matrix cell so completed fixtures can be reclaimed. */
+const selectedFormat = Deno.env.get('BENCH_PARSE_FORMAT')
+const selectedCount = Deno.env.get('BENCH_PARSE_COUNT')
+if (selectedFormat !== undefined && !formats.some((value) => value.name === selectedFormat)) {
+  throw new Error('Unknown BENCH_PARSE_FORMAT.')
+}
+if (selectedCount !== undefined && !scales.includes(Number(selectedCount))) {
+  throw new Error('Unknown BENCH_PARSE_COUNT.')
+}
 
 for (const format of formats) {
+  if (selectedFormat !== undefined && format.name !== selectedFormat) continue
   for (const count of scales) {
+    if (selectedCount !== undefined && count !== Number(selectedCount)) continue
     const text = format.text(count)
-    const expected = await collect(format.parse(text))
-    const digest = keys(expected)
-    const n3 = new N3Parser({ format: format.n3 }).parse(text)
-    const oxigraph = oxigraphParse(text, { format: format.oxigraph })
-    if (keys(n3) !== digest) throw new Error(`${format.name} N3 oracle differs at ${count} quads.`)
-    if (!Array.isArray(oxigraph) || keys(oxigraph) !== digest) {
+    const digest = await nativeKey(format.parse(text))
+    const n3 = n3Key(format, text, count)
+    if (n3.digest !== digest) {
+      throw new Error(`${format.name} N3 oracle differs at ${count} quads.`)
+    }
+    if (oxigraphKey(format, text) !== digest) {
       throw new Error(`${format.name} Oxigraph oracle differs at ${count} quads.`)
     }
     const chunks = new Map(chunkSizes.map((size) => [size, split(text, size)] as const))
     const random = hostile(text, 0x20260817)
+    if (await first(format.parse(chunks.get(4096)!)) !== n3.first) {
+      throw new Error(`${format.name} independent first-result oracle differs.`)
+    }
     for (const [size, source] of chunks) {
-      if (keys(await collect(format.parse(source))) !== digest) {
+      if (await nativeKey(format.parse(source)) !== digest) {
         throw new Error(`${format.name} ${size}-byte chunk oracle differs.`)
       }
     }
-    if (keys(await collect(format.parse(random))) !== digest) {
+    if (await nativeKey(format.parse(random)) !== digest) {
       throw new Error(`${format.name} hostile chunk oracle differs.`)
     }
 
@@ -103,10 +117,7 @@ for (const format of formats) {
         'N3 whole',
         () => do_not_optimize(new N3Parser({ format: format.n3 }).parse(text).length),
       ).gc('inner')
-      bench('Oxigraph whole', () => {
-        const values = oxigraphParse(text, { format: format.oxigraph })
-        do_not_optimize(Array.isArray(values) ? values.length : 0)
-      }).gc('inner')
+      bench('Oxigraph whole', () => do_not_optimize(oxigraphCount(format, text))).gc('inner')
       for (const size of chunkSizes) {
         const source = chunks.get(size)!
         bench(
@@ -128,6 +139,24 @@ for (const format of formats) {
 
 await report()
 
+/** Materialized oracle arrays die with this activation before another processor starts. */
+async function nativeKey(source: AsyncIterable<Quad>): Promise<string> {
+  return keys(await collect(source))
+}
+/** Keeps the independent N3 materialization out of long-lived benchmark closures. */
+function n3Key(format: FormatType, text: string, count: number): { digest: string; first: string } {
+  const values = new N3Parser({ format: format.n3 }).parse(text)
+  if (values.length !== count) throw new Error('Independent parser fixture count differs.')
+  const initial = quadKey(values[0])
+  return { digest: keys(values), first: initial }
+}
+/** Keeps the independent Wasm materialization out of long-lived benchmark closures. */
+function oxigraphKey(format: FormatType, text: string): string {
+  const values = oxigraphParse(text, { format: format.oxigraph })
+  if (!Array.isArray(values)) throw new Error('Oxigraph returned a non-array parser result.')
+  return keys(values)
+}
+
 async function collect(source: AsyncIterable<Quad>): Promise<Quad[]> {
   const output: Quad[] = []
   for await (const value of source) output.push(value)
@@ -138,7 +167,8 @@ async function first(source: AsyncIterable<Quad>): Promise<string> {
   const iterator = source[Symbol.asyncIterator]()
   try {
     const value = await iterator.next()
-    return value.done ? '' : key(value.value)
+    if (value.done) throw new Error('Nonempty first-result fixture yielded no quad.')
+    return quadKey(value.value)
   } finally {
     await iterator.return?.()
   }
@@ -165,6 +195,44 @@ function hostile(value: string, seed: number): string[] {
   return output
 }
 
+/** Releases only temporary competitor wrappers owned by this benchmark, never the engine. */
+function release(value: unknown): void {
+  if (
+    typeof value === 'object' && value !== null && 'free' in value &&
+    typeof value.free === 'function'
+  ) {
+    value.free()
+  }
+}
+
+/** Counts and retires a complete Wasm result; garbage collection need not schedule finalizers first. */
+function oxigraphCount(format: FormatType, text: string): number {
+  const values = oxigraphParse(text, { format: format.oxigraph })
+  if (!Array.isArray(values)) throw new Error('Oxigraph returned a non-array parser result.')
+  try {
+    return values.length
+  } finally {
+    for (const value of values) release(value)
+  }
+}
+
+/** Complete first-result identity uses the same semantic fields as the full preflight. */
+function quadKey(
+  value: {
+    readonly subject: unknown
+    readonly predicate: unknown
+    readonly object: unknown
+    readonly graph: unknown
+  },
+): string {
+  return JSON.stringify([
+    key(value.subject),
+    key(value.predicate),
+    key(value.object),
+    key(value.graph),
+  ])
+}
+
 function keys(
   values: Iterable<
     {
@@ -175,9 +243,13 @@ function keys(
     }
   >,
 ): string {
-  return [...values].map((value) =>
-    `${key(value.subject)} ${key(value.predicate)} ${key(value.object)} ${key(value.graph)}`
-  ).sort().join('\n')
+  return [...values].map((value) => {
+    try {
+      return quadKey(value)
+    } finally {
+      release(value)
+    }
+  }).sort().join('\n')
 }
 
 function key(value: unknown): string {
@@ -186,17 +258,28 @@ function key(value: unknown): string {
     termType?: string
     value?: string
     language?: string
+    direction?: string
     datatype?: unknown
     subject?: unknown
     predicate?: unknown
     object?: unknown
     graph?: unknown
   }
-  if (term.termType === 'Literal') {
-    return `L${term.value ?? ''}@${term.language ?? ''}^^${key(term.datatype)}`
+  try {
+    if (term.termType === 'Literal') {
+      return JSON.stringify([
+        'Literal',
+        term.value,
+        term.language?.toLowerCase() ?? '',
+        term.direction ?? '',
+        key(term.datatype),
+      ])
+    }
+    if (term.termType === 'Quad') {
+      return `Q(${key(term.subject)},${key(term.predicate)},${key(term.object)},${key(term.graph)})`
+    }
+    return `${term.termType ?? '?'}:${term.value ?? ''}`
+  } finally {
+    release(value)
   }
-  if (term.termType === 'Quad') {
-    return `Q(${key(term.subject)},${key(term.predicate)},${key(term.object)},${key(term.graph)})`
-  }
-  return `${term.termType ?? '?'}:${term.value ?? ''}`
 }

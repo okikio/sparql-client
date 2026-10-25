@@ -54,6 +54,8 @@ describe('@okikio/vocab runtime', () => {
     })
 
     const invalid = await left['~standard'].validate({ '@type': 'Left', left: 'ok', right: 'bad' })
-    expect('issues' in invalid).toBe(true)
+    expect(invalid).toMatchObject({ issues: [{ path: ['right', 0] }] })
+    const value = { '@type': 'Left', left: 'ok', right: 1 }
+    expect(await left['~standard'].validate(value)).toEqual({ value })
   })
 })

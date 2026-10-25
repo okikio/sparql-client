@@ -718,7 +718,7 @@ export class UpdateBuilder {
  * templates, insert templates, and where patterns. Call done() when finished
  * to return to the main UpdateBuilder.
  */
-class ModifyBuilder {
+export class ModifyBuilder {
   /** Shared update-document state used while constructing a MODIFY operation. */
   private readonly updateState: UpdateStateType
   /** DELETE template patterns accumulated for the current MODIFY builder. */

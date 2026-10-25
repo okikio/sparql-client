@@ -78,7 +78,7 @@ export class Dataset implements Iterable<Quad> {
     /** Abort signal checked before and during this operation. */
     readonly signal?: AbortSignal
   } = {}): Promise<this> {
-    for await (const quad of iterate(source)) {
+    for await (const quad of iterate(source, options)) {
       if (options.signal?.aborted) {
         throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
       }

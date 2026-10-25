@@ -1,6 +1,7 @@
 /** Native RDF 1.1/1.2 XML parsing over the package-owned range-first markup parser. @module */
+import { resolve as resolveReference } from '../iri.ts'
 import { blankNode, defaultGraph, literal, namedNode, quad, triple } from '../factory.ts'
-import { attr, type MarkupElementType, parseMarkup, textContent } from '../markup.ts'
+import { type MarkupElementType, parseMarkup, textContent } from '../markup.ts'
 import {
   type GraphTermType,
   type ObjectTermType,
@@ -55,7 +56,8 @@ export interface ParseOptionsType {
   /** Permit repeated rdf:ID/base pairs. */ readonly allowDuplicateRdfIds?: boolean
   /** Validate generated IRIs. */ readonly validateIri?: boolean
   /** Accept unknown rdf:version values. */ readonly parseUnsupportedVersions?: boolean
-  /** Media-type RDF/XML version. */ readonly version?: '1.1' | '1.2-basic' | '1.2'
+  /** Media-type RDF/XML version; defaults to 1.1 unless the document declares rdf:version. */
+  readonly version?: '1.1' | '1.2-basic' | '1.2'
   /** Maximum decoded source bytes. */ readonly maxBytes?: number
   /** Maximum markup nodes. */ readonly maxNodes?: number
   /** Maximum nesting depth. */ readonly maxDepth?: number
@@ -103,11 +105,12 @@ export async function* parse(
     throw new SyntaxError('RDF/XML document must contain one document element.')
   }
   const root = roots[0]!
-  const rootContext = context(root, {
-    ns: new Map([['rdf', RDF_NS], ['xml', XML_NS], ['its', ITS_NS]]),
+  const parentContext: ContextType = {
+    ns: new Map([['xml', XML_NS]]),
     ...(options.base ? { base: options.base } : {}),
-    version: options.version ?? '1.2',
-  })
+    version: options.version ?? '1.1',
+  }
+  const rootContext = context(root, parentContext)
   const rootName = expandName(root.name, rootContext)
   const state: StateType = {
     graph: options.graph ?? defaultGraph(),
@@ -120,13 +123,13 @@ export async function* parse(
     ...(options.signal ? { signal: options.signal } : {}),
   }
   if (rootName === `${RDF_NS}RDF`) {
-    const version = attr(root, 'rdf:version')
+    const version = syntax(root, rootContext, 'rdf:version')
     if (
       version && !['1.1', '1.2-basic', '1.2'].includes(version) &&
       !(options.parseUnsupportedVersions ?? false)
     ) throw new SyntaxError(`Unsupported rdf:version '${version}'.`)
     for (const child of children(root)) node(child, rootContext, state)
-  } else node(root, rootContext, state)
+  } else node(root, parentContext, state)
   for (const value of state.quads) {
     throwIfAborted(options.signal)
     yield value
@@ -141,9 +144,9 @@ export async function* parse(
   const ctx = context(element, parent)
   const type = expandName(element.name, ctx)
   assertNodeIri(type)
-  const about = attr(element, 'rdf:about'),
-    id = attr(element, 'rdf:ID'),
-    nodeId = attr(element, 'rdf:nodeID')
+  const about = syntax(element, ctx, 'rdf:about'),
+    id = syntax(element, ctx, 'rdf:ID'),
+    nodeId = syntax(element, ctx, 'rdf:nodeID')
   if ([about, id, nodeId].filter((v) => v !== undefined).length > 1) {
     throw new SyntaxError('RDF/XML node element cannot combine rdf:about, rdf:ID, and rdf:nodeID.')
   }
@@ -184,13 +187,13 @@ export async function* parse(
 ): void {
   assertPropertyIri(predicate)
   const ctx = context(element, parent),
-    parseType = attr(element, 'rdf:parseType'),
-    resourceAttr = attr(element, 'rdf:resource'),
-    nodeId = attr(element, 'rdf:nodeID'),
-    datatype = attr(element, 'rdf:datatype'),
+    parseType = syntax(element, ctx, 'rdf:parseType'),
+    resourceAttr = syntax(element, ctx, 'rdf:resource'),
+    nodeId = syntax(element, ctx, 'rdf:nodeID'),
+    datatype = syntax(element, ctx, 'rdf:datatype'),
     kids = children(element),
     attrs = propertyAttributes(element, ctx)
-  validatePropertyShape(element, parseType, resourceAttr, nodeId, datatype, kids, attrs)
+  validatePropertyShape(element, ctx, parseType, resourceAttr, nodeId, datatype, kids, attrs)
   let object: ObjectTermType
   if (parseType === 'Resource') {
     const b = blankNode()
@@ -207,6 +210,7 @@ export async function* parse(
   } else if (parseType === 'Literal') {
     object = literal(xmlChildren(element, state), namedNode(XML_LITERAL))
   } else if (parseType === 'Triple') {
+    if (ctx.version === '1.1') return
     if (kids.length !== 1) {
       throw new SyntaxError('rdf:parseType="Triple" requires exactly one node element.')
     }
@@ -242,7 +246,7 @@ export async function* parse(
   }
   emit(state, subject, predicate, object)
   const statement = quad(subject, namedNode(predicate), object)
-  const id = attr(element, 'rdf:ID')
+  const id = syntax(element, ctx, 'rdf:ID')
   if (id !== undefined) {
     const reifier = namedNode(idIri(id, ctx, state))
     emit(state, reifier, RDF.type, namedNode(RDF.statement))
@@ -250,8 +254,8 @@ export async function* parse(
     emit(state, reifier, RDF.predicate, namedNode(predicate))
     emit(state, reifier, RDF.object, object)
   }
-  const annotation = attr(element, 'rdf:annotation'),
-    annotationNode = attr(element, 'rdf:annotationNodeID')
+  const annotation = syntax(element, ctx, 'rdf:annotation'),
+    annotationNode = syntax(element, ctx, 'rdf:annotationNodeID')
   if (annotation !== undefined || annotationNode !== undefined) {
     const reifier = annotation !== undefined
       ? namedNode(resolveIri(annotation, ctx.base, state))
@@ -281,13 +285,37 @@ export async function* parse(
   const ns = new Map(parent.ns)
   for (const a of element.attributes) {
     if (a.name === 'xmlns') ns.set('', a.value)
-    else if (a.name.startsWith('xmlns:')) ns.set(a.name.slice(6), a.value)
+    else if (a.name.startsWith('xmlns:')) {
+      const prefix = a.name.slice(6)
+      if (!a.value || !NCNAME.test(prefix) || prefix === 'xmlns') {
+        throw new SyntaxError(`Invalid XML namespace declaration '${a.name}'.`)
+      }
+      if ((prefix === 'xml') !== (a.value === XML_NS)) {
+        throw new SyntaxError('The xml prefix and namespace must remain bound to each other.')
+      }
+      ns.set(prefix, a.value)
+    }
+    if (
+      (a.name === 'xmlns' || a.name.startsWith('xmlns:')) &&
+      (a.value === 'http://www.w3.org/2000/xmlns/' || (a.name === 'xmlns' && a.value === XML_NS))
+    ) {
+      throw new SyntaxError('Reserved XML namespace cannot be rebound.')
+    }
   }
-  const baseRaw = attr(element, 'xml:base'),
+  // Namespace identity also governs uniqueness; two aliases cannot disguise
+  // duplicate attributes. See Namespaces in XML 1.0 sections 5 and 6.3.
+  const names = new Set<string>()
+  for (const attribute of element.attributes) {
+    if (attribute.name === 'xmlns' || attribute.name.startsWith('xmlns:')) continue
+    const name = attributeIri(attribute.name, { ns }) ?? attribute.name
+    if (names.has(name)) throw new SyntaxError(`Duplicate XML attribute '${name}'.`)
+    names.add(name)
+  }
+  const baseRaw = syntax(element, { ns }, 'xml:base'),
     base = baseRaw === undefined ? parent.base : resolve(baseRaw, parent.base),
-    langRaw = attr(element, 'xml:lang'),
-    dirRaw = attr(element, 'its:dir'),
-    version = attr(element, 'rdf:version') as ContextType['version'] | undefined
+    langRaw = syntax(element, { ns }, 'xml:lang'),
+    dirRaw = syntax(element, { ns }, 'its:dir'),
+    version = syntax(element, { ns }, 'rdf:version') as ContextType['version'] | undefined
   return {
     ns,
     ...(base ? { base } : {}),
@@ -320,13 +348,41 @@ export async function* parse(
 }
 /** Expands a non-xmlns attribute QName. */ function attributeIri(
   name: string,
-  ctx: ContextType,
+  ctx: Pick<ContextType, 'ns'>,
 ): string | undefined {
   if (name === 'xmlns' || name.startsWith('xmlns:')) return undefined
   const colon = name.indexOf(':')
   if (colon < 0) return undefined
+  if (!NCNAME.test(name.slice(0, colon)) || !NCNAME.test(name.slice(colon + 1))) {
+    throw new SyntaxError(`Invalid XML attribute QName '${name}'.`)
+  }
   const base = ctx.ns.get(name.slice(0, colon))
-  return base ? `${base}${name.slice(colon + 1)}` : undefined
+  if (!base) throw new SyntaxError(`Unknown XML namespace prefix '${name.slice(0, colon)}'.`)
+  return `${base}${name.slice(colon + 1)}`
+}
+/**
+ * Reads an RDF/XML syntax attribute by expanded namespace identity.
+ *
+ * Prefix spelling belongs to the document. An alias such as `r:about` therefore
+ * has exactly the same meaning as `rdf:about`, and rebinding `rdf` cannot turn a
+ * different namespace into RDF syntax. XML default namespaces never apply to attributes.
+ */
+function syntax(
+  element: MarkupElementType,
+  ctx: Pick<ContextType, 'ns'>,
+  name: string,
+): string | undefined {
+  const colon = name.indexOf(':')
+  const prefix = name.slice(0, colon)
+  const namespace = prefix === 'rdf' ? RDF_NS : prefix === 'xml' ? XML_NS : ITS_NS
+  const iri = `${namespace}${name.slice(colon + 1)}`
+  let value: string | undefined
+  for (const attribute of element.attributes) {
+    if (attributeIri(attribute.name, ctx) !== iri) continue
+    if (value !== undefined) throw new SyntaxError(`Duplicate XML attribute '${iri}'.`)
+    value = attribute.value
+  }
+  return value
 }
 /**
  * Returns RDF property attributes while excluding XML/RDF syntax attributes.
@@ -355,7 +411,8 @@ function propertyAttributes(
 
 /** Tests XML/ITS attributes that alter parse context instead of creating RDF properties. */
 function contextAttribute(iri: string): boolean {
-  return iri === `${XML_NS}lang` || iri === `${XML_NS}base` || iri === `${ITS_NS}dir` ||
+  return iri.startsWith(XML_NS) || iri === `${XML_NS}lang` || iri === `${XML_NS}base` ||
+    iri === `${ITS_NS}dir` ||
     iri === ITS_VERSION
 }
 
@@ -393,6 +450,7 @@ function emitPropertyAttributes(
  */
 function validatePropertyShape(
   element: MarkupElementType,
+  ctx: ContextType,
   parseType: string | undefined,
   resource: string | undefined,
   nodeId: string | undefined,
@@ -406,8 +464,8 @@ function validatePropertyShape(
       'RDF/XML property element cannot combine rdf:resource, rdf:nodeID, and rdf:datatype.',
     )
   }
-  const annotation = attr(element, 'rdf:annotation')
-  const annotationNode = attr(element, 'rdf:annotationNodeID')
+  const annotation = syntax(element, ctx, 'rdf:annotation')
+  const annotationNode = syntax(element, ctx, 'rdf:annotationNodeID')
   if (annotation !== undefined && annotationNode !== undefined) {
     throw new SyntaxError(
       'RDF/XML property element cannot combine rdf:annotation and rdf:annotationNodeID.',
@@ -487,7 +545,7 @@ function validatePropertyShape(
 }
 /** Resolves an IRI reference. */ function resolve(value: string, base?: string) {
   try {
-    return base ? new URL(value, base).href : new URL(value).href
+    return resolveReference(value, base)
   } catch {
     return undefined
   }
@@ -514,7 +572,7 @@ function validatePropertyShape(
   if (!NCNAME.test(id)) throw new SyntaxError(`Invalid rdf:nodeID '${id}'.`)
   let value = state.nodes.get(id)
   if (!value) {
-    value = blankNode(id)
+    value = blankNode()
     state.nodes.set(id, value)
   }
   return value
@@ -526,7 +584,7 @@ function validatePropertyShape(
   return ctx.language
     ? literal(value, {
       language: ctx.language,
-      ...(ctx.direction ? { direction: ctx.direction } : {}),
+      ...(ctx.direction && ctx.version !== '1.1' ? { direction: ctx.direction } : {}),
     })
     : literal(value)
 }
@@ -544,4 +602,5 @@ function validatePropertyShape(
 ) {
   if (!element.children.length) return ''
   return state.text.slice(element.children[0]!.start, element.children.at(-1)!.end)
+    .replace(/<([A-Za-z_][A-Za-z0-9_.:-]*)([^<>]*?)\s*\/>/gu, '<$1$2></$1>')
 }
